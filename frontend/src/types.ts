@@ -1,0 +1,39 @@
+export type DeckType = "fibonacci" | "tshirt";
+
+export interface Player {
+  id: string;
+  nickname: string;
+  is_facilitator: boolean;
+  is_spectator: boolean;
+  connected: boolean;
+  disconnected_at: string | null;
+}
+
+export interface Issue {
+  id: string;
+  title: string;
+  description: string;
+  final_estimate: string | null;
+}
+
+export interface RoomState {
+  id: string;
+  name: string;
+  deck_type: DeckType;
+  deck: string[];
+  facilitator_id: string | null;
+  players: Player[];
+  issues: Issue[];
+  current_issue_id: string | null;
+  votes: Record<string, string>; // value либо "hidden"
+  voted_player_ids: string[];
+  revealed: boolean;
+}
+
+export interface Stats {
+  average: number | null;
+  median: number | null;
+  distribution: Record<string, number>;
+  consensus: boolean;
+  total_votes: number;
+}
