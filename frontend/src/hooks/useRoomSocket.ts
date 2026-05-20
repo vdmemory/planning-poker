@@ -37,12 +37,24 @@ export function useRoomSocket({
   const shouldReconnectRef = useRef(true);
 
   const connect = useCallback(() => {
-    const proto = window.location.protocol === "https:" ? "wss" : "ws";
+    // В dev (без VITE_API_URL) — ходим на тот же хост через Vite-прокси.
+    // В prod — VITE_API_URL указывает на Railway-бэк, например https://planning-poker-back.up.railway.app
+    const apiBase = import.meta.env.VITE_API_URL || "";
+    let wsHost: string;
+    let wsProto: string;
+    if (apiBase) {
+      const apiUrl = new URL(apiBase);
+      wsHost = apiUrl.host;
+      wsProto = apiUrl.protocol === "https:" ? "wss" : "ws";
+    } else {
+      wsHost = window.location.host;
+      wsProto = window.location.protocol === "https:" ? "wss" : "ws";
+    }
     const params = new URLSearchParams({
       player_id: myPlayerId || "",
       nickname,
     });
-    const url = `${proto}://${window.location.host}/ws/${roomId}?${params}`;
+    const url = `${wsProto}://${wsHost}/ws/${roomId}?${params}`;
     const ws = new WebSocket(url);
     wsRef.current = ws;
 

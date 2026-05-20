@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -25,9 +26,14 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Planning Poker", lifespan=lifespan)
 
+# В проде задаём CORS_ORIGINS="https://your-app.vercel.app,https://your-domain.com"
+# В деве переменной нет — разрешаем всё.
+cors_env = os.getenv("CORS_ORIGINS", "*")
+allow_origins = ["*"] if cors_env == "*" else [o.strip() for o in cors_env.split(",")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # для внутреннего инструмента ок; для прода — конкретные домены
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
