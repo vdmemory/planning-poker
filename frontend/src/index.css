@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --c-bg: #1a2332;
+  --c-panel: #243447;
+  --c-panel2: #2a3a52;
+  --c-border: #3a4f6a;
+  --c-border-hi: #4a6a8a;
+  --c-text: #ffffff;
+  --c-muted: #94a3b8;
+  --c-dim: #64748b;
+}
+
+html.light {
+  --c-bg: #f0f4f8;
+  --c-panel: #ffffff;
+  --c-panel2: #f1f5f9;
+  --c-border: #e2e8f0;
+  --c-border-hi: #cbd5e1;
+  --c-text: #1e293b;
+  --c-muted: #64748b;
+  --c-dim: #94a3b8;
+}
+
+body {
+  background-color: var(--c-bg);
+  color: var(--c-text);
+  min-height: 100vh;
+  transition: background-color 0.2s, color 0.2s;
+}
