@@ -14,6 +14,7 @@ interface UseRoomSocketResult {
   connected: boolean;
   send: (msg: object) => void;
   error: string | null;
+  countdown: number | null;
 }
 
 export function useRoomSocket({
@@ -26,11 +27,11 @@ export function useRoomSocket({
   const [myPlayerId, setMyPlayerId] = useState<string | null>(playerId);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [countdown, setCountdown] = useState<number | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
+  const countdownTimerRef = useRef<number | null>(null);
   const shouldReconnectRef = useRef(true);
-  // Ref чтобы connect всегда читал актуальный player_id без пересоздания замыкания.
-  // Без этого при реконнекте использовался бы старый null и создавался дублирующий игрок.
   const myPlayerIdRef = useRef<string | null>(playerId);
 
   const connect = useCallback(() => {
@@ -68,6 +69,22 @@ export function useRoomSocket({
         setState(msg.state);
         if (msg.stats) setStats(msg.stats);
         if (!msg.state.revealed) setStats(null);
+      } else if (msg.type === "countdown") {
+        // Start client-side countdown display
+        if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+        const total = msg.seconds as number;
+        setCountdown(total);
+        let remaining = total;
+        countdownTimerRef.current = window.setInterval(() => {
+          remaining -= 1;
+          if (remaining > 0) {
+            setCountdown(remaining);
+          } else {
+            clearInterval(countdownTimerRef.current!);
+            countdownTimerRef.current = null;
+            setCountdown(null);
+          }
+        }, 1000);
       } else if (msg.type === "error") {
         setError(msg.message);
       }
@@ -90,7 +107,6 @@ export function useRoomSocket({
     };
 
     ws.onerror = () => {};
-  // myPlayerId намеренно убран из deps — читается через ref, чтобы onclose всегда реконнектился с актуальным id
   }, [roomId, nickname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -99,6 +115,7 @@ export function useRoomSocket({
     return () => {
       shouldReconnectRef.current = false;
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
       wsRef.current?.close();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -110,5 +127,5 @@ export function useRoomSocket({
     }
   }, []);
 
-  return { state, stats, myPlayerId, connected, send, error };
+  return { state, stats, myPlayerId, connected, send, error, countdown };
 }

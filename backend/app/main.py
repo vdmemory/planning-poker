@@ -145,6 +145,12 @@ async def handle_message(room_id: str, player_id: str, data: dict) -> None:
             service.delete_all_issues(room_id, player_id)
         elif msg_type == "reorder_issue":
             service.reorder_issue(room_id, player_id, data["issue_id"], data["direction"])
+        elif msg_type == "update_avatar_color":
+            service.update_avatar_color(room_id, player_id, data["color"])
+        elif msg_type == "countdown":
+            # Relay countdown to all clients so everyone sees the animation
+            await manager.broadcast(room_id, {"type": "countdown", "seconds": data.get("seconds", 3)})
+            return
         else:
             await manager.send_to(
                 room_id, player_id, {"type": "error", "message": f"Unknown type: {msg_type}"}

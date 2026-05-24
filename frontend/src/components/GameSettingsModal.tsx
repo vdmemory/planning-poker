@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { RoomState, GameSettings } from "../types";
 
 interface Props {
@@ -70,15 +70,15 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
           {/* Voting system */}
           <div>
             <label className="text-xs text-slate-400 block mb-1">Voting system</label>
-            <select
-              className="w-full bg-[#1a2332] border border-[#4a6a8a] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 appearance-none disabled:opacity-60"
+            <CustomSelect
               value={deckType}
-              onChange={(e) => setDeckType(e.target.value as "fibonacci" | "tshirt")}
+              onChange={(v) => setDeckType(v as "fibonacci" | "tshirt")}
               disabled={!isFacilitator}
-            >
-              <option value="fibonacci">Fibonacci ( 0, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, ?, ☕ )</option>
-              <option value="tshirt">T-shirt ( XS, S, M, L, XL, XXL, ? )</option>
-            </select>
+              options={[
+                { value: "fibonacci", label: "Fibonacci ( 0, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, ?, ☕ )" },
+                { value: "tshirt", label: "T-shirt ( XS, S, M, L, XL, XXL, ? )" },
+              ]}
+            />
           </div>
 
           <div className="border-t border-[#3a4f6a]" />
@@ -86,27 +86,27 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
           {/* Who can reveal */}
           <div>
             <label className="text-xs text-slate-400 block mb-1">Who can reveal cards</label>
-            <select
-              className="w-full bg-[#1a2332] border border-[#4a6a8a] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 appearance-none"
+            <CustomSelect
               value={localSettings.whoCanReveal}
-              onChange={(e) => setLocalSettings((p) => ({ ...p, whoCanReveal: e.target.value as "facilitator" | "everyone" }))}
-            >
-              <option value="facilitator">Facilitator only</option>
-              <option value="everyone">Everyone</option>
-            </select>
+              onChange={(v) => setLocalSettings((p) => ({ ...p, whoCanReveal: v as "facilitator" | "everyone" }))}
+              options={[
+                { value: "facilitator", label: "Facilitator only" },
+                { value: "everyone", label: "Everyone" },
+              ]}
+            />
           </div>
 
           {/* Who can manage issues */}
           <div>
             <label className="text-xs text-slate-400 block mb-1">Who can manage issues</label>
-            <select
-              className="w-full bg-[#1a2332] border border-[#4a6a8a] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 appearance-none"
+            <CustomSelect
               value={localSettings.whoCanManageIssues}
-              onChange={(e) => setLocalSettings((p) => ({ ...p, whoCanManageIssues: e.target.value as "facilitator" | "everyone" }))}
-            >
-              <option value="facilitator">Facilitator only</option>
-              <option value="everyone">Everyone</option>
-            </select>
+              onChange={(v) => setLocalSettings((p) => ({ ...p, whoCanManageIssues: v as "facilitator" | "everyone" }))}
+              options={[
+                { value: "facilitator", label: "Facilitator only" },
+                { value: "everyone", label: "Everyone" },
+              ]}
+            />
           </div>
 
           <div className="border-t border-[#3a4f6a]" />
@@ -147,6 +147,72 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function CustomSelect({
+  value,
+  onChange,
+  options,
+  disabled = false,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const selected = options.find((o) => o.value === value);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => !disabled && setOpen((v) => !v)}
+        className={`w-full flex items-center justify-between bg-[#1a2332] border rounded-lg px-3 py-2.5 text-sm text-white transition-colors text-left ${
+          open ? "border-blue-500" : "border-[#4a6a8a]"
+        } ${disabled ? "opacity-60 cursor-not-allowed" : "hover:border-[#4a6a8a] cursor-pointer"}`}
+      >
+        <span className="truncate">{selected?.label ?? value}</span>
+        <svg
+          width="16" height="16" viewBox="0 0 16 16" fill="currentColor"
+          className={`shrink-0 ml-2 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}
+        >
+          <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 right-0 mt-1 bg-[#243447] border border-[#3a4f6a] rounded-xl shadow-2xl z-50 overflow-hidden">
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => { onChange(opt.value); setOpen(false); }}
+              className={`w-full flex items-center justify-between px-4 py-2.5 text-sm text-left transition-colors hover:bg-[#2a3a52] ${
+                opt.value === value ? "text-blue-400" : "text-slate-200"
+              }`}
+            >
+              <span>{opt.label}</span>
+              {opt.value === value && (
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" className="text-blue-400 shrink-0">
+                  <path d="M2 7l4 4 6-6" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round"/>
+                </svg>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

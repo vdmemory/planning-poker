@@ -30,8 +30,8 @@ class Player(BaseModel):
     is_facilitator: bool = False
     is_spectator: bool = False
     connected: bool = True
-    # Время дисконнекта; если None — игрок онлайн. Используется для cleanup через 30 сек.
     disconnected_at: Optional[datetime] = None
+    avatar_color: str = "#3b82f6"
 
 
 class Issue(BaseModel):

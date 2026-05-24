@@ -9,12 +9,11 @@ import { ProfileMenu } from "../components/ProfileMenu";
 import type { Player, RoomState, Stats, GameSettings } from "../types";
 import QRCode from "qrcode";
 
-// Avatar colors stored per-user
 const AVATAR_COLORS = ["#3b82f6","#8b5cf6","#ec4899","#ef4444","#f97316","#eab308","#22c55e","#06b6d4"];
 function getAvatarColor() {
   return localStorage.getItem("pp:avatar-color") || AVATAR_COLORS[0];
 }
-function setAvatarColor(c: string) {
+function saveAvatarColor(c: string) {
   localStorage.setItem("pp:avatar-color", c);
 }
 
@@ -25,7 +24,6 @@ export default function RoomPage() {
 
   const [nickname, setNickname] = useState(storedNick || "");
   const [isSpectator, setIsSpectator] = useState(false);
-  // Show join modal unless we already have a nickname stored
   const [joined, setJoined] = useState(!!storedNick);
 
   if (!joined) {
@@ -69,7 +67,6 @@ function JoinModal({
         <h2 className="text-xl font-bold mb-2 text-white">Choose your display name</h2>
         <p className="text-slate-400 text-sm mb-6">Room: {roomId}</p>
 
-        {/* Avatar preview */}
         <div className="flex justify-center mb-5">
           <div
             className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold text-white"
@@ -95,7 +92,6 @@ function JoinModal({
           />
         </div>
 
-        {/* Spectator toggle */}
         <label className="flex items-center gap-3 mb-6 cursor-pointer">
           <div className="relative">
             <input
@@ -143,7 +139,7 @@ function Room({
   storedPlayerId: string | null;
   isSpectator: boolean;
 }) {
-  const { state, stats, myPlayerId, connected, send, error } = useRoomSocket({
+  const { state, stats, myPlayerId, connected, send, error, countdown } = useRoomSocket({
     roomId,
     playerId: storedPlayerId,
     nickname,
@@ -156,22 +152,28 @@ function Room({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showGameSettings, setShowGameSettings] = useState(false);
-  const [countdown, setCountdown] = useState<number | null>(null);
   const [avatarColor, setAvatarColorState] = useState(getAvatarColor);
   const [currentNickname, setCurrentNickname] = useState(nickname);
   const prevRevealedRef = useRef(false);
-  const countdownRef = useRef<number | null>(null);
+  const avatarSyncedRef = useRef(false);
 
   // Reset localVote when a new round starts
   useEffect(() => {
     if (state) {
       if (prevRevealedRef.current && !state.revealed) {
         setLocalVote(null);
-        setCountdown(null);
       }
       prevRevealedRef.current = state.revealed;
     }
   }, [state?.revealed]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync avatar color to server on first connect
+  useEffect(() => {
+    if (myPlayerId && connected && !avatarSyncedRef.current) {
+      avatarSyncedRef.current = true;
+      send({ type: "update_avatar_color", color: getAvatarColor() });
+    }
+  }, [myPlayerId, connected]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-reveal when everyone voted
   useEffect(() => {
@@ -189,27 +191,18 @@ function Room({
 
   function triggerReveal() {
     if (settings.showCountdown) {
-      setCountdown(3);
-      let n = 3;
-      const tick = () => {
-        n--;
-        if (n > 0) {
-          setCountdown(n);
-          countdownRef.current = window.setTimeout(tick, 1000);
-        } else {
-          setCountdown(null);
-          send({ type: "reveal" });
-        }
-      };
-      countdownRef.current = window.setTimeout(tick, 1000);
+      // Broadcast countdown to all players, then reveal after 3 s
+      send({ type: "countdown", seconds: 3 });
+      window.setTimeout(() => send({ type: "reveal" }), 3000);
     } else {
       send({ type: "reveal" });
     }
   }
 
   function handleAvatarColorChange(color: string) {
-    setAvatarColor(color);
+    saveAvatarColor(color);
     setAvatarColorState(color);
+    send({ type: "update_avatar_color", color });
   }
 
   function handleNicknameChange(name: string) {
@@ -253,35 +246,35 @@ function Room({
   return (
     <div className="min-h-screen flex flex-col bg-[#1a2332] text-white">
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-3 border-b border-[#2a3a52] shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-base shrink-0">
+      <header className="flex items-center justify-between px-3 sm:px-6 py-3 border-b border-[#2a3a52] shrink-0 gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 bg-blue-600 rounded-full flex items-center justify-center text-sm shrink-0">
             🃏
           </div>
           <button
             onClick={() => setShowGameSettings(true)}
-            className="font-semibold text-white hover:text-blue-300 transition-colors"
+            className="font-semibold text-white hover:text-blue-300 transition-colors truncate max-w-[120px] sm:max-w-none text-sm sm:text-base"
           >
             {state.name}
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className={`w-2 h-2 rounded-full ${connected ? "bg-green-500" : "bg-amber-500"}`} />
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <span className={`w-2 h-2 rounded-full shrink-0 ${connected ? "bg-green-500" : "bg-amber-500"}`} />
 
-          {/* Profile avatar — click to open profile menu */}
+          {/* Profile avatar */}
           <div className="relative">
             <button
               onClick={() => setShowProfileMenu((o) => !o)}
-              className="flex items-center gap-1.5 bg-[#243447] rounded-full px-3 py-1.5 hover:bg-[#2a3a52] transition-colors"
+              className="flex items-center gap-1.5 bg-[#243447] rounded-full px-2 sm:px-3 py-1.5 hover:bg-[#2a3a52] transition-colors"
             >
               <div
-                className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white"
+                className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
                 style={{ backgroundColor: avatarColor }}
               >
                 {(me?.nickname ?? currentNickname ?? "?")[0].toUpperCase()}
               </div>
-              <span className="text-sm text-slate-300">{me?.nickname ?? currentNickname}</span>
+              <span className="text-sm text-slate-300 hidden sm:block">{me?.nickname ?? currentNickname}</span>
             </button>
             {showProfileMenu && (
               <ProfileMenu
@@ -298,9 +291,17 @@ function Room({
 
           <button
             onClick={() => setShowInvite(true)}
-            className="flex items-center gap-2 border border-blue-500 text-blue-400 px-4 py-1.5 rounded-lg hover:bg-blue-500/10 text-sm font-medium transition-colors"
+            className="hidden sm:flex items-center gap-2 border border-blue-500 text-blue-400 px-4 py-1.5 rounded-lg hover:bg-blue-500/10 text-sm font-medium transition-colors"
           >
             👥 Invite players
+          </button>
+          {/* Mobile invite — icon only */}
+          <button
+            onClick={() => setShowInvite(true)}
+            className="sm:hidden p-2 rounded-lg border border-blue-500 text-blue-400 hover:bg-blue-500/10 transition-colors"
+            title="Invite players"
+          >
+            👥
           </button>
 
           <button
@@ -322,7 +323,7 @@ function Room({
 
       {/* Main */}
       <div className="flex flex-1 overflow-hidden">
-        <main className="flex-1 flex flex-col items-center p-6 gap-5 overflow-y-auto">
+        <main className="flex-1 flex flex-col items-center p-4 sm:p-6 gap-4 sm:gap-5 overflow-y-auto">
           {onlyMe && (
             <p className="text-slate-400 text-sm">
               Feeling lonely? 🤙{" "}
@@ -332,38 +333,70 @@ function Room({
             </p>
           )}
 
-          <ActionBox
-            state={state}
-            stats={stats}
-            isFacilitator={isFacilitator}
-            everyoneVoted={everyoneVoted}
-            countdown={countdown}
-            showAverage={settings.showAverage}
-            onReveal={triggerReveal}
-            onReset={() => send({ type: "reset" })}
-          />
+          {/* Current issue indicator */}
+          {currentIssue && (
+            <div className="w-full max-w-2xl bg-[#243447] rounded-xl px-4 py-3 flex items-center gap-3">
+              <span className="text-xs text-slate-500 shrink-0">
+                {state.issues.findIndex((i) => i.id === currentIssue.id) + 1}/{state.issues.length}
+              </span>
+              <span className="text-sm text-slate-200 truncate">{currentIssue.title}</span>
+              {currentIssue.final_estimate && (
+                <span className="ml-auto shrink-0 bg-blue-600/20 border border-blue-500/40 text-blue-300 text-xs font-bold px-2 py-0.5 rounded-lg">
+                  {currentIssue.final_estimate}
+                </span>
+              )}
+            </div>
+          )}
 
-          {/* Player cards */}
-          <div className="flex flex-wrap justify-center gap-8">
-            {state.players.map((player) => (
-              <PlayerCard
-                key={player.id}
-                player={player}
-                voted={state.voted_player_ids.includes(player.id)}
-                revealed={state.revealed}
-                cardValue={state.revealed ? state.votes[player.id] : null}
-                isFacilitator={player.id === state.facilitator_id}
-                avatarColor={player.id === myPlayerId ? avatarColor : undefined}
-              />
-            ))}
+          {/* Poker table (desktop) */}
+          <div className="hidden md:flex flex-col items-center w-full">
+            <PokerTable
+              state={state}
+              stats={stats}
+              isFacilitator={isFacilitator}
+              myPlayerId={myPlayerId}
+              avatarColor={avatarColor}
+              everyoneVoted={everyoneVoted}
+              countdown={countdown}
+              showAverage={settings.showAverage}
+              onReveal={triggerReveal}
+              onReset={() => send({ type: "reset" })}
+            />
           </div>
 
-          {/* Bottom: card picker or set estimate */}
+          {/* Mobile: ActionBox + player list */}
+          <div className="md:hidden w-full flex flex-col items-center gap-4">
+            <ActionBox
+              state={state}
+              stats={stats}
+              isFacilitator={isFacilitator}
+              everyoneVoted={everyoneVoted}
+              countdown={countdown}
+              showAverage={settings.showAverage}
+              onReveal={triggerReveal}
+              onReset={() => send({ type: "reset" })}
+            />
+            <div className="flex flex-wrap justify-center gap-4">
+              {state.players.map((player) => (
+                <PlayerCard
+                  key={player.id}
+                  player={player}
+                  voted={state.voted_player_ids.includes(player.id)}
+                  revealed={state.revealed}
+                  cardValue={state.revealed ? state.votes[player.id] : null}
+                  isFacilitator={player.id === state.facilitator_id}
+                  avatarColor={player.id === myPlayerId ? avatarColor : player.avatar_color}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Bottom: voting deck or set estimate */}
           <div className="mt-auto w-full pt-4">
             {!state.revealed && !me?.is_spectator && countdown === null && (
               <div className="text-center">
                 <p className="text-slate-400 text-sm mb-3">Choose your card 👇</p>
-                <div className="flex justify-center gap-2 flex-wrap">
+                <div className="flex gap-2 overflow-x-auto pb-2 pt-4 justify-start sm:justify-center px-2 sm:px-0">
                   {state.deck.map((value) => (
                     <VotingCard
                       key={value}
@@ -381,14 +414,14 @@ function Room({
             {state.revealed && isFacilitator && currentIssue && (
               <div className="text-center">
                 <p className="text-slate-400 text-sm mb-3">Set final estimate for this issue:</p>
-                <div className="flex justify-center gap-2 flex-wrap">
+                <div className="flex gap-2 overflow-x-auto pb-2 justify-start sm:justify-center px-2 sm:px-0">
                   {state.deck.map((v) => (
                     <button
                       key={v}
                       onClick={() =>
                         send({ type: "set_estimate", issue_id: currentIssue.id, estimate: v })
                       }
-                      className={`w-12 h-16 rounded-xl border-2 font-bold text-base transition-all ${
+                      className={`w-12 h-16 rounded-xl border-2 font-bold text-base transition-all shrink-0 ${
                         currentIssue.final_estimate === v
                           ? "bg-blue-600 border-blue-400 text-white"
                           : "bg-[#243447] border-[#3a4f6a] text-slate-300 hover:border-blue-500"
@@ -404,7 +437,7 @@ function Room({
         </main>
 
         {sidebarOpen && (
-          <aside className="w-80 border-l border-[#2a3a52] overflow-y-auto shrink-0">
+          <aside className="w-72 sm:w-80 border-l border-[#2a3a52] overflow-y-auto shrink-0">
             <IssueSidebar
               state={state}
               isFacilitator={isFacilitator}
@@ -432,6 +465,212 @@ function Room({
   );
 }
 
+// ─── Poker Table ─────────────────────────────────────────────────────────────
+
+function PokerTable({
+  state,
+  stats,
+  isFacilitator,
+  myPlayerId,
+  avatarColor,
+  everyoneVoted,
+  countdown,
+  showAverage,
+  onReveal,
+  onReset,
+}: {
+  state: RoomState;
+  stats: Stats | null;
+  isFacilitator: boolean;
+  myPlayerId: string;
+  avatarColor: string;
+  everyoneVoted: boolean;
+  countdown: number | null;
+  showAverage: boolean;
+  onReveal: () => void;
+  onReset: () => void;
+}) {
+  const players = state.players;
+  const n = players.length;
+
+  // Table oval dimensions (px)
+  const TW = 520;
+  const TH = 250;
+
+  // Gap from table edge to player card center
+  const GAP = 56;
+
+  // Orbit radii (center → player card center)
+  const ORX = TW / 2 + GAP;
+  const ORY = TH / 2 + GAP;
+
+  // Player card area size (w × h, including avatar + card + name)
+  const PW = 64;
+  const PH = 100;
+
+  // Container size
+  const CW = Math.round((ORX + PW / 2 + 8) * 2);
+  const CH = Math.round((ORY + PH / 2 + 8) * 2);
+  const CX = CW / 2;
+  const CY = CH / 2;
+
+  return (
+    <div className="relative mx-auto shrink-0" style={{ width: CW, height: CH }}>
+      {/* Felt oval */}
+      <div
+        className="absolute"
+        style={{
+          left: (CW - TW) / 2,
+          top: (CH - TH) / 2,
+          width: TW,
+          height: TH,
+          borderRadius: "50%",
+          background: "radial-gradient(ellipse at 42% 38%, #16a34a, #15803d, #14532d)",
+          border: "10px solid #92400e",
+          boxShadow:
+            "0 0 0 3px #78350f, inset 0 2px 10px rgba(255,255,255,0.08), inset 0 -6px 20px rgba(0,0,0,0.35), 0 12px 48px rgba(0,0,0,0.55)",
+        }}
+      >
+        {/* Center action area */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <TableCenter
+            state={state}
+            stats={stats}
+            isFacilitator={isFacilitator}
+            everyoneVoted={everyoneVoted}
+            countdown={countdown}
+            showAverage={showAverage}
+            onReveal={onReveal}
+            onReset={onReset}
+          />
+        </div>
+      </div>
+
+      {/* Players around the oval */}
+      {players.map((player, i) => {
+        const angle = n === 1 ? -Math.PI / 2 : (i / n) * 2 * Math.PI - Math.PI / 2;
+        const x = Math.round(CX + ORX * Math.cos(angle) - PW / 2);
+        const y = Math.round(CY + ORY * Math.sin(angle) - PH / 2);
+
+        return (
+          <div key={player.id} className="absolute" style={{ left: x, top: y, width: PW }}>
+            <PlayerCard
+              player={player}
+              voted={state.voted_player_ids.includes(player.id)}
+              revealed={state.revealed}
+              cardValue={state.revealed ? state.votes[player.id] : null}
+              isFacilitator={player.id === state.facilitator_id}
+              avatarColor={player.id === myPlayerId ? avatarColor : player.avatar_color}
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function TableCenter({
+  state,
+  stats,
+  isFacilitator,
+  everyoneVoted,
+  countdown,
+  showAverage,
+  onReveal,
+  onReset,
+}: {
+  state: RoomState;
+  stats: Stats | null;
+  isFacilitator: boolean;
+  everyoneVoted: boolean;
+  countdown: number | null;
+  showAverage: boolean;
+  onReveal: () => void;
+  onReset: () => void;
+}) {
+  if (countdown !== null) {
+    return (
+      <div className="flex flex-col items-center gap-1">
+        <div className="text-green-200/60 text-xs">Revealing in…</div>
+        <div
+          key={countdown}
+          className="text-6xl font-bold text-white"
+          style={{ animation: "countdownPop 0.3s ease-out", textShadow: "0 2px 8px rgba(0,0,0,0.5)" }}
+        >
+          {countdown}
+        </div>
+      </div>
+    );
+  }
+
+  if (state.revealed && stats) {
+    return (
+      <div className="flex flex-col items-center gap-2 text-center">
+        <div className="flex items-center gap-5">
+          {showAverage && (
+            <div>
+              <div className="text-green-300/70 text-xs">Average</div>
+              <div className="text-3xl font-bold text-white" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.5)" }}>
+                {stats.average ?? "—"}
+              </div>
+            </div>
+          )}
+          <div>
+            <div className="text-green-300/70 text-xs">{stats.consensus ? "Consensus" : "No consensus"}</div>
+            <div className="text-3xl">{stats.consensus ? "😎" : "🤔"}</div>
+          </div>
+        </div>
+        {isFacilitator && (
+          <button
+            onClick={onReset}
+            className="mt-1 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold px-4 py-1.5 rounded-full transition-colors"
+          >
+            New round
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (everyoneVoted) {
+    return (
+      <div className="flex flex-col items-center gap-2">
+        <div className="text-green-300/70 text-sm">All voted!</div>
+        {isFacilitator && (
+          <button
+            onClick={onReveal}
+            className="bg-white/20 hover:bg-white/30 text-white text-sm font-semibold px-5 py-2 rounded-full transition-colors"
+          >
+            Reveal cards
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  const total = state.players.filter((p) => !p.is_spectator).length;
+  const voted = state.voted_player_ids.length;
+
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <div className="text-white/40 text-4xl font-bold">
+        {voted}/{total}
+      </div>
+      <div className="text-green-300/60 text-xs">voted</div>
+      {isFacilitator && voted > 0 && (
+        <button
+          onClick={onReveal}
+          className="mt-1 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold px-4 py-1.5 rounded-full transition-colors"
+        >
+          Reveal early
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── ActionBox (mobile / fallback) ───────────────────────────────────────────
+
 function ActionBox({
   state,
   stats,
@@ -451,14 +690,13 @@ function ActionBox({
   onReveal: () => void;
   onReset: () => void;
 }) {
-  // Countdown display
   if (countdown !== null) {
     return (
       <div className="bg-[#243447] rounded-2xl px-8 py-8 w-full max-w-2xl flex flex-col items-center gap-2">
         <div className="text-slate-400 text-sm">Revealing in…</div>
         <div
           key={countdown}
-          className="text-8xl font-bold text-white animate-ping-once"
+          className="text-8xl font-bold text-white"
           style={{ animation: "countdownPop 0.3s ease-out" }}
         >
           {countdown}
@@ -505,9 +743,7 @@ function ActionBox({
   if (everyoneVoted) {
     return (
       <div className="bg-[#243447] rounded-2xl px-8 py-8 w-full max-w-2xl flex flex-col items-center gap-3">
-        <div className="text-7xl font-bold text-[#2a3a52]">
-          {state.voted_player_ids.length}
-        </div>
+        <div className="text-7xl font-bold text-[#2a3a52]">{state.voted_player_ids.length}</div>
         <p className="text-slate-400">
           All voted!{" "}
           {isFacilitator && (
@@ -537,6 +773,8 @@ function ActionBox({
   );
 }
 
+// ─── Player Card ──────────────────────────────────────────────────────────────
+
 function PlayerCard({
   player,
   voted,
@@ -550,20 +788,20 @@ function PlayerCard({
   revealed: boolean;
   cardValue: string | null;
   isFacilitator: boolean;
-  avatarColor?: string;
+  avatarColor: string;
 }) {
-  const bgColor = avatarColor || (isFacilitator ? "#3b82f6" : "#3a4f6a");
+  const bgColor = avatarColor || "#3a4f6a";
 
   return (
-    <div className={`flex flex-col items-center gap-2 ${!player.connected ? "opacity-40" : ""}`}>
+    <div className={`flex flex-col items-center gap-1.5 ${!player.connected ? "opacity-40" : ""}`}>
       <div
-        className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white"
+        className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0"
         style={{ backgroundColor: bgColor }}
       >
         {player.nickname[0]?.toUpperCase() ?? "?"}
       </div>
       <div
-        className={`w-16 h-24 rounded-xl border-2 flex items-center justify-center font-bold text-xl transition-all ${
+        className={`w-14 h-20 rounded-xl border-2 flex items-center justify-center font-bold text-lg transition-all ${
           !voted
             ? "bg-[#243447] border-[#3a4f6a]"
             : revealed
@@ -581,13 +819,16 @@ function PlayerCard({
       >
         {revealed && cardValue && cardValue !== "hidden" ? cardValue : null}
       </div>
-      <span className="text-sm text-slate-300 max-w-[72px] truncate text-center">
+      <span className="text-xs text-slate-300 max-w-[64px] truncate text-center">
         {player.nickname}
       </span>
+      {isFacilitator && <span className="text-xs text-blue-400/70">host</span>}
       {!player.connected && <span className="text-xs text-slate-500">offline</span>}
     </div>
   );
 }
+
+// ─── Error Screen ─────────────────────────────────────────────────────────────
 
 function RoomErrorScreen({ error }: { error: string }) {
   const navigate = useNavigate();
@@ -616,6 +857,8 @@ function RoomErrorScreen({ error }: { error: string }) {
   );
 }
 
+// ─── Voting Card ──────────────────────────────────────────────────────────────
+
 function VotingCard({
   value,
   selected,
@@ -628,7 +871,7 @@ function VotingCard({
   return (
     <button
       onClick={onClick}
-      className={`w-14 h-20 rounded-xl border-2 font-bold text-lg transition-all ${
+      className={`w-14 h-20 rounded-xl border-2 font-bold text-lg transition-all shrink-0 ${
         selected
           ? "bg-blue-600 border-blue-400 text-white -translate-y-3 shadow-lg shadow-blue-900/50"
           : "bg-[#243447] border-[#3a4f6a] text-slate-300 hover:border-blue-500 hover:-translate-y-1"
@@ -638,6 +881,8 @@ function VotingCard({
     </button>
   );
 }
+
+// ─── Invite Modal ─────────────────────────────────────────────────────────────
 
 function InviteModal({ onClose }: { onClose: () => void }) {
   const url = window.location.href;
@@ -667,7 +912,7 @@ function InviteModal({ onClose }: { onClose: () => void }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold">Invite players</h2>
+          <h2 className="text-xl font-bold text-white">Invite players</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">
             ✕
           </button>

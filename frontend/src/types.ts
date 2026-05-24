@@ -7,6 +7,7 @@ export interface Player {
   is_spectator: boolean;
   connected: boolean;
   disconnected_at: string | null;
+  avatar_color: string;
 }
 
 export interface Issue {

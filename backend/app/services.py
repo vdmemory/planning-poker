@@ -59,6 +59,14 @@ class RoomService:
         self.store.save(room)
         return player
 
+    def update_avatar_color(self, room_id: str, player_id: str, color: str) -> None:
+        room = self.get_room(room_id)
+        player = room.players.get(player_id)
+        if not player:
+            raise RoomError("Player not found")
+        player.avatar_color = color
+        self.store.save(room)
+
     def update_nickname(self, room_id: str, player_id: str, nickname: str) -> None:
         room = self.get_room(room_id)
         player = room.players.get(player_id)
@@ -206,6 +214,16 @@ class RoomService:
         room = self.get_room(room_id)
         self._require_facilitator(room, player_id)
         room.revealed = True
+        # Auto-set final_estimate from mode (most common vote) on current issue
+        if room.current_issue_id and room.votes:
+            stats = self.compute_stats(room)
+            distribution = stats["distribution"]
+            if distribution:
+                mode_value = max(distribution, key=lambda k: (distribution[k], k))
+                for issue in room.issues:
+                    if issue.id == room.current_issue_id:
+                        issue.final_estimate = mode_value
+                        break
         self.store.save(room)
         return self.compute_stats(room)
 

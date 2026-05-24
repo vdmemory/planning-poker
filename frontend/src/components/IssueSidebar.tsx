@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, type CSSProperties } from "react";
 import type { RoomState, Issue } from "../types";
 
 interface Props {
@@ -322,37 +322,14 @@ function IssueCard({
           >
             Vote this issue
           </button>
-          <div className="relative">
-            <button
-              onClick={onToggleEstimate}
-              className="text-xs bg-[#2a3a52] text-slate-300 border border-[#3a4f6a] px-3 py-1.5 rounded-lg hover:bg-[#354d6a] transition-colors"
-              title="Set estimate"
-            >
-              {issue.final_estimate ?? "—"}
-            </button>
-            {showEstimatePicker && (
-              <div
-                className="absolute bottom-full right-0 mb-2 bg-[#243447] border border-[#3a4f6a] rounded-xl p-2 shadow-2xl z-30"
-                style={{ width: "180px" }}
-              >
-                <div className="flex flex-wrap gap-1.5 justify-center">
-                  {deck.map((v) => (
-                    <button
-                      key={v}
-                      onClick={() => onSetEstimate(v)}
-                      className={`w-10 h-14 rounded-lg border font-bold text-sm transition-all ${
-                        issue.final_estimate === v
-                          ? "bg-blue-600 border-blue-400 text-white"
-                          : "bg-[#1a2332] border-[#3a4f6a] text-slate-300 hover:border-blue-500"
-                      }`}
-                    >
-                      {v}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+          <EstimatePicker
+            value={issue.final_estimate}
+            deck={deck}
+            open={showEstimatePicker}
+            onToggle={onToggleEstimate}
+            onClose={onCloseEstimate}
+            onSelect={onSetEstimate}
+          />
         </div>
       )}
     </li>
@@ -505,7 +482,7 @@ function IssueEditModal({
   );
 }
 
-// Reusable dropdown
+// Reusable dropdown — auto-flips to avoid viewport edge clipping
 function Dropdown({
   children,
   onClose,
@@ -516,6 +493,7 @@ function Dropdown({
   align?: "left" | "right";
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const [style, setStyle] = useState<React.CSSProperties>({});
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -525,12 +503,128 @@ function Dropdown({
     return () => document.removeEventListener("mousedown", handleClick);
   }, [onClose]);
 
+  // Measure position after mount and flip if needed
+  useEffect(() => {
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const s: React.CSSProperties = {};
+
+    // Horizontal: if right edge overflows, switch to right-aligned
+    if (rect.right > vw - 8) {
+      s.left = "auto";
+      s.right = 0;
+    } else if (rect.left < 8) {
+      s.left = 0;
+      s.right = "auto";
+    }
+
+    // Vertical: if bottom edge overflows, show above
+    if (rect.bottom > vh - 8) {
+      s.top = "auto";
+      s.bottom = "100%";
+      s.marginTop = 0;
+      s.marginBottom = "4px";
+    }
+
+    setStyle(s);
+  }, []);
+
+  const baseAlign = align === "right" ? "right-0" : "left-0";
+
   return (
     <div
       ref={ref}
-      className={`absolute top-full mt-1 ${align === "right" ? "right-0" : "left-0"} bg-[#243447] border border-[#3a4f6a] rounded-xl shadow-2xl z-40 overflow-hidden min-w-[180px]`}
+      className={`absolute top-full mt-1 ${baseAlign} bg-[#243447] border border-[#3a4f6a] rounded-xl shadow-2xl z-40 overflow-hidden min-w-[180px]`}
+      style={style}
     >
       {children}
+    </div>
+  );
+}
+
+// Fixed-position estimate picker — escapes overflow-y-auto clipping
+function EstimatePicker({
+  value,
+  deck,
+  open,
+  onToggle,
+  onClose,
+  onSelect,
+}: {
+  value: string | null;
+  deck: string[];
+  open: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  onSelect: (v: string) => void;
+}) {
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const [style, setStyle] = useState<CSSProperties>({});
+
+  // Calculate fixed position when opened
+  useEffect(() => {
+    if (!open || !btnRef.current) return;
+    const rect = btnRef.current.getBoundingClientRect();
+    const PICKER_H = 212;
+    const PICKER_W = 188;
+    const spaceAbove = rect.top;
+    const top = spaceAbove > PICKER_H + 8 ? rect.top - PICKER_H - 8 : rect.bottom + 8;
+    const right = Math.max(8, window.innerWidth - rect.right);
+    setStyle({ position: "fixed", top, right, width: PICKER_W, zIndex: 999 });
+  }, [open]);
+
+  // Click outside to close
+  useEffect(() => {
+    if (!open) return;
+    function handler(e: MouseEvent) {
+      const target = e.target as Node;
+      if (
+        pickerRef.current && !pickerRef.current.contains(target) &&
+        btnRef.current && !btnRef.current.contains(target)
+      ) {
+        onClose();
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open, onClose]);
+
+  return (
+    <div className="relative">
+      <button
+        ref={btnRef}
+        onClick={onToggle}
+        className="text-xs bg-[#2a3a52] text-slate-300 border border-[#3a4f6a] px-3 py-1.5 rounded-lg hover:bg-[#354d6a] transition-colors"
+        title="Set estimate"
+      >
+        {value ?? "—"}
+      </button>
+      {open && (
+        <div
+          ref={pickerRef}
+          style={style}
+          className="bg-[#243447] border border-[#3a4f6a] rounded-xl p-2 shadow-2xl"
+        >
+          <div className="flex flex-wrap gap-1.5 justify-center">
+            {deck.map((v) => (
+              <button
+                key={v}
+                onClick={() => { onSelect(v); }}
+                className={`w-10 h-14 rounded-lg border font-bold text-sm transition-all ${
+                  value === v
+                    ? "bg-blue-600 border-blue-400 text-white"
+                    : "bg-[#1a2332] border-[#3a4f6a] text-slate-300 hover:border-blue-500"
+                }`}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
