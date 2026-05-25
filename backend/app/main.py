@@ -121,6 +121,8 @@ async def handle_message(room_id: str, player_id: str, data: dict) -> None:
     try:
         if msg_type == "vote":
             service.vote(room_id, player_id, data["card"])
+        elif msg_type == "revote":
+            service.revote(room_id, player_id, data["card"])
         elif msg_type == "reveal":
             service.reveal(room_id, player_id)
         elif msg_type == "reset":
@@ -170,7 +172,7 @@ async def handle_message(room_id: str, player_id: str, data: dict) -> None:
     if room:
         msg = {"type": "room_state", "state": room.public_state()}
         # Если только что был reveal — прикладываем статистику
-        if msg_type == "reveal" and room.revealed:
+        if msg_type in ("reveal", "revote") and room.revealed:
             msg["stats"] = service.compute_stats(room)
         await manager.broadcast(room_id, msg)
 

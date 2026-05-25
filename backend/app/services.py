@@ -210,6 +210,32 @@ class RoomService:
         room.votes[player_id] = card
         self.store.save(room)
 
+    def revote(self, room_id: str, player_id: str, card: str) -> dict:
+        """Re-vote after reveal. Updates stats and issue estimate."""
+        room = self.get_room(room_id)
+        player = room.players.get(player_id)
+        if not player:
+            raise RoomError("Player not in room")
+        if player.is_spectator:
+            raise RoomError("Spectators cannot vote")
+        if not room.revealed:
+            raise RoomError("Cards not yet revealed")
+        if card not in room.deck():
+            raise RoomError(f"Invalid card '{card}' for this deck")
+        room.votes[player_id] = card
+        # Recalculate and auto-update issue estimate from new mode
+        if room.current_issue_id and room.votes:
+            stats = self.compute_stats(room)
+            distribution = stats["distribution"]
+            if distribution:
+                mode_value = max(distribution, key=lambda k: (distribution[k], k))
+                for issue in room.issues:
+                    if issue.id == room.current_issue_id:
+                        issue.final_estimate = mode_value
+                        break
+        self.store.save(room)
+        return self.compute_stats(room)
+
     def reveal(self, room_id: str, player_id: str) -> dict:
         room = self.get_room(room_id)
         self._require_facilitator(room, player_id)

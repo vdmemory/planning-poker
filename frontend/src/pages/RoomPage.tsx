@@ -361,6 +361,7 @@ function Room({
               showAverage={settings.showAverage}
               onReveal={triggerReveal}
               onReset={() => send({ type: "reset" })}
+              onRevote={(card) => send({ type: "revote", card })}
             />
           </div>
 
@@ -386,6 +387,9 @@ function Room({
                   cardValue={state.revealed ? state.votes[player.id] : null}
                   isFacilitator={player.id === state.facilitator_id}
                   avatarColor={player.id === myPlayerId ? avatarColor : player.avatar_color}
+                  isMe={player.id === myPlayerId}
+                  deck={state.deck}
+                  onRevote={(card) => send({ type: "revote", card })}
                 />
               ))}
             </div>
@@ -478,6 +482,7 @@ function PokerTable({
   showAverage,
   onReveal,
   onReset,
+  onRevote,
 }: {
   state: RoomState;
   stats: Stats | null;
@@ -489,6 +494,7 @@ function PokerTable({
   showAverage: boolean;
   onReveal: () => void;
   onReset: () => void;
+  onRevote: (card: string) => void;
 }) {
   const players = state.players;
   const n = players.length;
@@ -561,6 +567,9 @@ function PokerTable({
               cardValue={state.revealed ? state.votes[player.id] : null}
               isFacilitator={player.id === state.facilitator_id}
               avatarColor={player.id === myPlayerId ? avatarColor : player.avatar_color}
+              isMe={player.id === myPlayerId}
+              deck={state.deck}
+              onRevote={onRevote}
             />
           </div>
         );
@@ -782,6 +791,9 @@ function PlayerCard({
   cardValue,
   isFacilitator,
   avatarColor,
+  isMe,
+  deck,
+  onRevote,
 }: {
   player: Player;
   voted: boolean;
@@ -789,8 +801,13 @@ function PlayerCard({
   cardValue: string | null;
   isFacilitator: boolean;
   avatarColor: string;
+  isMe?: boolean;
+  deck?: string[];
+  onRevote?: (card: string) => void;
 }) {
+  const [showPicker, setShowPicker] = useState(false);
   const bgColor = avatarColor || "#3a4f6a";
+  const canEdit = isMe && revealed && !!onRevote;
 
   return (
     <div className={`flex flex-col items-center gap-1.5 ${!player.connected ? "opacity-40" : ""}`}>
@@ -800,30 +817,109 @@ function PlayerCard({
       >
         {player.nickname[0]?.toUpperCase() ?? "?"}
       </div>
-      <div
-        className={`w-14 h-20 rounded-xl border-2 flex items-center justify-center font-bold text-lg transition-all ${
-          !voted
-            ? "bg-[var(--c-panel)] border-[var(--c-border)]"
-            : revealed
-            ? "bg-[var(--c-panel)] border-blue-400 text-white"
-            : "border-blue-400"
-        }`}
-        style={
-          voted && !revealed
-            ? {
-                background:
-                  "repeating-linear-gradient(45deg, #2563eb, #2563eb 8px, #1d4ed8 8px, #1d4ed8 16px)",
-              }
-            : {}
-        }
-      >
-        {revealed && cardValue && cardValue !== "hidden" ? cardValue : null}
+
+      {/* Card with optional edit button */}
+      <div className="relative">
+        <div
+          className={`w-14 h-20 rounded-xl border-2 flex items-center justify-center font-bold text-lg transition-all ${
+            !voted
+              ? "bg-[var(--c-panel)] border-[var(--c-border)]"
+              : revealed
+              ? "bg-[var(--c-panel)] border-blue-400 text-white"
+              : "border-blue-400"
+          }`}
+          style={
+            voted && !revealed
+              ? {
+                  background:
+                    "repeating-linear-gradient(45deg, #2563eb, #2563eb 8px, #1d4ed8 8px, #1d4ed8 16px)",
+                }
+              : {}
+          }
+        >
+          {revealed && cardValue && cardValue !== "hidden" ? cardValue : null}
+        </div>
+
+        {/* Edit pencil icon */}
+        {canEdit && (
+          <button
+            onClick={() => setShowPicker(true)}
+            className="absolute -top-2 -left-2 w-6 h-6 bg-blue-500 hover:bg-blue-400 rounded-full flex items-center justify-center shadow-lg transition-colors"
+            title="Change your vote"
+          >
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="white">
+              <path d="M8.5 1.5a1.5 1.5 0 0 1 2 2L3.5 10.5 1 11l.5-2.5L8.5 1.5z"/>
+            </svg>
+          </button>
+        )}
       </div>
+
       <span className="text-xs text-slate-300 max-w-[64px] truncate text-center">
         {player.nickname}
       </span>
       {isFacilitator && <span className="text-xs text-blue-400/70">host</span>}
       {!player.connected && <span className="text-xs text-slate-500">offline</span>}
+
+      {/* Revote picker */}
+      {showPicker && deck && onRevote && (
+        <RevotePicker
+          deck={deck}
+          current={cardValue}
+          onSelect={(v) => { onRevote(v); setShowPicker(false); }}
+          onClose={() => setShowPicker(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Revote Picker ────────────────────────────────────────────────────────────
+
+function RevotePicker({
+  deck,
+  current,
+  onSelect,
+  onClose,
+}: {
+  deck: string[];
+  current: string | null;
+  onSelect: (v: string) => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div
+        ref={ref}
+        className="bg-[var(--c-panel)] border border-[var(--c-border)] rounded-2xl p-5 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="text-sm text-slate-400 mb-3 text-center">Change your vote</p>
+        <div className="grid grid-cols-4 gap-2">
+          {deck.map((v) => (
+            <button
+              key={v}
+              onClick={() => onSelect(v)}
+              className={`w-14 h-20 rounded-xl border-2 font-bold text-lg transition-all ${
+                v === current
+                  ? "bg-blue-600 border-blue-400 text-white scale-105"
+                  : "bg-[var(--c-panel2)] border-[var(--c-border)] text-slate-300 hover:border-blue-400 hover:scale-105"
+              }`}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
