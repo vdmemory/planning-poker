@@ -2,6 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Theme variables ──────────────────────────────────────────────────────── */
+
 :root {
   --c-bg: #1a2332;
   --c-panel: #243447;
@@ -18,7 +20,7 @@ html.light {
   --c-panel: #ffffff;
   --c-panel2: #f1f5f9;
   --c-border: #e2e8f0;
-  --c-border-hi: #cbd5e1;
+  --c-border-hi: #94a3b8;
   --c-text: #1e293b;
   --c-muted: #64748b;
   --c-dim: #94a3b8;
@@ -31,46 +33,37 @@ body {
   transition: background-color 0.2s, color 0.2s;
 }
 
-/* ─── Light theme: full overrides for hardcoded Tailwind values ──────────── */
+/* ─── Light theme overrides ────────────────────────────────────────────────── */
 
-/* Backgrounds */
-html.light .bg-\[#1a2332\] { background-color: #f0f4f8; }
-html.light .bg-\[#1e2d3d\] { background-color: #e8eef4; }
-html.light .bg-\[#243447\] { background-color: #ffffff; }
-html.light .bg-\[#2a3a52\] { background-color: #f1f5f9; }
-html.light .bg-\[#3a4f6a\] { background-color: #e2e8f0; }
-html.light .bg-\[#354d6a\] { background-color: #e2e8f0; }
+/* White text → dark text in light mode */
+html.light .text-white {
+  color: var(--c-text);
+}
 
-/* Hover backgrounds */
-html.light .hover\:bg-\[#2a3a52\]:hover       { background-color: #e2e8f0; }
-html.light .hover\:bg-\[#2a3a52\]\/50:hover    { background-color: rgba(226,232,240,0.6); }
-html.light .hover\:bg-\[#243447\]:hover        { background-color: #f8fafc; }
-html.light .hover\:bg-\[#354d6a\]:hover        { background-color: #cbd5e1; }
+/* Preserve white text on colored action buttons */
+html.light .bg-blue-600 .text-white,
+html.light .bg-blue-600.text-white,
+html.light .bg-blue-500 .text-white,
+html.light .bg-blue-500.text-white,
+html.light .bg-blue-700 .text-white,
+html.light .bg-blue-700.text-white {
+  color: #ffffff;
+}
 
-/* Borders */
-html.light .border-\[#2a3a52\]                { border-color: #e2e8f0; }
-html.light .border-\[#3a4f6a\]                { border-color: #cbd5e1; }
-html.light .border-\[#4a6a8a\]                { border-color: #94a3b8; }
-html.light .hover\:border-\[#4a6a8a\]:hover   { border-color: #64748b; }
+/* Preserve white text on poker felt */
+html.light .poker-felt .text-white {
+  color: #ffffff;
+}
 
-/* Text — make light grays readable on white */
-html.light .text-white    { color: #1e293b; }
+/* Slate text — darken for readability on white backgrounds */
 html.light .text-slate-200 { color: #334155; }
 html.light .text-slate-300 { color: #475569; }
 html.light .text-slate-400 { color: #64748b; }
 html.light .text-slate-500 { color: #94a3b8; }
-html.light .text-\[\#2a3a52\] { color: #94a3b8; }
-
-/* Keep white text on solid-color action buttons */
-html.light .bg-blue-600.text-white,
-html.light .bg-blue-600 .text-white,
-html.light .bg-blue-500.text-white,
-html.light .bg-blue-500 .text-white  { color: #ffffff; }
 
 /* Blue accents — darken for contrast on white */
 html.light .text-blue-400   { color: #2563eb; }
 html.light .text-blue-300   { color: #3b82f6; }
-html.light .text-blue-400\/70 { color: rgba(37,99,235,0.8); }
 html.light .hover\:text-blue-300:hover { color: #1d4ed8; }
 
 /* Subtle blue tints */
@@ -81,17 +74,25 @@ html.light .border-blue-600\/40     { border-color: rgba(37,99,235,0.35); }
 html.light .border-blue-500\/40     { border-color: rgba(37,99,235,0.35); }
 
 /* Semi-transparent text */
-html.light .text-white\/40 { color: rgba(30,41,59,0.35); }
+html.light .text-white\/40          { color: rgba(30,41,59,0.35); }
 
 /* Hover text */
-html.light .hover\:text-white:hover      { color: #0f172a; }
-html.light .hover\:text-slate-200:hover  { color: #1e293b; }
-html.light .hover\:text-slate-300:hover  { color: #334155; }
+html.light .hover\:text-white:hover     { color: #0f172a; }
+html.light .hover\:text-slate-200:hover { color: #1e293b; }
+html.light .hover\:text-slate-300:hover { color: #334155; }
 
-/* Placeholder */
-html.light .placeholder-slate-600::-moz-placeholder  { color: #94a3b8; }
-html.light .placeholder-slate-600::placeholder        { color: #94a3b8; }
-html.light .placeholder-slate-500::-moz-placeholder  { color: #94a3b8; }
-html.light .placeholder-slate-500::placeholder        { color: #94a3b8; }
+/* Placeholder text */
+html.light .placeholder-slate-600::-moz-placeholder { color: #94a3b8; }
+html.light .placeholder-slate-600::placeholder       { color: #94a3b8; }
+html.light .placeholder-slate-500::-moz-placeholder { color: #94a3b8; }
+html.light .placeholder-slate-500::placeholder       { color: #94a3b8; }
 
-/* ─────────────────────────────────────────────────────────────────────────── */
+/* Input / select text color in light mode */
+html.light input,
+html.light select,
+html.light textarea {
+  color: var(--c-text);
+}
+
+/* Divider lines */
+html.light .bg-blue-400\/70 { color: rgba(37,99,235,0.8); }

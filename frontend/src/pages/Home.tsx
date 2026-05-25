@@ -40,7 +40,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#1a2332]">
+    <div className="min-h-screen flex flex-col bg-[var(--c-bg)]">
       <header className="flex items-center gap-3 px-6 py-4">
         <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-lg">🚀</div>
         <span className="font-bold text-white text-lg">Create game</span>
@@ -49,11 +49,11 @@ export default function Home() {
       <div className="flex-1 flex items-center justify-center p-4">
         <div className="w-full max-w-lg space-y-4">
           <div className="relative">
-            <label className="absolute -top-2 left-3 bg-[#1a2332] px-1 text-xs text-slate-400">
+            <label className="absolute -top-2 left-3 bg-[var(--c-bg)] px-1 text-xs text-slate-400">
               Game's name
             </label>
             <input
-              className="w-full bg-transparent border border-[#4a6a8a] rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
+              className="w-full bg-transparent border border-[var(--c-border-hi)] rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
               value={gameName}
               onChange={(e) => setGameName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && createRoom()}
@@ -63,11 +63,11 @@ export default function Home() {
           </div>
 
           <div className="relative">
-            <label className="absolute -top-2 left-3 bg-[#1a2332] px-1 text-xs text-slate-400">
+            <label className="absolute -top-2 left-3 bg-[var(--c-bg)] px-1 text-xs text-slate-400">
               Voting system
             </label>
             <select
-              className="w-full bg-[#1a2332] border border-[#4a6a8a] rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500 appearance-none"
+              className="w-full bg-[var(--c-bg)] border border-[var(--c-border-hi)] rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500 appearance-none"
               value={deckType}
               onChange={(e) => setDeckType(e.target.value as DeckType)}
             >

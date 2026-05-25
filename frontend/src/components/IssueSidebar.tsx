@@ -50,9 +50,9 @@ export function IssueSidebar({ state, isFacilitator, myPlayerId, send, onClose }
   }
 
   return (
-    <div className="h-full flex flex-col bg-[#1e2d3d]">
+    <div className="h-full flex flex-col bg-[var(--c-bg)]">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a3a52]">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--c-panel2)]">
         <div>
           <h3 className="font-semibold text-white">Issues</h3>
           <p className="text-xs text-slate-400">
@@ -66,7 +66,7 @@ export function IssueSidebar({ state, isFacilitator, myPlayerId, send, onClose }
               <button
                 onClick={() => { setShowImportMenu((v) => !v); setShowBulkMenu(false); }}
                 title="Import issues"
-                className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-[#2a3a52] transition-colors"
+                className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-[var(--c-panel2)] transition-colors"
               >
                 📥
               </button>
@@ -87,7 +87,7 @@ export function IssueSidebar({ state, isFacilitator, myPlayerId, send, onClose }
               <button
                 onClick={() => { setShowBulkMenu((v) => !v); setShowImportMenu(false); }}
                 title="More options"
-                className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-[#2a3a52] transition-colors text-lg leading-none"
+                className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-[var(--c-panel2)] transition-colors text-lg leading-none"
               >
                 ⋮
               </button>
@@ -114,7 +114,7 @@ export function IssueSidebar({ state, isFacilitator, myPlayerId, send, onClose }
           <button
             onClick={onClose}
             title="Close sidebar"
-            className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-[#2a3a52] transition-colors"
+            className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-[var(--c-panel2)] transition-colors"
           >
             ✕
           </button>
@@ -158,11 +158,11 @@ export function IssueSidebar({ state, isFacilitator, myPlayerId, send, onClose }
 
       {/* Add issue */}
       {isFacilitator && (
-        <div className="px-3 py-3 border-t border-[#2a3a52]">
+        <div className="px-3 py-3 border-t border-[var(--c-panel2)]">
           {adding ? (
             <>
               <input
-                className="w-full bg-[#1a2332] border border-[#3a4f6a] rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 mb-2 focus:outline-none focus:border-blue-500"
+                className="w-full bg-[var(--c-bg)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 mb-2 focus:outline-none focus:border-blue-500"
                 value={addTitle}
                 onChange={(e) => setAddTitle(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && addIssue()}
@@ -172,7 +172,7 @@ export function IssueSidebar({ state, isFacilitator, myPlayerId, send, onClose }
               <div className="flex gap-2">
                 <button
                   onClick={() => { setAdding(false); setAddTitle(""); }}
-                  className="flex-1 border border-[#3a4f6a] text-slate-300 py-2 rounded-lg text-sm hover:bg-[#243447] transition-colors"
+                  className="flex-1 border border-[var(--c-border)] text-slate-300 py-2 rounded-lg text-sm hover:bg-[var(--c-panel)] transition-colors"
                 >
                   Cancel
                 </button>
@@ -268,7 +268,7 @@ function IssueCard({
   return (
     <li
       className={`rounded-xl text-sm transition-colors ${
-        isCurrent ? "bg-[#2a3a52] border border-[#4a6a8a]" : "bg-[#243447]"
+        isCurrent ? "bg-[var(--c-panel2)] border border-[var(--c-border-hi)]" : "bg-[var(--c-panel)]"
       }`}
     >
       {/* Card header */}
@@ -307,7 +307,7 @@ function IssueCard({
 
         {/* Estimate badge if set */}
         {issue.final_estimate && (
-          <div className="mt-1.5 inline-flex items-center bg-[#1a2332] border border-[#4a6a8a] text-white font-bold px-2 py-0.5 rounded-lg text-xs">
+          <div className="mt-1.5 inline-flex items-center bg-[var(--c-bg)] border border-[var(--c-border-hi)] text-white font-bold px-2 py-0.5 rounded-lg text-xs">
             {issue.final_estimate}
           </div>
         )}
@@ -376,11 +376,11 @@ function IssueEditModal({
       onClick={onClose}
     >
       <div
-        className="bg-[#243447] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden"
+        className="bg-[var(--c-panel)] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#3a4f6a]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--c-border)]">
           <span className="text-xs text-slate-400 font-medium">PP-{index + 1}</span>
           <div className="flex items-center gap-2">
             {isFacilitator && (
@@ -403,7 +403,7 @@ function IssueEditModal({
           <div>
             <label className="text-xs text-slate-400 block mb-1">Title</label>
             <input
-              className="w-full bg-[#1a2332] border border-[#4a6a8a] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500"
+              className="w-full bg-[var(--c-bg)] border border-[var(--c-border-hi)] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               onBlur={save}
@@ -415,7 +415,7 @@ function IssueEditModal({
           <div>
             <label className="text-xs text-slate-400 block mb-1">Link</label>
             <input
-              className="w-full bg-[#1a2332] border border-[#4a6a8a] rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
+              className="w-full bg-[var(--c-bg)] border border-[var(--c-border-hi)] rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
               value={link}
               onChange={(e) => setLink(e.target.value)}
               onBlur={save}
@@ -428,7 +428,7 @@ function IssueEditModal({
           <div>
             <label className="text-xs text-slate-400 block mb-1">Description</label>
             <textarea
-              className="w-full bg-[#1a2332] border border-[#4a6a8a] rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 resize-none"
+              className="w-full bg-[var(--c-bg)] border border-[var(--c-border-hi)] rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 resize-none"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               onBlur={save}
@@ -441,7 +441,7 @@ function IssueEditModal({
 
         {/* Footer actions */}
         {isFacilitator && (
-          <div className="flex items-center gap-2 px-6 py-4 border-t border-[#3a4f6a]">
+          <div className="flex items-center gap-2 px-6 py-4 border-t border-[var(--c-border)]">
             <button
               onClick={onVote}
               className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors"
@@ -451,12 +451,12 @@ function IssueEditModal({
             <div className="relative">
               <button
                 onClick={() => setShowEstPicker((v) => !v)}
-                className="bg-[#2a3a52] hover:bg-[#354d6a] border border-[#4a6a8a] text-slate-200 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
+                className="bg-[var(--c-panel2)] hover:bg-[var(--c-border)] border border-[var(--c-border-hi)] text-slate-200 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
               >
                 {issue.final_estimate ?? "—"}
               </button>
               {showEstPicker && (
-                <div className="absolute bottom-full right-0 mb-2 bg-[#243447] border border-[#3a4f6a] rounded-xl p-2 shadow-2xl z-10 w-48">
+                <div className="absolute bottom-full right-0 mb-2 bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl p-2 shadow-2xl z-10 w-48">
                   <div className="flex flex-wrap gap-1.5 justify-center">
                     {deck.map((v) => (
                       <button
@@ -465,7 +465,7 @@ function IssueEditModal({
                         className={`w-10 h-14 rounded-lg border font-bold text-sm transition-all ${
                           issue.final_estimate === v
                             ? "bg-blue-600 border-blue-400 text-white"
-                            : "bg-[#1a2332] border-[#3a4f6a] text-slate-300 hover:border-blue-500"
+                            : "bg-[var(--c-bg)] border-[var(--c-border)] text-slate-300 hover:border-blue-500"
                         }`}
                       >
                         {v}
@@ -536,7 +536,7 @@ function Dropdown({
   return (
     <div
       ref={ref}
-      className={`absolute top-full mt-1 ${baseAlign} bg-[#243447] border border-[#3a4f6a] rounded-xl shadow-2xl z-40 overflow-hidden min-w-[180px]`}
+      className={`absolute top-full mt-1 ${baseAlign} bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl shadow-2xl z-40 overflow-hidden min-w-[180px]`}
       style={style}
     >
       {children}
@@ -597,7 +597,7 @@ function EstimatePicker({
       <button
         ref={btnRef}
         onClick={onToggle}
-        className="text-xs bg-[#2a3a52] text-slate-300 border border-[#3a4f6a] px-3 py-1.5 rounded-lg hover:bg-[#354d6a] transition-colors"
+        className="text-xs bg-[var(--c-panel2)] text-slate-300 border border-[var(--c-border)] px-3 py-1.5 rounded-lg hover:bg-[var(--c-border)] transition-colors"
         title="Set estimate"
       >
         {value ?? "—"}
@@ -606,7 +606,7 @@ function EstimatePicker({
         <div
           ref={pickerRef}
           style={style}
-          className="bg-[#243447] border border-[#3a4f6a] rounded-xl p-2 shadow-2xl"
+          className="bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl p-2 shadow-2xl"
         >
           <div className="flex flex-wrap gap-1.5 justify-center">
             {deck.map((v) => (
@@ -616,7 +616,7 @@ function EstimatePicker({
                 className={`w-10 h-14 rounded-lg border font-bold text-sm transition-all ${
                   value === v
                     ? "bg-blue-600 border-blue-400 text-white"
-                    : "bg-[#1a2332] border-[#3a4f6a] text-slate-300 hover:border-blue-500"
+                    : "bg-[var(--c-bg)] border-[var(--c-border)] text-slate-300 hover:border-blue-500"
                 }`}
               >
                 {v}
@@ -643,7 +643,7 @@ function DropdownItem({
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors hover:bg-[#2a3a52] ${
+      className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors hover:bg-[var(--c-panel2)] ${
         danger ? "text-red-400 hover:text-red-300" : "text-slate-200"
       }`}
     >

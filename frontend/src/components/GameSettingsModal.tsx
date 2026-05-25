@@ -33,11 +33,11 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
       onClick={onClose}
     >
       <div
-        className="bg-[#243447] rounded-2xl w-full max-w-md shadow-2xl overflow-hidden"
+        className="bg-[var(--c-panel)] rounded-2xl w-full max-w-md shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#3a4f6a]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--c-border)]">
           <h2 className="text-lg font-semibold text-white">Game settings</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">✕</button>
         </div>
@@ -46,7 +46,7 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
           {/* Facilitator */}
           <div>
             <label className="text-xs text-slate-400 block mb-1">Game facilitator</label>
-            <div className="flex items-center gap-2 bg-[#1a2332] rounded-lg px-3 py-2.5">
+            <div className="flex items-center gap-2 bg-[var(--c-bg)] rounded-lg px-3 py-2.5">
               <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-xs font-bold text-white">
                 {facilitatorName[0]?.toUpperCase() ?? "?"}
               </div>
@@ -59,7 +59,7 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
             <label className="text-xs text-slate-400 block mb-1">Game's name</label>
             <div className="flex gap-2">
               <input
-                className="flex-1 bg-[#1a2332] border border-[#4a6a8a] rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
+                className="flex-1 bg-[var(--c-bg)] border border-[var(--c-border-hi)] rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 disabled={!isFacilitator}
@@ -81,7 +81,7 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
             />
           </div>
 
-          <div className="border-t border-[#3a4f6a]" />
+          <div className="border-t border-[var(--c-border)]" />
 
           {/* Who can reveal */}
           <div>
@@ -109,7 +109,7 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
             />
           </div>
 
-          <div className="border-t border-[#3a4f6a]" />
+          <div className="border-t border-[var(--c-border)]" />
 
           {/* Toggles */}
           <ToggleRow
@@ -138,7 +138,7 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
           />
         </div>
 
-        <div className="px-6 py-4 border-t border-[#3a4f6a]">
+        <div className="px-6 py-4 border-t border-[var(--c-border)]">
           <button
             onClick={save}
             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-colors"
@@ -180,9 +180,9 @@ function CustomSelect({
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setOpen((v) => !v)}
-        className={`w-full flex items-center justify-between bg-[#1a2332] border rounded-lg px-3 py-2.5 text-sm text-white transition-colors text-left ${
-          open ? "border-blue-500" : "border-[#4a6a8a]"
-        } ${disabled ? "opacity-60 cursor-not-allowed" : "hover:border-[#4a6a8a] cursor-pointer"}`}
+        className={`w-full flex items-center justify-between bg-[var(--c-bg)] border rounded-lg px-3 py-2.5 text-sm text-white transition-colors text-left ${
+          open ? "border-blue-500" : "border-[var(--c-border-hi)]"
+        } ${disabled ? "opacity-60 cursor-not-allowed" : "hover:border-[var(--c-border-hi)] cursor-pointer"}`}
       >
         <span className="truncate">{selected?.label ?? value}</span>
         <svg
@@ -193,13 +193,13 @@ function CustomSelect({
         </svg>
       </button>
       {open && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-[#243447] border border-[#3a4f6a] rounded-xl shadow-2xl z-50 overflow-hidden">
+        <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl shadow-2xl z-50 overflow-hidden">
           {options.map((opt) => (
             <button
               key={opt.value}
               type="button"
               onClick={() => { onChange(opt.value); setOpen(false); }}
-              className={`w-full flex items-center justify-between px-4 py-2.5 text-sm text-left transition-colors hover:bg-[#2a3a52] ${
+              className={`w-full flex items-center justify-between px-4 py-2.5 text-sm text-left transition-colors hover:bg-[var(--c-panel2)] ${
                 opt.value === value ? "text-blue-400" : "text-slate-200"
               }`}
             >
@@ -237,7 +237,7 @@ function ToggleRow({
       <button
         onClick={onChange}
         className={`relative shrink-0 w-11 h-6 rounded-full transition-colors mt-0.5 ${
-          checked ? "bg-blue-600" : "bg-[#3a4f6a]"
+          checked ? "bg-blue-600" : "bg-[var(--c-border)]"
         }`}
       >
         <span

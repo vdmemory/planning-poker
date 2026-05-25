@@ -50,10 +50,10 @@ export function ProfileMenu({
   return (
     <div
       ref={menuRef}
-      className="absolute right-0 top-full mt-2 w-72 bg-[#243447] border border-[#3a4f6a] rounded-2xl shadow-2xl z-50 overflow-hidden"
+      className="absolute right-0 top-full mt-2 w-72 bg-[var(--c-panel)] border border-[var(--c-border)] rounded-2xl shadow-2xl z-50 overflow-hidden"
     >
       {/* Avatar + Name */}
-      <div className="px-5 py-5 flex flex-col items-center gap-3 border-b border-[#3a4f6a]">
+      <div className="px-5 py-5 flex flex-col items-center gap-3 border-b border-[var(--c-border)]">
         {/* Avatar */}
         <div className="relative">
           <div
@@ -63,7 +63,7 @@ export function ProfileMenu({
             {nickname[0]?.toUpperCase() ?? "?"}
           </div>
           {/* Color picker */}
-          <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex gap-1 bg-[#1a2332] rounded-full px-1.5 py-1 border border-[#3a4f6a]">
+          <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex gap-1 bg-[var(--c-bg)] rounded-full px-1.5 py-1 border border-[var(--c-border)]">
             {AVATAR_COLORS.map((c) => (
               <button
                 key={c}
@@ -85,7 +85,7 @@ export function ProfileMenu({
             <div className="flex items-center gap-2">
               <input
                 autoFocus
-                className="bg-[#1a2332] border border-[#4a6a8a] rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-blue-500"
+                className="bg-[var(--c-bg)] border border-[var(--c-border-hi)] rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-blue-500"
                 value={nameInput}
                 onChange={(e) => setNameInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -122,8 +122,8 @@ export function ProfileMenu({
               onClick={() => onThemeChange(t)}
               className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
                 theme === t
-                  ? "bg-[#2a3a52] text-white"
-                  : "text-slate-300 hover:bg-[#2a3a52]/50"
+                  ? "bg-[var(--c-panel2)] text-white"
+                  : "text-slate-300 hover:bg-[var(--c-panel2)]/50"
               }`}
             >
               <span className="text-base">{t === "system" ? "⚙️" : t === "light" ? "☀️" : "🌙"}</span>
