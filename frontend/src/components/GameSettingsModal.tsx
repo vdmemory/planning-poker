@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import type { RoomState, GameSettings, DeckType } from "../types";
+import { DeckPicker } from "./DeckPicker";
 
 interface Props {
   state: RoomState;
@@ -70,18 +71,7 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
           {/* Voting system */}
           <div>
             <label className="text-xs text-slate-400 block mb-1">Voting system</label>
-            <CustomSelect
-              value={deckType}
-              onChange={(v) => setDeckType(v as DeckType)}
-              disabled={!isFacilitator}
-              options={[
-                { value: "fibonacci",     label: "Fibonacci ( 0, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, ?, ☕ )" },
-                { value: "fibonacci_mod", label: "Modified Fibonacci ( 0, ½, 1, 2, 3, 5, 8, 13, 20, 40, 100, ?, ☕ )" },
-                { value: "powers_of_2",   label: "Powers of 2 ( 0, 1, 2, 4, 8, 16, 32, 64, ?, ☕ )" },
-                { value: "sequential",    label: "Sequential ( 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, ?, ☕ )" },
-                { value: "tshirt",        label: "T-shirt ( XS, S, M, L, XL, XXL, ? )" },
-              ]}
-            />
+            <DeckPicker value={deckType} onChange={setDeckType} disabled={!isFacilitator} />
           </div>
 
           <div className="border-t border-[var(--c-border)]" />

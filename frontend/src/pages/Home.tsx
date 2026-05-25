@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { DeckType } from "../types";
+import { DeckPicker } from "../components/DeckPicker";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -30,7 +31,6 @@ export default function Home() {
       if (!res.ok) throw new Error("Failed to create room");
       const data = await res.json();
       localStorage.setItem(`pp:${data.room_id}:player_id`, data.player_id);
-      // Nickname is set in the room join modal — don't store it yet
       navigate(`/room/${data.room_id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unknown error");
@@ -47,7 +47,8 @@ export default function Home() {
       </header>
 
       <div className="flex-1 flex items-center justify-center p-4">
-        <div className="w-full max-w-lg space-y-4">
+        <div className="w-full max-w-lg space-y-5">
+          {/* Game name */}
           <div className="relative">
             <label className="absolute -top-2 left-3 bg-[var(--c-bg)] px-1 text-xs text-slate-400">
               Game's name
@@ -62,21 +63,10 @@ export default function Home() {
             />
           </div>
 
-          <div className="relative">
-            <label className="absolute -top-2 left-3 bg-[var(--c-bg)] px-1 text-xs text-slate-400">
-              Voting system
-            </label>
-            <select
-              className="w-full bg-[var(--c-bg)] border border-[var(--c-border-hi)] rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500 appearance-none"
-              value={deckType}
-              onChange={(e) => setDeckType(e.target.value as DeckType)}
-            >
-              <option value="fibonacci">Fibonacci ( 0, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, ?, ☕ )</option>
-              <option value="fibonacci_mod">Modified Fibonacci ( 0, ½, 1, 2, 3, 5, 8, 13, 20, 40, 100, ?, ☕ )</option>
-              <option value="powers_of_2">Powers of 2 ( 0, 1, 2, 4, 8, 16, 32, 64, ?, ☕ )</option>
-              <option value="sequential">Sequential ( 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, ?, ☕ )</option>
-              <option value="tshirt">T-shirt ( XS, S, M, L, XL, XXL, ? )</option>
-            </select>
+          {/* Voting system */}
+          <div>
+            <p className="text-xs text-slate-400 mb-2">Voting system</p>
+            <DeckPicker value={deckType} onChange={setDeckType} />
           </div>
 
           {error && <div className="text-red-400 text-sm">{error}</div>}
