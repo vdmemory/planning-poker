@@ -72,6 +72,9 @@ export default function Home() {
               onChange={(e) => setDeckType(e.target.value as DeckType)}
             >
               <option value="fibonacci">Fibonacci ( 0, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, ?, ☕ )</option>
+              <option value="fibonacci_mod">Modified Fibonacci ( 0, ½, 1, 2, 3, 5, 8, 13, 20, 40, 100, ?, ☕ )</option>
+              <option value="powers_of_2">Powers of 2 ( 0, 1, 2, 4, 8, 16, 32, 64, ?, ☕ )</option>
+              <option value="sequential">Sequential ( 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, ?, ☕ )</option>
               <option value="tshirt">T-shirt ( XS, S, M, L, XL, XXL, ? )</option>
             </select>
           </div>

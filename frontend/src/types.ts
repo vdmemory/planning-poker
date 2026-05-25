@@ -1,4 +1,4 @@
-export type DeckType = "fibonacci" | "tshirt";
+export type DeckType = "fibonacci" | "fibonacci_mod" | "powers_of_2" | "sequential" | "tshirt";
 
 export interface Player {
   id: string;
