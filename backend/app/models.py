@@ -52,6 +52,7 @@ class Room(BaseModel):
     id: str = Field(default_factory=lambda: uuid4().hex[:10])
     name: str
     deck_type: DeckType = DeckType.FIBONACCI
+    card_back: str = "blue_stripes"
     facilitator_id: Optional[str] = None
     players: dict[str, Player] = Field(default_factory=dict)
     issues: list[Issue] = Field(default_factory=list)
@@ -73,6 +74,7 @@ class Room(BaseModel):
             "id": self.id,
             "name": self.name,
             "deck_type": self.deck_type.value,
+            "card_back": self.card_back,
             "deck": self.deck(),
             "facilitator_id": self.facilitator_id,
             "players": [p.model_dump(mode="json") for p in self.players.values()],

@@ -137,7 +137,7 @@ async def handle_message(room_id: str, player_id: str, data: dict) -> None:
             service.update_nickname(room_id, player_id, data["nickname"])
         elif msg_type == "update_room":
             deck_type = DeckType(data["deck_type"]) if data.get("deck_type") else None
-            service.update_room(room_id, player_id, name=data.get("name"), deck_type=deck_type)
+            service.update_room(room_id, player_id, name=data.get("name"), deck_type=deck_type, card_back=data.get("card_back"))
         elif msg_type == "update_issue":
             service.update_issue(room_id, player_id, data["issue_id"],
                                  title=data.get("title"), description=data.get("description"), link=data.get("link"))

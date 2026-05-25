@@ -212,7 +212,7 @@ function Room({
   }
 
   function handleGameSettingsSave(
-    roomPatch: { name?: string; deck_type?: string },
+    roomPatch: { name?: string; deck_type?: string; card_back?: string },
     settingsPatch: Partial<GameSettings>
   ) {
     if (Object.keys(roomPatch).length > 0) {
@@ -359,7 +359,7 @@ function Room({
               everyoneVoted={everyoneVoted}
               countdown={countdown}
               showAverage={settings.showAverage}
-              cardBack={settings.cardBack}
+              cardBack={state.card_back}
               onReveal={triggerReveal}
               onReset={() => send({ type: "reset" })}
               onRevote={(card) => send({ type: "revote", card })}
@@ -390,7 +390,7 @@ function Room({
                   avatarColor={player.id === myPlayerId ? avatarColor : player.avatar_color}
                   isMe={player.id === myPlayerId}
                   deck={state.deck}
-                  cardBack={settings.cardBack}
+                  cardBack={state.card_back}
                   onRevote={(card) => send({ type: "revote", card })}
                 />
               ))}

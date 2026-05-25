@@ -75,7 +75,7 @@ class RoomService:
         player.nickname = nickname.strip() or player.nickname
         self.store.save(room)
 
-    def update_room(self, room_id: str, player_id: str, name: Optional[str] = None, deck_type: Optional[DeckType] = None) -> None:
+    def update_room(self, room_id: str, player_id: str, name: Optional[str] = None, deck_type: Optional[DeckType] = None, card_back: Optional[str] = None) -> None:
         room = self.get_room(room_id)
         self._require_facilitator(room, player_id)
         if name is not None:
@@ -84,6 +84,8 @@ class RoomService:
             room.deck_type = deck_type
             room.votes.clear()
             room.revealed = False
+        if card_back is not None:
+            room.card_back = card_back
         self.store.save(room)
 
     def mark_disconnected(self, room_id: str, player_id: str) -> None:

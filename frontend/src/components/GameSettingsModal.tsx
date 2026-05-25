@@ -7,13 +7,14 @@ interface Props {
   settings: GameSettings;
   isFacilitator: boolean;
   facilitatorName: string;
-  onSave: (roomPatch: { name?: string; deck_type?: string }, settingsPatch: Partial<GameSettings>) => void;
+  onSave: (roomPatch: { name?: string; deck_type?: string; card_back?: string }, settingsPatch: Partial<GameSettings>) => void;
   onClose: () => void;
 }
 
 export function GameSettingsModal({ state, settings, isFacilitator, facilitatorName, onSave, onClose }: Props) {
   const [name, setName] = useState(state.name);
   const [deckType, setDeckType] = useState(state.deck_type);
+  const [cardBack, setCardBack] = useState(state.card_back ?? "blue_stripes");
   const [localSettings, setLocalSettings] = useState<GameSettings>({ ...settings });
 
   function toggle(key: keyof GameSettings) {
@@ -21,9 +22,10 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
   }
 
   function save() {
-    const roomPatch: { name?: string; deck_type?: string } = {};
+    const roomPatch: { name?: string; deck_type?: string; card_back?: string } = {};
     if (name.trim() !== state.name) roomPatch.name = name.trim();
     if (deckType !== state.deck_type) roomPatch.deck_type = deckType;
+    if (cardBack !== state.card_back) roomPatch.card_back = cardBack;
     onSave(roomPatch, localSettings);
     onClose();
   }
@@ -104,14 +106,13 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
 
           <div className="border-t border-[var(--c-border)]" />
 
-          {/* Card back style */}
-          <div>
-            <label className="text-xs text-slate-400 block mb-2">Card back style</label>
-            <CardBackPicker
-              value={localSettings.cardBack}
-              onChange={(v) => setLocalSettings((p) => ({ ...p, cardBack: v }))}
-            />
-          </div>
+          {/* Card back style — facilitator only */}
+          {isFacilitator && (
+            <div>
+              <label className="text-xs text-slate-400 block mb-2">Card back style</label>
+              <CardBackPicker value={cardBack} onChange={setCardBack} />
+            </div>
+          )}
 
           <div className="border-t border-[var(--c-border)]" />
 

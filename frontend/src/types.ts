@@ -25,13 +25,13 @@ export interface GameSettings {
   funFeatures: boolean;
   whoCanReveal: "facilitator" | "everyone";
   whoCanManageIssues: "facilitator" | "everyone";
-  cardBack: string;
 }
 
 export interface RoomState {
   id: string;
   name: string;
   deck_type: DeckType;
+  card_back: string;
   deck: string[];
   facilitator_id: string | null;
   players: Player[];
