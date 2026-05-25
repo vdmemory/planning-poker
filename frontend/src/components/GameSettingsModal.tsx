@@ -70,11 +70,13 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
             </div>
           </div>
 
-          {/* Voting system */}
-          <div>
-            <label className="text-xs text-slate-400 block mb-1">Voting system</label>
-            <DeckPicker value={deckType} onChange={setDeckType} disabled={!isFacilitator} />
-          </div>
+          {/* Voting system — facilitator only */}
+          {isFacilitator && (
+            <div>
+              <label className="text-xs text-slate-400 block mb-1">Voting system</label>
+              <DeckPicker value={deckType} onChange={setDeckType} />
+            </div>
+          )}
 
           <div className="border-t border-[var(--c-border)]" />
 
