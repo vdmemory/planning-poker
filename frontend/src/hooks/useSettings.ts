@@ -8,6 +8,7 @@ const DEFAULTS: GameSettings = {
   funFeatures: false,
   whoCanReveal: "facilitator",
   whoCanManageIssues: "facilitator",
+  cardBack: "blue_stripes",
 };
 
 export function useSettings() {

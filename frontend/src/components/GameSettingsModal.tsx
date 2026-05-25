@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import type { RoomState, GameSettings, DeckType } from "../types";
 import { DeckPicker } from "./DeckPicker";
 
@@ -99,6 +99,17 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
                 { value: "facilitator", label: "Facilitator only" },
                 { value: "everyone", label: "Everyone" },
               ]}
+            />
+          </div>
+
+          <div className="border-t border-[var(--c-border)]" />
+
+          {/* Card back style */}
+          <div>
+            <label className="text-xs text-slate-400 block mb-2">Card back style</label>
+            <CardBackPicker
+              value={localSettings.cardBack}
+              onChange={(v) => setLocalSettings((p) => ({ ...p, cardBack: v }))}
             />
           </div>
 
@@ -206,6 +217,83 @@ function CustomSelect({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+export const CARD_BACKS: { id: string; label: string; style: React.CSSProperties }[] = [
+  {
+    id: "blue_stripes",
+    label: "Blue",
+    style: {
+      background: "repeating-linear-gradient(45deg, #2563eb, #2563eb 8px, #1d4ed8 8px, #1d4ed8 16px)",
+    },
+  },
+  {
+    id: "purple_stripes",
+    label: "Purple",
+    style: {
+      background: "repeating-linear-gradient(45deg, #7c3aed, #7c3aed 8px, #6d28d9 8px, #6d28d9 16px)",
+    },
+  },
+  {
+    id: "red_stripes",
+    label: "Red",
+    style: {
+      background: "repeating-linear-gradient(45deg, #dc2626, #dc2626 8px, #b91c1c 8px, #b91c1c 16px)",
+    },
+  },
+  {
+    id: "green_stripes",
+    label: "Green",
+    style: {
+      background: "repeating-linear-gradient(45deg, #16a34a, #16a34a 8px, #15803d 8px, #15803d 16px)",
+    },
+  },
+  {
+    id: "dots",
+    label: "Dots",
+    style: {
+      background: "#1e3a5f",
+      backgroundImage: "radial-gradient(circle, #3b82f6 1.5px, transparent 1.5px)",
+      backgroundSize: "10px 10px",
+    },
+  },
+  {
+    id: "sunset",
+    label: "Sunset",
+    style: {
+      background: "linear-gradient(135deg, #f97316, #ec4899, #8b5cf6)",
+    },
+  },
+];
+
+function CardBackPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {CARD_BACKS.map((back) => {
+        const selected = back.id === value;
+        return (
+          <button
+            key={back.id}
+            type="button"
+            onClick={() => onChange(back.id)}
+            className={`flex flex-col items-center gap-1.5 p-2 rounded-xl border-2 transition-all ${
+              selected
+                ? "border-blue-500 bg-blue-500/10"
+                : "border-[var(--c-border)] hover:border-[var(--c-border-hi)]"
+            }`}
+          >
+            <div
+              className="w-10 h-14 rounded-lg shadow-md"
+              style={back.style}
+            />
+            <span className={`text-xs font-medium ${selected ? "text-blue-400" : "text-slate-400"}`}>
+              {back.label}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }

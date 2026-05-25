@@ -4,7 +4,7 @@ import { useRoomSocket } from "../hooks/useRoomSocket";
 import { useTheme } from "../hooks/useTheme";
 import { useSettings } from "../hooks/useSettings";
 import { IssueSidebar } from "../components/IssueSidebar";
-import { GameSettingsModal } from "../components/GameSettingsModal";
+import { GameSettingsModal, CARD_BACKS } from "../components/GameSettingsModal";
 import { ProfileMenu } from "../components/ProfileMenu";
 import type { Player, RoomState, Stats, GameSettings } from "../types";
 import QRCode from "qrcode";
@@ -359,6 +359,7 @@ function Room({
               everyoneVoted={everyoneVoted}
               countdown={countdown}
               showAverage={settings.showAverage}
+              cardBack={settings.cardBack}
               onReveal={triggerReveal}
               onReset={() => send({ type: "reset" })}
               onRevote={(card) => send({ type: "revote", card })}
@@ -389,6 +390,7 @@ function Room({
                   avatarColor={player.id === myPlayerId ? avatarColor : player.avatar_color}
                   isMe={player.id === myPlayerId}
                   deck={state.deck}
+                  cardBack={settings.cardBack}
                   onRevote={(card) => send({ type: "revote", card })}
                 />
               ))}
@@ -456,6 +458,7 @@ function PokerTable({
   everyoneVoted,
   countdown,
   showAverage,
+  cardBack,
   onReveal,
   onReset,
   onRevote,
@@ -468,6 +471,7 @@ function PokerTable({
   everyoneVoted: boolean;
   countdown: number | null;
   showAverage: boolean;
+  cardBack: string;
   onReveal: () => void;
   onReset: () => void;
   onRevote: (card: string) => void;
@@ -545,6 +549,7 @@ function PokerTable({
               avatarColor={player.id === myPlayerId ? avatarColor : player.avatar_color}
               isMe={player.id === myPlayerId}
               deck={state.deck}
+              cardBack={cardBack}
               onRevote={onRevote}
             />
           </div>
@@ -769,6 +774,7 @@ function PlayerCard({
   avatarColor,
   isMe,
   deck,
+  cardBack,
   onRevote,
 }: {
   player: Player;
@@ -779,11 +785,15 @@ function PlayerCard({
   avatarColor: string;
   isMe?: boolean;
   deck?: string[];
+  cardBack?: string;
   onRevote?: (card: string) => void;
 }) {
   const [showPicker, setShowPicker] = useState(false);
   const bgColor = avatarColor || "#3a4f6a";
   const canEdit = isMe && revealed && !!onRevote;
+  const cardBackStyle = voted && !revealed
+    ? (CARD_BACKS.find((b) => b.id === cardBack) ?? CARD_BACKS[0]).style
+    : {};
 
   return (
     <div className={`flex flex-col items-center gap-1.5 ${!player.connected ? "opacity-40" : ""}`}>
@@ -804,14 +814,7 @@ function PlayerCard({
               ? "bg-[var(--c-panel)] border-blue-400 text-white"
               : "border-blue-400"
           }`}
-          style={
-            voted && !revealed
-              ? {
-                  background:
-                    "repeating-linear-gradient(45deg, #2563eb, #2563eb 8px, #1d4ed8 8px, #1d4ed8 16px)",
-                }
-              : {}
-          }
+          style={cardBackStyle}
         >
           {revealed && cardValue && cardValue !== "hidden" ? cardValue : null}
         </div>

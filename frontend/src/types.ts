@@ -25,6 +25,7 @@ export interface GameSettings {
   funFeatures: boolean;
   whoCanReveal: "facilitator" | "everyone";
   whoCanManageIssues: "facilitator" | "everyone";
+  cardBack: string;
 }
 
 export interface RoomState {
