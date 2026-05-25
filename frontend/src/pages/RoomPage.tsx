@@ -395,49 +395,25 @@ function Room({
             </div>
           </div>
 
-          {/* Bottom: voting deck or set estimate */}
-          <div className="mt-auto w-full pt-4">
-            {!state.revealed && !me?.is_spectator && countdown === null && (
-              <div className="text-center">
-                <p className="text-slate-400 text-sm mb-3">Choose your card 👇</p>
-                <div className="flex gap-2 overflow-x-auto pb-2 pt-4 justify-start sm:justify-center px-2 sm:px-0">
-                  {state.deck.map((value) => (
-                    <VotingCard
-                      key={value}
-                      value={value}
-                      selected={localVote === value}
-                      onClick={() => {
-                        send({ type: "vote", card: value });
-                        setLocalVote(value);
-                      }}
-                    />
-                  ))}
-                </div>
+          {/* Bottom: voting deck */}
+          {!state.revealed && !me?.is_spectator && countdown === null && (
+            <div className="mt-auto w-full pt-4 text-center">
+              <p className="text-slate-400 text-sm mb-3">Choose your card 👇</p>
+              <div className="flex gap-2 overflow-x-auto pb-2 pt-4 justify-start sm:justify-center px-2 sm:px-0">
+                {state.deck.map((value) => (
+                  <VotingCard
+                    key={value}
+                    value={value}
+                    selected={localVote === value}
+                    onClick={() => {
+                      send({ type: "vote", card: value });
+                      setLocalVote(value);
+                    }}
+                  />
+                ))}
               </div>
-            )}
-            {state.revealed && isFacilitator && currentIssue && (
-              <div className="text-center">
-                <p className="text-slate-400 text-sm mb-3">Set final estimate for this issue:</p>
-                <div className="flex gap-2 overflow-x-auto pb-2 justify-start sm:justify-center px-2 sm:px-0">
-                  {state.deck.map((v) => (
-                    <button
-                      key={v}
-                      onClick={() =>
-                        send({ type: "set_estimate", issue_id: currentIssue.id, estimate: v })
-                      }
-                      className={`w-12 h-16 rounded-xl border-2 font-bold text-base transition-all shrink-0 ${
-                        currentIssue.final_estimate === v
-                          ? "bg-blue-600 border-blue-400 text-white"
-                          : "bg-[var(--c-panel)] border-[var(--c-border)] text-slate-300 hover:border-blue-500"
-                      }`}
-                    >
-                      {v}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </main>
 
         {sidebarOpen && (
