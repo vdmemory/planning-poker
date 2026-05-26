@@ -5,6 +5,7 @@ import { useTheme } from "../hooks/useTheme";
 import { useSettings } from "../hooks/useSettings";
 import { IssueSidebar } from "../components/IssueSidebar";
 import { GameSettingsModal, CARD_BACKS } from "../components/GameSettingsModal";
+import { DrawingCanvas, DRAW_COLORS } from "../components/DrawingCanvas";
 import { ProfileMenu } from "../components/ProfileMenu";
 import type { Player, RoomState, Stats, GameSettings } from "../types";
 import QRCode from "qrcode";
@@ -139,10 +140,14 @@ function Room({
   storedPlayerId: string | null;
   isSpectator: boolean;
 }) {
+  const drawHandlerRef = useRef<((msg: object) => void) | null>(null);
+  const handleDrawMessage = useCallback((msg: object) => { drawHandlerRef.current?.(msg); }, []);
+
   const { state, stats, myPlayerId, connected, send, error, countdown } = useRoomSocket({
     roomId,
     playerId: storedPlayerId,
     nickname,
+    onDrawMessage: handleDrawMessage,
   });
   const { theme, setTheme } = useTheme();
   const { settings, setSettings } = useSettings();
@@ -156,6 +161,32 @@ function Room({
   const [currentNickname, setCurrentNickname] = useState(nickname);
   const prevRevealedRef = useRef(false);
   const avatarSyncedRef = useRef(false);
+
+  // Drawing mode
+  const [isDrawingMode, setIsDrawingMode] = useState(false);
+  const [drawColor, setDrawColor] = useState(DRAW_COLORS[4]);
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [cursorPos, setCursorPos] = useState({ x: -100, y: -100 });
+
+  function exitDrawing() {
+    setIsDrawingMode(false);
+    setShowColorPicker(false);
+  }
+
+  // ESC exits drawing mode
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") exitDrawing(); }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Track cursor position for the local name label
+  useEffect(() => {
+    if (!isDrawingMode) return;
+    function onMove(e: MouseEvent) { setCursorPos({ x: e.clientX, y: e.clientY }); }
+    document.addEventListener("mousemove", onMove);
+    return () => document.removeEventListener("mousemove", onMove);
+  }, [isDrawingMode]);
 
   // Reset localVote when a new round starts
   useEffect(() => {
@@ -304,6 +335,42 @@ function Room({
             👥
           </button>
 
+          {/* Drawing mode button */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                if (isDrawingMode) { exitDrawing(); }
+                else { setShowColorPicker((v) => !v); }
+              }}
+              title={isDrawingMode ? "Stop drawing (ESC)" : "Draw on screen"}
+              className={`p-2 rounded-lg border transition-colors ${
+                isDrawingMode
+                  ? "border-yellow-500 text-yellow-400 bg-yellow-500/10"
+                  : "border-[var(--c-border)] text-slate-400 hover:bg-[var(--c-panel2)]"
+              }`}
+            >
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <path d="M13 2.5l2.5 2.5-9.5 9.5H3.5V12L13 2.5z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M11.5 4l2.5 2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+            </button>
+            {showColorPicker && !isDrawingMode && (
+              <div
+                className="absolute top-full right-0 mt-2 bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl p-2.5 shadow-2xl z-50 flex gap-2"
+                onMouseLeave={() => setShowColorPicker(false)}
+              >
+                {DRAW_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    onClick={() => { setDrawColor(color); setIsDrawingMode(true); setShowColorPicker(false); }}
+                    className="w-7 h-7 rounded-full transition-transform hover:scale-125 shadow-md ring-2 ring-transparent hover:ring-white/40"
+                    style={{ backgroundColor: color }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
           <button
             onClick={() => setSidebarOpen((o) => !o)}
             title="Toggle issues sidebar"
@@ -430,6 +497,33 @@ function Room({
           </aside>
         )}
       </div>
+
+      {/* Drawing canvas — always mounted so others' strokes are visible */}
+      {myPlayerId && (
+        <DrawingCanvas
+          myPlayerId={myPlayerId}
+          myNickname={me?.nickname ?? currentNickname}
+          isActive={isDrawingMode}
+          activeColor={drawColor}
+          send={send}
+          onRegister={(handler) => { drawHandlerRef.current = handler; }}
+        />
+      )}
+
+      {/* Local cursor label when in drawing mode */}
+      {isDrawingMode && (
+        <div
+          className="fixed z-50 pointer-events-none"
+          style={{ left: cursorPos.x + 14, top: cursorPos.y - 22, transform: "translateY(-100%)" }}
+        >
+          <span
+            className="text-xs font-bold text-white px-2 py-0.5 rounded shadow"
+            style={{ backgroundColor: drawColor }}
+          >
+            {me?.nickname ?? currentNickname}
+          </span>
+        </div>
+      )}
 
       {showInvite && <InviteModal onClose={() => setShowInvite(false)} />}
 

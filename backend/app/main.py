@@ -108,6 +108,7 @@ async def ws_endpoint(websocket: WebSocket, room_id: str, player_id: str, nickna
     except WebSocketDisconnect:
         manager.disconnect(room_id, player_id)
         service.mark_disconnected(room_id, player_id)
+        await manager.broadcast(room_id, {"type": "draw_clear", "player_id": player_id, "nickname": ""})
         room = store.get(room_id)
         if room:
             await manager.broadcast(
@@ -149,6 +150,16 @@ async def handle_message(room_id: str, player_id: str, data: dict) -> None:
             service.reorder_issue(room_id, player_id, data["issue_id"], data["direction"])
         elif msg_type == "update_avatar_color":
             service.update_avatar_color(room_id, player_id, data["color"])
+        elif msg_type in ("draw_stroke", "draw_cursor", "draw_clear"):
+            room = store.get(room_id)
+            player = room.players.get(player_id) if room else None
+            nickname = player.nickname if player else ""
+            await manager.broadcast_except(room_id, player_id, {
+                **data,
+                "player_id": player_id,
+                "nickname": nickname,
+            })
+            return
         elif msg_type == "countdown":
             # Relay countdown to all clients so everyone sees the animation
             await manager.broadcast(room_id, {"type": "countdown", "seconds": data.get("seconds", 3)})

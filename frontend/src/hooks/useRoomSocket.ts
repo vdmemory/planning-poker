@@ -5,6 +5,7 @@ interface UseRoomSocketArgs {
   roomId: string;
   playerId: string | null;
   nickname: string;
+  onDrawMessage?: (msg: object) => void;
 }
 
 interface UseRoomSocketResult {
@@ -21,6 +22,7 @@ export function useRoomSocket({
   roomId,
   playerId,
   nickname,
+  onDrawMessage,
 }: UseRoomSocketArgs): UseRoomSocketResult {
   const [state, setState] = useState<RoomState | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -29,6 +31,8 @@ export function useRoomSocket({
   const [error, setError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const onDrawMessageRef = useRef(onDrawMessage);
+  useEffect(() => { onDrawMessageRef.current = onDrawMessage; });
   const reconnectTimeoutRef = useRef<number | null>(null);
   const countdownTimerRef = useRef<number | null>(null);
   const shouldReconnectRef = useRef(true);
@@ -85,6 +89,8 @@ export function useRoomSocket({
             setCountdown(null);
           }
         }, 1000);
+      } else if (msg.type === "draw_stroke" || msg.type === "draw_cursor" || msg.type === "draw_clear") {
+        onDrawMessageRef.current?.(msg);
       } else if (msg.type === "error") {
         setError(msg.message);
       }

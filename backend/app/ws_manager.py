@@ -43,6 +43,20 @@ class ConnectionManager:
         for pid in dead:
             self.disconnect(room_id, pid)
 
+    async def broadcast_except(self, room_id: str, exclude_player_id: str, message: dict) -> None:
+        room_conns = self._connections.get(room_id, {})
+        payload = json.dumps(message)
+        dead: list[str] = []
+        for pid, ws in room_conns.items():
+            if pid == exclude_player_id:
+                continue
+            try:
+                await ws.send_text(payload)
+            except Exception:
+                dead.append(pid)
+        for pid in dead:
+            self.disconnect(room_id, pid)
+
     async def send_to(self, room_id: str, player_id: str, message: dict) -> None:
         ws = self._connections.get(room_id, {}).get(player_id)
         if ws:
