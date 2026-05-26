@@ -300,7 +300,7 @@ class RoomService:
 
     def set_estimate(self, room_id: str, player_id: str, issue_id: str, estimate: str) -> None:
         room = self.get_room(room_id)
-        self._require_facilitator(room, player_id)
+        self._require_can_manage_issues(room, player_id)
         for issue in room.issues:
             if issue.id == issue_id:
                 issue.final_estimate = estimate
