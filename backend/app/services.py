@@ -290,7 +290,10 @@ class RoomService:
 
     def reset_round(self, room_id: str, player_id: str) -> None:
         room = self.get_room(room_id)
-        self._require_facilitator(room, player_id)
+        if room.who_can_reveal == "facilitator":
+            self._require_facilitator(room, player_id)
+        elif player_id not in room.players:
+            raise RoomError("Player not in room")
         room.votes.clear()
         room.revealed = False
         self.store.save(room)
