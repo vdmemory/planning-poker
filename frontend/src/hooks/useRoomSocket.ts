@@ -16,6 +16,7 @@ interface UseRoomSocketResult {
   send: (msg: object) => void;
   error: string | null;
   countdown: number | null;
+  roomClosed: boolean;
 }
 
 export function useRoomSocket({
@@ -30,6 +31,7 @@ export function useRoomSocket({
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [roomClosed, setRoomClosed] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const onDrawMessageRef = useRef(onDrawMessage);
   useEffect(() => { onDrawMessageRef.current = onDrawMessage; });
@@ -89,6 +91,8 @@ export function useRoomSocket({
             setCountdown(null);
           }
         }, 1000);
+      } else if (msg.type === "room_closed") {
+        setRoomClosed(true);
       } else if (msg.type === "draw_stroke" || msg.type === "draw_cursor" || msg.type === "draw_clear") {
         onDrawMessageRef.current?.(msg);
       } else if (msg.type === "error") {
@@ -133,5 +137,5 @@ export function useRoomSocket({
     }
   }, []);
 
-  return { state, stats, myPlayerId, connected, send, error, countdown };
+  return { state, stats, myPlayerId, connected, send, error, countdown, roomClosed };
 }

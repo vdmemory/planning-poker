@@ -1,4 +1,4 @@
-export type DeckType = "fibonacci" | "fibonacci_mod" | "powers_of_2" | "sequential" | "tshirt";
+export type DeckType = "fibonacci" | "powers_of_2" | "sequential" | "tshirt";
 
 export interface Player {
   id: string;
@@ -20,8 +20,6 @@ export interface Issue {
 
 export interface GameSettings {
   autoReveal: boolean;
-  showCountdown: boolean;
-  showAverage: boolean;
   funFeatures: boolean;
   whoCanReveal: "facilitator" | "everyone";
   whoCanManageIssues: "facilitator" | "everyone";

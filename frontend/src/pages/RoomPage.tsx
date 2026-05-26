@@ -133,17 +133,18 @@ function Room({
   roomId,
   nickname,
   storedPlayerId,
-  isSpectator,
+  isSpectator: initialSpectator,
 }: {
   roomId: string;
   nickname: string;
   storedPlayerId: string | null;
   isSpectator: boolean;
 }) {
+  const navigate = useNavigate();
   const drawHandlerRef = useRef<((msg: object) => void) | null>(null);
   const handleDrawMessage = useCallback((msg: object) => { drawHandlerRef.current?.(msg); }, []);
 
-  const { state, stats, myPlayerId, connected, send, error, countdown } = useRoomSocket({
+  const { state, stats, myPlayerId, connected, send, error, countdown, roomClosed } = useRoomSocket({
     roomId,
     playerId: storedPlayerId,
     nickname,
@@ -168,10 +169,25 @@ function Room({
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [cursorPos, setCursorPos] = useState({ x: -100, y: -100 });
 
+  const [showCloseRoomModal, setShowCloseRoomModal] = useState(false);
+
   function exitDrawing() {
     setIsDrawingMode(false);
     setShowColorPicker(false);
   }
+
+  function handleLeaveRoom() {
+    if (state?.facilitator_id === myPlayerId) {
+      setShowCloseRoomModal(true);
+    } else {
+      navigate("/");
+    }
+  }
+
+  // Navigate everyone home when room is closed
+  useEffect(() => {
+    if (roomClosed) navigate("/");
+  }, [roomClosed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ESC exits drawing mode
   useEffect(() => {
@@ -221,13 +237,8 @@ function Room({
   }, [state?.voted_player_ids.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function triggerReveal() {
-    if (settings.showCountdown) {
-      // Broadcast countdown to all players, then reveal after 3 s
-      send({ type: "countdown", seconds: 3 });
-      window.setTimeout(() => send({ type: "reveal" }), 3000);
-    } else {
-      send({ type: "reveal" });
-    }
+    send({ type: "countdown", seconds: 3 });
+    window.setTimeout(() => send({ type: "reveal" }), 3000);
   }
 
   function handleAvatarColorChange(color: string) {
@@ -312,9 +323,13 @@ function Room({
                 nickname={me?.nickname ?? currentNickname}
                 avatarColor={avatarColor}
                 theme={theme}
+                isSpectator={me?.is_spectator ?? false}
+                isFacilitator={isFacilitator}
                 onNicknameChange={handleNicknameChange}
                 onAvatarColorChange={handleAvatarColorChange}
                 onThemeChange={setTheme}
+                onSpectatorToggle={() => send({ type: "toggle_spectator" })}
+                onLeaveRoom={handleLeaveRoom}
                 onClose={() => setShowProfileMenu(false)}
               />
             )}
@@ -425,7 +440,6 @@ function Room({
               avatarColor={avatarColor}
               everyoneVoted={everyoneVoted}
               countdown={countdown}
-              showAverage={settings.showAverage}
               cardBack={state.card_back}
               onReveal={triggerReveal}
               onReset={() => send({ type: "reset" })}
@@ -441,7 +455,6 @@ function Room({
               isFacilitator={isFacilitator}
               everyoneVoted={everyoneVoted}
               countdown={countdown}
-              showAverage={settings.showAverage}
               onReveal={triggerReveal}
               onReset={() => send({ type: "reset" })}
             />
@@ -510,19 +523,35 @@ function Room({
         />
       )}
 
-      {/* Local cursor label when in drawing mode */}
+      {/* Local pencil cursor when in drawing mode */}
       {isDrawingMode && (
         <div
-          className="fixed z-50 pointer-events-none"
-          style={{ left: cursorPos.x + 14, top: cursorPos.y - 22, transform: "translateY(-100%)" }}
+          className="fixed z-50 pointer-events-none select-none"
+          style={{ left: cursorPos.x, top: cursorPos.y }}
         >
+          {/* Pencil icon — tip aligns with cursor position */}
+          <svg
+            width="22" height="22" viewBox="0 0 22 22" fill="none"
+            style={{ position: "absolute", left: -2, top: -20, transform: "rotate(-45deg)" }}
+          >
+            <path d="M16 2l4 4-11 11H5v-4L16 2z" fill={drawColor} stroke="white" strokeWidth="1" strokeLinejoin="round"/>
+            <path d="M13 5l4 4" stroke="white" strokeWidth="0.8" strokeLinecap="round"/>
+          </svg>
+          {/* Name badge */}
           <span
-            className="text-xs font-bold text-white px-2 py-0.5 rounded shadow"
-            style={{ backgroundColor: drawColor }}
+            className="absolute text-xs font-bold text-white px-1.5 py-0.5 rounded shadow-md whitespace-nowrap"
+            style={{ backgroundColor: drawColor, left: 14, top: -28 }}
           >
             {me?.nickname ?? currentNickname}
           </span>
         </div>
+      )}
+
+      {showCloseRoomModal && (
+        <CloseRoomModal
+          onConfirm={() => { send({ type: "close_room" }); setShowCloseRoomModal(false); }}
+          onCancel={() => setShowCloseRoomModal(false)}
+        />
       )}
 
       {showInvite && <InviteModal onClose={() => setShowInvite(false)} />}
@@ -551,7 +580,6 @@ function PokerTable({
   avatarColor,
   everyoneVoted,
   countdown,
-  showAverage,
   cardBack,
   onReveal,
   onReset,
@@ -564,7 +592,6 @@ function PokerTable({
   avatarColor: string;
   everyoneVoted: boolean;
   countdown: number | null;
-  showAverage: boolean;
   cardBack: string;
   onReveal: () => void;
   onReset: () => void;
@@ -619,7 +646,6 @@ function PokerTable({
             isFacilitator={isFacilitator}
             everyoneVoted={everyoneVoted}
             countdown={countdown}
-            showAverage={showAverage}
             onReveal={onReveal}
             onReset={onReset}
           />
@@ -659,7 +685,6 @@ function TableCenter({
   isFacilitator,
   everyoneVoted,
   countdown,
-  showAverage,
   onReveal,
   onReset,
 }: {
@@ -668,7 +693,6 @@ function TableCenter({
   isFacilitator: boolean;
   everyoneVoted: boolean;
   countdown: number | null;
-  showAverage: boolean;
   onReveal: () => void;
   onReset: () => void;
 }) {
@@ -691,14 +715,12 @@ function TableCenter({
     return (
       <div className="flex flex-col items-center gap-2 text-center">
         <div className="flex items-center gap-5">
-          {showAverage && (
-            <div>
+          <div>
               <div className="text-green-300/70 text-xs">Average</div>
               <div className="text-3xl font-bold text-white" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.5)" }}>
                 {stats.average ?? "—"}
               </div>
             </div>
-          )}
           <div>
             <div className="text-green-300/70 text-xs">{stats.consensus ? "Consensus" : "No consensus"}</div>
             <div className="text-3xl">{stats.consensus ? "😎" : "🤔"}</div>
@@ -761,7 +783,6 @@ function ActionBox({
   isFacilitator,
   everyoneVoted,
   countdown,
-  showAverage,
   onReveal,
   onReset,
 }: {
@@ -770,7 +791,6 @@ function ActionBox({
   isFacilitator: boolean;
   everyoneVoted: boolean;
   countdown: number | null;
-  showAverage: boolean;
   onReveal: () => void;
   onReset: () => void;
 }) {
@@ -794,13 +814,11 @@ function ActionBox({
       <div className="bg-[var(--c-panel)] rounded-2xl px-8 py-6 w-full max-w-2xl flex flex-wrap justify-center items-center gap-8">
         {stats && (
           <>
-            {showAverage && (
-              <div className="text-center">
+            <div className="text-center">
                 <div className="text-xs text-slate-400 mb-1">Average</div>
                 <div className="text-4xl font-bold">{stats.average ?? "—"}</div>
               </div>
-            )}
-            {showAverage && <div className="w-px h-12 bg-[var(--c-border)]" />}
+            <div className="w-px h-12 bg-[var(--c-border)]" />
             <div className="text-center">
               <div className="text-xs text-slate-400 mb-1">Agreement</div>
               <div className="text-4xl">{stats.consensus ? "😎" : "🤔"}</div>
@@ -1048,6 +1066,39 @@ function VotingCard({
     >
       {value}
     </button>
+  );
+}
+
+// ─── Close Room Modal ─────────────────────────────────────────────────────────
+
+function CloseRoomModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onCancel}>
+      <div
+        className="bg-[var(--c-panel)] rounded-2xl p-8 w-full max-w-sm shadow-2xl text-center"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="text-4xl mb-4">⚠️</div>
+        <h2 className="text-lg font-bold text-white mb-2">Close room for everyone?</h2>
+        <p className="text-slate-400 text-sm mb-6">
+          All participants will be disconnected and the session will end.
+        </p>
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            className="flex-1 border border-[var(--c-border)] text-slate-300 hover:bg-[var(--c-panel2)] py-2.5 rounded-xl text-sm font-medium transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors"
+          >
+            Close room
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -115,6 +115,23 @@ class RoomService:
         else:
             self.store.save(room)
 
+    def toggle_spectator(self, room_id: str, player_id: str) -> None:
+        room = self.get_room(room_id)
+        player = room.players.get(player_id)
+        if not player:
+            raise RoomError("Player not in room")
+        if player.is_facilitator:
+            raise RoomError("Facilitator cannot be a spectator")
+        player.is_spectator = not player.is_spectator
+        if player.is_spectator:
+            room.votes.pop(player_id, None)
+        self.store.save(room)
+
+    def close_room(self, room_id: str, player_id: str) -> None:
+        room = self.get_room(room_id)
+        self._require_facilitator(room, player_id)
+        self.store.delete(room_id)
+
     # ---------- Issues ----------
 
     def add_issue(self, room_id: str, player_id: str, title: str, description: str = "", link: str = "") -> Issue:

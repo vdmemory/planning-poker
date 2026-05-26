@@ -3,8 +3,6 @@ import type { GameSettings } from "../types";
 
 const DEFAULTS: GameSettings = {
   autoReveal: false,
-  showCountdown: true,
-  showAverage: true,
   funFeatures: false,
   whoCanReveal: "facilitator",
   whoCanManageIssues: "facilitator",

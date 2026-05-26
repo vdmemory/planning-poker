@@ -10,9 +10,13 @@ interface Props {
   nickname: string;
   avatarColor: string;
   theme: Theme;
+  isSpectator: boolean;
+  isFacilitator: boolean;
   onNicknameChange: (name: string) => void;
   onAvatarColorChange: (color: string) => void;
   onThemeChange: (t: Theme) => void;
+  onSpectatorToggle: () => void;
+  onLeaveRoom: () => void;
   onClose: () => void;
 }
 
@@ -20,9 +24,13 @@ export function ProfileMenu({
   nickname,
   avatarColor,
   theme,
+  isSpectator,
+  isFacilitator,
   onNicknameChange,
   onAvatarColorChange,
   onThemeChange,
+  onSpectatorToggle,
+  onLeaveRoom,
   onClose,
 }: Props) {
   const [editingName, setEditingName] = useState(false);
@@ -41,9 +49,7 @@ export function ProfileMenu({
 
   function confirmName() {
     const trimmed = nameInput.trim();
-    if (trimmed && trimmed !== nickname) {
-      onNicknameChange(trimmed);
-    }
+    if (trimmed && trimmed !== nickname) onNicknameChange(trimmed);
     setEditingName(false);
   }
 
@@ -54,7 +60,6 @@ export function ProfileMenu({
     >
       {/* Avatar + Name */}
       <div className="px-5 py-5 flex flex-col items-center gap-3 border-b border-[var(--c-border)]">
-        {/* Avatar */}
         <div className="relative">
           <div
             className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold text-white"
@@ -62,7 +67,6 @@ export function ProfileMenu({
           >
             {nickname[0]?.toUpperCase() ?? "?"}
           </div>
-          {/* Color picker */}
           <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex gap-1 bg-[var(--c-bg)] rounded-full px-1.5 py-1 border border-[var(--c-border)]">
             {AVATAR_COLORS.map((c) => (
               <button
@@ -71,7 +75,7 @@ export function ProfileMenu({
                 className="w-4 h-4 rounded-full transition-transform hover:scale-125"
                 style={{
                   backgroundColor: c,
-                  outline: avatarColor === c ? `2px solid white` : "none",
+                  outline: avatarColor === c ? "2px solid white" : "none",
                   outlineOffset: "1px",
                 }}
               />
@@ -79,7 +83,6 @@ export function ProfileMenu({
           </div>
         </div>
 
-        {/* Name */}
         <div className="mt-3 text-center">
           {editingName ? (
             <div className="flex items-center gap-2">
@@ -108,22 +111,22 @@ export function ProfileMenu({
               </svg>
             </button>
           )}
-          <div className="text-xs text-slate-400 mt-0.5">Guest user</div>
+          <div className="text-xs text-slate-400 mt-0.5">
+            {isFacilitator ? "Facilitator" : isSpectator ? "Spectator" : "Player"}
+          </div>
         </div>
       </div>
 
-      {/* Theme */}
-      <div className="px-5 py-4">
+      {/* Appearance */}
+      <div className="px-5 py-4 border-b border-[var(--c-border)]">
         <div className="text-xs text-slate-400 font-medium mb-2 uppercase tracking-wide">Appearance</div>
-        <div className="space-y-1">
+        <div className="space-y-1 mb-3">
           {(["system", "light", "dark"] as Theme[]).map((t) => (
             <button
               key={t}
               onClick={() => onThemeChange(t)}
               className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                theme === t
-                  ? "bg-[var(--c-panel2)] text-white"
-                  : "text-slate-300 hover:bg-[var(--c-panel2)]/50"
+                theme === t ? "bg-[var(--c-panel2)] text-white" : "text-slate-300 hover:bg-[var(--c-panel2)]/50"
               }`}
             >
               <span className="text-base">{t === "system" ? "⚙️" : t === "light" ? "☀️" : "🌙"}</span>
@@ -136,6 +139,41 @@ export function ProfileMenu({
             </button>
           ))}
         </div>
+
+        {/* Spectator toggle */}
+        {!isFacilitator && (
+          <div className="flex items-center justify-between px-1 py-1">
+            <div>
+              <div className="text-sm text-white font-medium">Spectator mode</div>
+              <div className="text-xs text-slate-400">Watch without voting</div>
+            </div>
+            <button
+              onClick={onSpectatorToggle}
+              className={`relative shrink-0 w-11 h-6 rounded-full transition-colors ${
+                isSpectator ? "bg-blue-600" : "bg-[var(--c-border)]"
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                  isSpectator ? "translate-x-5" : "translate-x-0"
+                }`}
+              />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Leave room */}
+      <div className="px-5 py-3">
+        <button
+          onClick={() => { onClose(); onLeaveRoom(); }}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M6 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3M10 11l3-3-3-3M13 8H6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          {isFacilitator ? "Close room for everyone" : "Leave room"}
+        </button>
       </div>
     </div>
   );

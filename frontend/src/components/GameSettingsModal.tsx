@@ -131,18 +131,6 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
             checked={localSettings.funFeatures}
             onChange={() => toggle("funFeatures")}
           />
-          <ToggleRow
-            label="Show average in the results"
-            description="Include the average value in the results of the voting."
-            checked={localSettings.showAverage}
-            onChange={() => toggle("showAverage")}
-          />
-          <ToggleRow
-            label="Show countdown animation"
-            description="A countdown is shown when revealing cards to ensure last-second votes are recorded."
-            checked={localSettings.showCountdown}
-            onChange={() => toggle("showCountdown")}
-          />
         </div>
 
         <div className="px-6 py-4 border-t border-[var(--c-border)]">

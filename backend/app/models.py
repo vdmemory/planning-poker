@@ -14,7 +14,6 @@ from pydantic import BaseModel, Field
 
 class DeckType(str, Enum):
     FIBONACCI = "fibonacci"
-    FIBONACCI_MOD = "fibonacci_mod"
     POWERS_OF_2 = "powers_of_2"
     SEQUENTIAL = "sequential"
     TSHIRT = "tshirt"
@@ -22,11 +21,10 @@ class DeckType(str, Enum):
 
 # Колоды. Значения — строки, чтобы поддерживать "?" и T-shirt одинаково.
 DECKS: dict[DeckType, list[str]] = {
-    DeckType.FIBONACCI:     ["0", "1", "2", "3", "5", "8", "13", "21", "34", "55", "89", "?", "☕"],
-    DeckType.FIBONACCI_MOD: ["0", "½", "1", "2", "3", "5", "8", "13", "20", "40", "100", "?", "☕"],
-    DeckType.POWERS_OF_2:   ["0", "1", "2", "4", "8", "16", "32", "64", "?", "☕"],
-    DeckType.SEQUENTIAL:    ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "?", "☕"],
-    DeckType.TSHIRT:        ["XS", "S", "M", "L", "XL", "XXL", "?"],
+    DeckType.FIBONACCI:   ["0", "1", "2", "3", "5", "8", "13", "21", "34", "55", "89", "?", "☕"],
+    DeckType.POWERS_OF_2: ["0", "1", "2", "4", "8", "16", "32", "64", "?", "☕"],
+    DeckType.SEQUENTIAL:  ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "?", "☕"],
+    DeckType.TSHIRT:      ["XS", "S", "M", "L", "XL", "XXL", "?"],
 }
 
 

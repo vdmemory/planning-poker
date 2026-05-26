@@ -148,6 +148,12 @@ async def handle_message(room_id: str, player_id: str, data: dict) -> None:
             service.delete_all_issues(room_id, player_id)
         elif msg_type == "reorder_issue":
             service.reorder_issue(room_id, player_id, data["issue_id"], data["direction"])
+        elif msg_type == "toggle_spectator":
+            service.toggle_spectator(room_id, player_id)
+        elif msg_type == "close_room":
+            service.close_room(room_id, player_id)
+            await manager.broadcast(room_id, {"type": "room_closed"})
+            return
         elif msg_type == "update_avatar_color":
             service.update_avatar_color(room_id, player_id, data["color"])
         elif msg_type in ("draw_stroke", "draw_cursor", "draw_clear"):

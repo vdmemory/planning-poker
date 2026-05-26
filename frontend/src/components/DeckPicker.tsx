@@ -7,11 +7,6 @@ export const DECK_OPTIONS: { value: DeckType; name: string; cards: string[] }[] 
     cards: ["0", "1", "2", "3", "5", "8", "13", "21", "34", "55", "89", "?", "☕"],
   },
   {
-    value: "fibonacci_mod",
-    name: "Modified Fibonacci",
-    cards: ["0", "½", "1", "2", "3", "5", "8", "13", "20", "40", "100", "?", "☕"],
-  },
-  {
     value: "powers_of_2",
     name: "Powers of 2",
     cards: ["0", "1", "2", "4", "8", "16", "32", "64", "?", "☕"],
