@@ -91,7 +91,7 @@ export function useRoomSocket({
             setCountdown(null);
           }
         }, 1000);
-      } else if (msg.type === "room_closed") {
+      } else if (msg.type === "room_closed" || msg.type === "kicked") {
         setRoomClosed(true);
       } else if (msg.type === "draw_stroke" || msg.type === "draw_cursor" || msg.type === "draw_clear") {
         onDrawMessageRef.current?.(msg);
@@ -109,6 +109,11 @@ export function useRoomSocket({
       }
       if (event.code === 4001) {
         setError("Nickname required");
+        return;
+      }
+      if (event.code === 4003) {
+        // Kicked by facilitator — navigate home, don't reconnect
+        setRoomClosed(true);
         return;
       }
       if (shouldReconnectRef.current) {

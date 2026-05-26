@@ -75,7 +75,7 @@ class RoomService:
         player.nickname = nickname.strip() or player.nickname
         self.store.save(room)
 
-    def update_room(self, room_id: str, player_id: str, name: Optional[str] = None, deck_type: Optional[DeckType] = None, card_back: Optional[str] = None) -> None:
+    def update_room(self, room_id: str, player_id: str, name: Optional[str] = None, deck_type: Optional[DeckType] = None, card_back: Optional[str] = None, who_can_reveal: Optional[str] = None, who_can_manage_issues: Optional[str] = None) -> None:
         room = self.get_room(room_id)
         self._require_facilitator(room, player_id)
         if name is not None:
@@ -86,17 +86,30 @@ class RoomService:
             room.revealed = False
         if card_back is not None:
             room.card_back = card_back
+        if who_can_reveal is not None:
+            room.who_can_reveal = who_can_reveal
+        if who_can_manage_issues is not None:
+            room.who_can_manage_issues = who_can_manage_issues
         self.store.save(room)
 
-    def mark_disconnected(self, room_id: str, player_id: str) -> None:
+    def kick_player(self, room_id: str, player_id: str, target_player_id: str) -> None:
+        room = self.get_room(room_id)
+        self._require_facilitator(room, player_id)
+        if target_player_id == player_id:
+            raise RoomError("Cannot kick yourself")
+        self.remove_player(room_id, target_player_id)
+
+    def mark_disconnected(self, room_id: str, player_id: str) -> bool:
+        """Returns True if the player was in the room and marked disconnected."""
         from datetime import datetime, timezone
         room = self.store.get(room_id)
         if not room or player_id not in room.players:
-            return
+            return False
         player = room.players[player_id]
         player.connected = False
         player.disconnected_at = datetime.now(timezone.utc)
         self.store.save(room)
+        return True
 
     def remove_player(self, room_id: str, player_id: str) -> None:
         room = self.store.get(room_id)
@@ -136,7 +149,7 @@ class RoomService:
 
     def add_issue(self, room_id: str, player_id: str, title: str, description: str = "", link: str = "") -> Issue:
         room = self.get_room(room_id)
-        self._require_facilitator(room, player_id)
+        self._require_can_manage_issues(room, player_id)
         issue = Issue(title=title, description=description, link=link)
         room.issues.append(issue)
         # Если активной задачи нет — делаем эту активной автоматически.
@@ -149,7 +162,7 @@ class RoomService:
                      title: Optional[str] = None, description: Optional[str] = None,
                      link: Optional[str] = None) -> None:
         room = self.get_room(room_id)
-        self._require_facilitator(room, player_id)
+        self._require_can_manage_issues(room, player_id)
         for issue in room.issues:
             if issue.id == issue_id:
                 if title is not None:
@@ -164,7 +177,7 @@ class RoomService:
 
     def delete_issue(self, room_id: str, player_id: str, issue_id: str) -> None:
         room = self.get_room(room_id)
-        self._require_facilitator(room, player_id)
+        self._require_can_manage_issues(room, player_id)
         original_len = len(room.issues)
         room.issues = [i for i in room.issues if i.id != issue_id]
         if len(room.issues) == original_len:
@@ -177,7 +190,7 @@ class RoomService:
 
     def delete_all_issues(self, room_id: str, player_id: str) -> None:
         room = self.get_room(room_id)
-        self._require_facilitator(room, player_id)
+        self._require_can_manage_issues(room, player_id)
         room.issues = []
         room.current_issue_id = None
         room.votes.clear()
@@ -186,7 +199,7 @@ class RoomService:
 
     def reorder_issue(self, room_id: str, player_id: str, issue_id: str, direction: str) -> None:
         room = self.get_room(room_id)
-        self._require_facilitator(room, player_id)
+        self._require_can_manage_issues(room, player_id)
         idx = next((i for i, iss in enumerate(room.issues) if iss.id == issue_id), None)
         if idx is None:
             raise RoomError("Issue not found")
@@ -205,7 +218,7 @@ class RoomService:
 
     def select_issue(self, room_id: str, player_id: str, issue_id: str) -> None:
         room = self.get_room(room_id)
-        self._require_facilitator(room, player_id)
+        self._require_can_manage_issues(room, player_id)
         if not any(i.id == issue_id for i in room.issues):
             raise RoomError("Issue not found")
         room.current_issue_id = issue_id
@@ -257,7 +270,10 @@ class RoomService:
 
     def reveal(self, room_id: str, player_id: str) -> dict:
         room = self.get_room(room_id)
-        self._require_facilitator(room, player_id)
+        if room.who_can_reveal == "facilitator":
+            self._require_facilitator(room, player_id)
+        elif player_id not in room.players:
+            raise RoomError("Player not in room")
         room.revealed = True
         # Auto-set final_estimate from mode (most common vote) on current issue
         if room.current_issue_id and room.votes:
@@ -325,3 +341,8 @@ class RoomService:
     def _require_facilitator(room: Room, player_id: str) -> None:
         if room.facilitator_id != player_id:
             raise RoomError("Only facilitator can perform this action")
+
+    @staticmethod
+    def _require_can_manage_issues(room: Room, player_id: str) -> None:
+        if room.who_can_manage_issues == "facilitator" and room.facilitator_id != player_id:
+            raise RoomError("Only facilitator can manage issues")

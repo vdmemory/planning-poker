@@ -107,13 +107,14 @@ async def ws_endpoint(websocket: WebSocket, room_id: str, player_id: str, nickna
             await handle_message(room_id, player_id, data)
     except WebSocketDisconnect:
         manager.disconnect(room_id, player_id)
-        service.mark_disconnected(room_id, player_id)
-        await manager.broadcast(room_id, {"type": "draw_clear", "player_id": player_id, "nickname": ""})
-        room = store.get(room_id)
-        if room:
-            await manager.broadcast(
-                room_id, {"type": "room_state", "state": room.public_state()}
-            )
+        was_in_room = service.mark_disconnected(room_id, player_id)
+        if was_in_room:
+            await manager.broadcast(room_id, {"type": "draw_clear", "player_id": player_id, "nickname": ""})
+            room = store.get(room_id)
+            if room:
+                await manager.broadcast(
+                    room_id, {"type": "room_state", "state": room.public_state()}
+                )
 
 
 async def handle_message(room_id: str, player_id: str, data: dict) -> None:
@@ -138,7 +139,7 @@ async def handle_message(room_id: str, player_id: str, data: dict) -> None:
             service.update_nickname(room_id, player_id, data["nickname"])
         elif msg_type == "update_room":
             deck_type = DeckType(data["deck_type"]) if data.get("deck_type") else None
-            service.update_room(room_id, player_id, name=data.get("name"), deck_type=deck_type, card_back=data.get("card_back"))
+            service.update_room(room_id, player_id, name=data.get("name"), deck_type=deck_type, card_back=data.get("card_back"), who_can_reveal=data.get("who_can_reveal"), who_can_manage_issues=data.get("who_can_manage_issues"))
         elif msg_type == "update_issue":
             service.update_issue(room_id, player_id, data["issue_id"],
                                  title=data.get("title"), description=data.get("description"), link=data.get("link"))
@@ -150,6 +151,11 @@ async def handle_message(room_id: str, player_id: str, data: dict) -> None:
             service.reorder_issue(room_id, player_id, data["issue_id"], data["direction"])
         elif msg_type == "toggle_spectator":
             service.toggle_spectator(room_id, player_id)
+        elif msg_type == "kick_player":
+            target_id = data["target_player_id"]
+            await manager.send_to(room_id, target_id, {"type": "kicked"})
+            await manager.close_connection(room_id, target_id, code=4003)
+            service.kick_player(room_id, player_id, target_id)
         elif msg_type == "close_room":
             service.close_room(room_id, player_id)
             await manager.broadcast(room_id, {"type": "room_closed"})

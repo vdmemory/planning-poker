@@ -168,6 +168,7 @@ function Room({
   const [drawColor, setDrawColor] = useState(DRAW_COLORS[4]);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [cursorPos, setCursorPos] = useState({ x: -100, y: -100 });
+  const colorPickerRef = useRef<HTMLDivElement>(null);
 
   const [showCloseRoomModal, setShowCloseRoomModal] = useState(false);
 
@@ -203,6 +204,18 @@ function Room({
     document.addEventListener("mousemove", onMove);
     return () => document.removeEventListener("mousemove", onMove);
   }, [isDrawingMode]);
+
+  // Close color picker on click outside
+  useEffect(() => {
+    if (!showColorPicker) return;
+    function handler(e: MouseEvent) {
+      if (colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) {
+        setShowColorPicker(false);
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showColorPicker]);
 
   // Reset localVote when a new round starts
   useEffect(() => {
@@ -254,7 +267,7 @@ function Room({
   }
 
   function handleGameSettingsSave(
-    roomPatch: { name?: string; deck_type?: string; card_back?: string },
+    roomPatch: { name?: string; deck_type?: string; card_back?: string; who_can_reveal?: string; who_can_manage_issues?: string },
     settingsPatch: Partial<GameSettings>
   ) {
     if (Object.keys(roomPatch).length > 0) {
@@ -277,6 +290,9 @@ function Room({
 
   const me = state.players.find((p) => p.id === myPlayerId);
   const isFacilitator = state.facilitator_id === myPlayerId;
+  const canReveal = isFacilitator || state.who_can_reveal === "everyone";
+  const canManageIssues = isFacilitator || state.who_can_manage_issues === "everyone";
+  function onKickPlayer(targetId: string) { send({ type: "kick_player", target_player_id: targetId }); }
   const currentIssue = state.issues.find((i) => i.id === state.current_issue_id);
   const activePlayers = state.players.filter((p) => !p.is_spectator);
   const everyoneVoted =
@@ -293,12 +309,19 @@ function Room({
           <div className="w-7 h-7 sm:w-8 sm:h-8 bg-blue-600 rounded-full flex items-center justify-center text-sm shrink-0">
             🃏
           </div>
-          <button
-            onClick={() => setShowGameSettings(true)}
-            className="font-semibold text-white hover:text-blue-300 transition-colors truncate max-w-[120px] sm:max-w-none text-sm sm:text-base"
-          >
-            {state.name}
-          </button>
+          {isFacilitator ? (
+            <button
+              onClick={() => setShowGameSettings(true)}
+              className="font-semibold text-white hover:text-blue-300 transition-colors truncate max-w-[120px] sm:max-w-none text-sm sm:text-base"
+              title="Game settings"
+            >
+              {state.name}
+            </button>
+          ) : (
+            <span className="font-semibold text-white truncate max-w-[120px] sm:max-w-none text-sm sm:text-base">
+              {state.name}
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
@@ -371,8 +394,8 @@ function Room({
             </button>
             {showColorPicker && !isDrawingMode && (
               <div
+                ref={colorPickerRef}
                 className="absolute top-full right-0 mt-2 bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl p-2.5 shadow-2xl z-50 flex gap-2"
-                onMouseLeave={() => setShowColorPicker(false)}
               >
                 {DRAW_COLORS.map((color) => (
                   <button
@@ -436,6 +459,7 @@ function Room({
               state={state}
               stats={stats}
               isFacilitator={isFacilitator}
+              canReveal={canReveal}
               myPlayerId={myPlayerId}
               avatarColor={avatarColor}
               everyoneVoted={everyoneVoted}
@@ -444,6 +468,7 @@ function Room({
               onReveal={triggerReveal}
               onReset={() => send({ type: "reset" })}
               onRevote={(card) => send({ type: "revote", card })}
+              onKickPlayer={isFacilitator ? onKickPlayer : undefined}
             />
           </div>
 
@@ -453,6 +478,7 @@ function Room({
               state={state}
               stats={stats}
               isFacilitator={isFacilitator}
+              canReveal={canReveal}
               everyoneVoted={everyoneVoted}
               countdown={countdown}
               onReveal={triggerReveal}
@@ -472,6 +498,8 @@ function Room({
                   deck={state.deck}
                   cardBack={state.card_back}
                   onRevote={(card) => send({ type: "revote", card })}
+                  canKick={isFacilitator && player.id !== myPlayerId}
+                  onKick={() => onKickPlayer(player.id)}
                 />
               ))}
             </div>
@@ -502,7 +530,7 @@ function Room({
           <aside className="w-72 sm:w-80 border-l border-[var(--c-panel2)] overflow-y-auto shrink-0">
             <IssueSidebar
               state={state}
-              isFacilitator={isFacilitator}
+              canManageIssues={canManageIssues}
               myPlayerId={myPlayerId}
               send={send}
               onClose={() => setSidebarOpen(false)}
@@ -576,6 +604,7 @@ function PokerTable({
   state,
   stats,
   isFacilitator,
+  canReveal,
   myPlayerId,
   avatarColor,
   everyoneVoted,
@@ -584,10 +613,12 @@ function PokerTable({
   onReveal,
   onReset,
   onRevote,
+  onKickPlayer,
 }: {
   state: RoomState;
   stats: Stats | null;
   isFacilitator: boolean;
+  canReveal: boolean;
   myPlayerId: string;
   avatarColor: string;
   everyoneVoted: boolean;
@@ -596,6 +627,7 @@ function PokerTable({
   onReveal: () => void;
   onReset: () => void;
   onRevote: (card: string) => void;
+  onKickPlayer?: (id: string) => void;
 }) {
   const players = state.players;
   const n = players.length;
@@ -644,6 +676,7 @@ function PokerTable({
             state={state}
             stats={stats}
             isFacilitator={isFacilitator}
+            canReveal={canReveal}
             everyoneVoted={everyoneVoted}
             countdown={countdown}
             onReveal={onReveal}
@@ -671,6 +704,8 @@ function PokerTable({
               deck={state.deck}
               cardBack={cardBack}
               onRevote={onRevote}
+              canKick={!!onKickPlayer && player.id !== myPlayerId}
+              onKick={onKickPlayer ? () => onKickPlayer(player.id) : undefined}
             />
           </div>
         );
@@ -683,6 +718,7 @@ function TableCenter({
   state,
   stats,
   isFacilitator,
+  canReveal,
   everyoneVoted,
   countdown,
   onReveal,
@@ -691,6 +727,7 @@ function TableCenter({
   state: RoomState;
   stats: Stats | null;
   isFacilitator: boolean;
+  canReveal: boolean;
   everyoneVoted: boolean;
   countdown: number | null;
   onReveal: () => void;
@@ -715,12 +752,14 @@ function TableCenter({
     return (
       <div className="flex flex-col items-center gap-2 text-center">
         <div className="flex items-center gap-5">
-          <div>
+          {state.deck_type !== "tshirt" && (
+            <div>
               <div className="text-green-300/70 text-xs">Average</div>
               <div className="text-3xl font-bold text-white" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.5)" }}>
                 {stats.average ?? "—"}
               </div>
             </div>
+          )}
           <div>
             <div className="text-green-300/70 text-xs">{stats.consensus ? "Consensus" : "No consensus"}</div>
             <div className="text-3xl">{stats.consensus ? "😎" : "🤔"}</div>
@@ -729,7 +768,7 @@ function TableCenter({
         {isFacilitator && (
           <button
             onClick={onReset}
-            className="mt-1 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold px-4 py-1.5 rounded-full transition-colors"
+            className="mt-1 bg-white/20 hover:bg-white/30 text-white text-sm font-semibold px-6 py-2 rounded-full transition-colors"
           >
             New round
           </button>
@@ -742,10 +781,10 @@ function TableCenter({
     return (
       <div className="flex flex-col items-center gap-2">
         <div className="text-green-300/70 text-sm">All voted!</div>
-        {isFacilitator && (
+        {canReveal && (
           <button
             onClick={onReveal}
-            className="bg-white/20 hover:bg-white/30 text-white text-sm font-semibold px-5 py-2 rounded-full transition-colors"
+            className="bg-white/20 hover:bg-white/30 text-white text-base font-semibold px-7 py-2.5 rounded-full transition-colors"
           >
             Reveal cards
           </button>
@@ -763,10 +802,10 @@ function TableCenter({
         {voted}/{total}
       </div>
       <div className="text-green-300/60 text-xs">voted</div>
-      {isFacilitator && voted > 0 && (
+      {canReveal && voted > 0 && (
         <button
           onClick={onReveal}
-          className="mt-1 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold px-4 py-1.5 rounded-full transition-colors"
+          className="mt-1 bg-white/20 hover:bg-white/30 text-white text-sm font-semibold px-5 py-2 rounded-full transition-colors"
         >
           Reveal early
         </button>
@@ -781,6 +820,7 @@ function ActionBox({
   state,
   stats,
   isFacilitator,
+  canReveal,
   everyoneVoted,
   countdown,
   onReveal,
@@ -789,6 +829,7 @@ function ActionBox({
   state: RoomState;
   stats: Stats | null;
   isFacilitator: boolean;
+  canReveal: boolean;
   everyoneVoted: boolean;
   countdown: number | null;
   onReveal: () => void;
@@ -814,11 +855,15 @@ function ActionBox({
       <div className="bg-[var(--c-panel)] rounded-2xl px-8 py-6 w-full max-w-2xl flex flex-wrap justify-center items-center gap-8">
         {stats && (
           <>
-            <div className="text-center">
-                <div className="text-xs text-slate-400 mb-1">Average</div>
-                <div className="text-4xl font-bold">{stats.average ?? "—"}</div>
-              </div>
-            <div className="w-px h-12 bg-[var(--c-border)]" />
+            {state.deck_type !== "tshirt" && (
+              <>
+                <div className="text-center">
+                  <div className="text-xs text-slate-400 mb-1">Average</div>
+                  <div className="text-4xl font-bold">{stats.average ?? "—"}</div>
+                </div>
+                <div className="w-px h-12 bg-[var(--c-border)]" />
+              </>
+            )}
             <div className="text-center">
               <div className="text-xs text-slate-400 mb-1">Agreement</div>
               <div className="text-4xl">{stats.consensus ? "😎" : "🤔"}</div>
@@ -833,9 +878,9 @@ function ActionBox({
         {isFacilitator && (
           <button
             onClick={onReset}
-            className="bg-[var(--c-panel2)] hover:bg-[var(--c-border)] border border-[var(--c-border-hi)] text-slate-200 px-6 py-2.5 rounded-xl font-semibold transition-colors"
+            className="bg-[var(--c-panel2)] hover:bg-[var(--c-border)] border border-[var(--c-border-hi)] text-slate-200 px-8 py-3 rounded-xl font-semibold text-lg transition-colors"
           >
-            Start new voting
+            New round
           </button>
         )}
       </div>
@@ -848,8 +893,8 @@ function ActionBox({
         <div className="text-7xl font-bold text-[var(--c-dim)]">{state.voted_player_ids.length}</div>
         <p className="text-slate-400">
           All voted!{" "}
-          {isFacilitator && (
-            <button onClick={onReveal} className="text-blue-400 hover:underline font-medium">
+          {canReveal && (
+            <button onClick={onReveal} className="text-blue-400 hover:underline font-semibold text-lg">
               Reveal cards
             </button>
           )}
@@ -860,11 +905,11 @@ function ActionBox({
 
   return (
     <div className="bg-[var(--c-panel)] rounded-2xl px-8 py-8 w-full max-w-2xl flex items-center justify-center min-h-[100px]">
-      {isFacilitator ? (
+      {canReveal ? (
         <button
           onClick={onReveal}
           disabled={state.voted_player_ids.length === 0}
-          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white px-8 py-3 rounded-xl font-semibold text-lg transition-colors"
+          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white px-10 py-4 rounded-xl font-semibold text-xl transition-colors"
         >
           Reveal cards
         </button>
@@ -888,6 +933,8 @@ function PlayerCard({
   deck,
   cardBack,
   onRevote,
+  canKick,
+  onKick,
 }: {
   player: Player;
   voted: boolean;
@@ -899,6 +946,8 @@ function PlayerCard({
   deck?: string[];
   cardBack?: string;
   onRevote?: (card: string) => void;
+  canKick?: boolean;
+  onKick?: () => void;
 }) {
   const [showPicker, setShowPicker] = useState(false);
   const bgColor = avatarColor || "#3a4f6a";
@@ -908,7 +957,7 @@ function PlayerCard({
     : {};
 
   return (
-    <div className={`flex flex-col items-center gap-1.5 ${!player.connected ? "opacity-40" : ""}`}>
+    <div className={`flex flex-col items-center gap-1.5 group ${!player.connected ? "opacity-40" : ""}`}>
       <div
         className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0"
         style={{ backgroundColor: bgColor }}
@@ -916,7 +965,7 @@ function PlayerCard({
         {player.nickname[0]?.toUpperCase() ?? "?"}
       </div>
 
-      {/* Card with optional edit button */}
+      {/* Card with optional edit/kick buttons */}
       <div className="relative">
         <div
           className={`w-14 h-20 rounded-xl border-2 flex items-center justify-center font-bold text-lg transition-all ${
@@ -929,6 +978,12 @@ function PlayerCard({
           style={cardBackStyle}
         >
           {revealed && cardValue && cardValue !== "hidden" ? cardValue : null}
+          {player.is_spectator && !voted && (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="text-slate-400 opacity-70">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2"/>
+            </svg>
+          )}
         </div>
 
         {/* Edit pencil icon */}
@@ -943,12 +998,26 @@ function PlayerCard({
             </svg>
           </button>
         )}
+
+        {/* Kick button (facilitator only, on hover) */}
+        {canKick && onKick && (
+          <button
+            onClick={onKick}
+            className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-400 rounded-full flex items-center justify-center shadow-lg transition-all opacity-0 group-hover:opacity-100"
+            title="Remove from room"
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M2 2l6 6M8 2l-6 6" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+          </button>
+        )}
       </div>
 
       <span className="text-xs text-slate-300 max-w-[64px] truncate text-center">
         {player.nickname}
       </span>
       {isFacilitator && <span className="text-xs text-blue-400/70">host</span>}
+      {player.is_spectator && <span className="text-xs text-slate-500">spectator</span>}
       {!player.connected && <span className="text-xs text-slate-500">offline</span>}
 
       {/* Revote picker */}
@@ -1119,7 +1188,7 @@ function InviteModal({ onClose }: { onClose: () => void }) {
   function copy() {
     navigator.clipboard.writeText(url);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setTimeout(() => onClose(), 1000);
   }
 
   return (

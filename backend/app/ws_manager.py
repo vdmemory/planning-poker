@@ -65,6 +65,16 @@ class ConnectionManager:
             except Exception:
                 self.disconnect(room_id, player_id)
 
+    async def close_connection(self, room_id: str, player_id: str, code: int = 1000) -> None:
+        """Close a specific player's WebSocket and remove from manager."""
+        ws = self._connections.get(room_id, {}).get(player_id)
+        self.disconnect(room_id, player_id)
+        if ws:
+            try:
+                await ws.close(code=code)
+            except Exception:
+                pass
+
 
 manager = ConnectionManager()
 

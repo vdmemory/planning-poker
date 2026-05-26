@@ -4,8 +4,6 @@ import type { GameSettings } from "../types";
 const DEFAULTS: GameSettings = {
   autoReveal: false,
   funFeatures: false,
-  whoCanReveal: "facilitator",
-  whoCanManageIssues: "facilitator",
 };
 
 export function useSettings() {

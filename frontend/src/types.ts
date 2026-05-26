@@ -21,8 +21,6 @@ export interface Issue {
 export interface GameSettings {
   autoReveal: boolean;
   funFeatures: boolean;
-  whoCanReveal: "facilitator" | "everyone";
-  whoCanManageIssues: "facilitator" | "everyone";
 }
 
 export interface RoomState {
@@ -30,6 +28,8 @@ export interface RoomState {
   name: string;
   deck_type: DeckType;
   card_back: string;
+  who_can_reveal: "facilitator" | "everyone";
+  who_can_manage_issues: "facilitator" | "everyone";
   deck: string[];
   facilitator_id: string | null;
   players: Player[];

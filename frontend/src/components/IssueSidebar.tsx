@@ -3,13 +3,13 @@ import type { RoomState, Issue } from "../types";
 
 interface Props {
   state: RoomState;
-  isFacilitator: boolean;
+  canManageIssues: boolean;
   myPlayerId: string;
   send: (msg: object) => void;
   onClose: () => void;
 }
 
-export function IssueSidebar({ state, isFacilitator, myPlayerId, send, onClose }: Props) {
+export function IssueSidebar({ state, canManageIssues, myPlayerId, send, onClose }: Props) {
   const [adding, setAdding] = useState(false);
   const [addTitle, setAddTitle] = useState("");
   const [editingIssue, setEditingIssue] = useState<Issue | null>(null);
@@ -61,7 +61,7 @@ export function IssueSidebar({ state, isFacilitator, myPlayerId, send, onClose }
         </div>
         <div className="flex items-center gap-1">
           {/* Import */}
-          {isFacilitator && (
+          {canManageIssues && (
             <div className="relative">
               <button
                 onClick={() => { setShowImportMenu((v) => !v); setShowBulkMenu(false); }}
@@ -82,7 +82,7 @@ export function IssueSidebar({ state, isFacilitator, myPlayerId, send, onClose }
           )}
 
           {/* Bulk actions */}
-          {isFacilitator && (
+          {canManageIssues && (
             <div className="relative">
               <button
                 onClick={() => { setShowBulkMenu((v) => !v); setShowImportMenu(false); }}
@@ -131,11 +131,11 @@ export function IssueSidebar({ state, isFacilitator, myPlayerId, send, onClose }
               issue={issue}
               index={index}
               isCurrent={isCurrent}
-              isFacilitator={isFacilitator}
+              canManageIssues={canManageIssues}
               deck={state.deck}
               showEstimatePicker={estimatePickerId === issue.id}
               showMenu={issueMenuId === issue.id}
-              onSelect={() => isFacilitator && send({ type: "select_issue", issue_id: issue.id })}
+              onSelect={() => canManageIssues && send({ type: "select_issue", issue_id: issue.id })}
               onOpenEdit={() => { setEditingIssue(issue); setIssueMenuId(null); }}
               onToggleMenu={() => setIssueMenuId((id) => id === issue.id ? null : issue.id)}
               onCloseMenu={() => setIssueMenuId(null)}
@@ -157,7 +157,7 @@ export function IssueSidebar({ state, isFacilitator, myPlayerId, send, onClose }
       </ul>
 
       {/* Add issue */}
-      {isFacilitator && (
+      {canManageIssues && (
         <div className="px-3 py-3 border-t border-[var(--c-panel2)]">
           {adding ? (
             <>
@@ -202,7 +202,7 @@ export function IssueSidebar({ state, isFacilitator, myPlayerId, send, onClose }
           issue={editingIssue}
           index={state.issues.findIndex((i) => i.id === editingIssue.id)}
           deck={state.deck}
-          isFacilitator={isFacilitator}
+          canManageIssues={canManageIssues}
           onSave={(patch) => {
             send({ type: "update_issue", issue_id: editingIssue.id, ...patch });
             setEditingIssue((prev) => prev ? { ...prev, ...patch } : prev);
@@ -232,7 +232,7 @@ function IssueCard({
   issue,
   index,
   isCurrent,
-  isFacilitator,
+  canManageIssues,
   deck,
   showEstimatePicker,
   showMenu,
@@ -250,7 +250,7 @@ function IssueCard({
   issue: Issue;
   index: number;
   isCurrent: boolean;
-  isFacilitator: boolean;
+  canManageIssues: boolean;
   deck: string[];
   showEstimatePicker: boolean;
   showMenu: boolean;
@@ -285,7 +285,7 @@ function IssueCard({
             </div>
           </div>
           {/* Per-issue menu */}
-          {isFacilitator && (
+          {canManageIssues && (
             <div className="relative shrink-0">
               <button
                 onClick={(e) => { e.stopPropagation(); onToggleMenu(); }}
@@ -314,7 +314,7 @@ function IssueCard({
       </div>
 
       {/* Action row */}
-      {isFacilitator && (
+      {canManageIssues && (
         <div className="flex gap-2 px-3 pb-3">
           <button
             onClick={onSelect}
@@ -340,7 +340,7 @@ function IssueEditModal({
   issue,
   index,
   deck,
-  isFacilitator,
+  canManageIssues,
   onSave,
   onVote,
   onSetEstimate,
@@ -350,7 +350,7 @@ function IssueEditModal({
   issue: Issue;
   index: number;
   deck: string[];
-  isFacilitator: boolean;
+  canManageIssues: boolean;
   onSave: (patch: Partial<Pick<Issue, "title" | "description" | "link">>) => void;
   onVote: () => void;
   onSetEstimate: (v: string) => void;
@@ -383,7 +383,7 @@ function IssueEditModal({
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--c-border)]">
           <span className="text-xs text-slate-400 font-medium">PP-{index + 1}</span>
           <div className="flex items-center gap-2">
-            {isFacilitator && (
+            {canManageIssues && (
               <button
                 onClick={onDelete}
                 className="text-slate-400 hover:text-red-400 transition-colors"
@@ -407,7 +407,7 @@ function IssueEditModal({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               onBlur={save}
-              disabled={!isFacilitator}
+              disabled={!canManageIssues}
             />
           </div>
 
@@ -420,7 +420,7 @@ function IssueEditModal({
               onChange={(e) => setLink(e.target.value)}
               onBlur={save}
               placeholder="https://..."
-              disabled={!isFacilitator}
+              disabled={!canManageIssues}
             />
           </div>
 
@@ -434,13 +434,13 @@ function IssueEditModal({
               onBlur={save}
               placeholder="Add a description…"
               rows={3}
-              disabled={!isFacilitator}
+              disabled={!canManageIssues}
             />
           </div>
         </div>
 
         {/* Footer actions */}
-        {isFacilitator && (
+        {canManageIssues && (
           <div className="flex items-center gap-2 px-6 py-4 border-t border-[var(--c-border)]">
             <button
               onClick={onVote}

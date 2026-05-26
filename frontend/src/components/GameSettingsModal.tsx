@@ -7,7 +7,7 @@ interface Props {
   settings: GameSettings;
   isFacilitator: boolean;
   facilitatorName: string;
-  onSave: (roomPatch: { name?: string; deck_type?: string; card_back?: string }, settingsPatch: Partial<GameSettings>) => void;
+  onSave: (roomPatch: { name?: string; deck_type?: string; card_back?: string; who_can_reveal?: string; who_can_manage_issues?: string }, settingsPatch: Partial<GameSettings>) => void;
   onClose: () => void;
 }
 
@@ -15,6 +15,8 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
   const [name, setName] = useState(state.name);
   const [deckType, setDeckType] = useState(state.deck_type);
   const [cardBack, setCardBack] = useState(state.card_back ?? "blue_stripes");
+  const [whoCanReveal, setWhoCanReveal] = useState(state.who_can_reveal ?? "facilitator");
+  const [whoCanManageIssues, setWhoCanManageIssues] = useState(state.who_can_manage_issues ?? "facilitator");
   const [localSettings, setLocalSettings] = useState<GameSettings>({ ...settings });
 
   function toggle(key: keyof GameSettings) {
@@ -22,10 +24,12 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
   }
 
   function save() {
-    const roomPatch: { name?: string; deck_type?: string; card_back?: string } = {};
+    const roomPatch: { name?: string; deck_type?: string; card_back?: string; who_can_reveal?: string; who_can_manage_issues?: string } = {};
     if (name.trim() !== state.name) roomPatch.name = name.trim();
     if (deckType !== state.deck_type) roomPatch.deck_type = deckType;
     if (cardBack !== state.card_back) roomPatch.card_back = cardBack;
+    if (whoCanReveal !== state.who_can_reveal) roomPatch.who_can_reveal = whoCanReveal;
+    if (whoCanManageIssues !== state.who_can_manage_issues) roomPatch.who_can_manage_issues = whoCanManageIssues;
     onSave(roomPatch, localSettings);
     onClose();
   }
@@ -84,12 +88,13 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
           <div>
             <label className="text-xs text-slate-400 block mb-1">Who can reveal cards</label>
             <CustomSelect
-              value={localSettings.whoCanReveal}
-              onChange={(v) => setLocalSettings((p) => ({ ...p, whoCanReveal: v as "facilitator" | "everyone" }))}
+              value={whoCanReveal}
+              onChange={(v) => setWhoCanReveal(v as "facilitator" | "everyone")}
               options={[
                 { value: "facilitator", label: "Facilitator only" },
                 { value: "everyone", label: "Everyone" },
               ]}
+              disabled={!isFacilitator}
             />
           </div>
 
@@ -97,12 +102,13 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
           <div>
             <label className="text-xs text-slate-400 block mb-1">Who can manage issues</label>
             <CustomSelect
-              value={localSettings.whoCanManageIssues}
-              onChange={(v) => setLocalSettings((p) => ({ ...p, whoCanManageIssues: v as "facilitator" | "everyone" }))}
+              value={whoCanManageIssues}
+              onChange={(v) => setWhoCanManageIssues(v as "facilitator" | "everyone")}
               options={[
                 { value: "facilitator", label: "Facilitator only" },
                 { value: "everyone", label: "Everyone" },
               ]}
+              disabled={!isFacilitator}
             />
           </div>
 

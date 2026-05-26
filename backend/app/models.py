@@ -51,6 +51,8 @@ class Room(BaseModel):
     name: str
     deck_type: DeckType = DeckType.FIBONACCI
     card_back: str = "blue_stripes"
+    who_can_reveal: str = "facilitator"
+    who_can_manage_issues: str = "facilitator"
     facilitator_id: Optional[str] = None
     players: dict[str, Player] = Field(default_factory=dict)
     issues: list[Issue] = Field(default_factory=list)
@@ -73,6 +75,8 @@ class Room(BaseModel):
             "name": self.name,
             "deck_type": self.deck_type.value,
             "card_back": self.card_back,
+            "who_can_reveal": self.who_can_reveal,
+            "who_can_manage_issues": self.who_can_manage_issues,
             "deck": self.deck(),
             "facilitator_id": self.facilitator_id,
             "players": [p.model_dump(mode="json") for p in self.players.values()],
