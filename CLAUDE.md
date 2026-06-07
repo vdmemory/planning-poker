@@ -50,7 +50,7 @@ npx playwright install chromium
 npm run test:e2e         # 5 flows, ~15s
 ```
 
-Test naming reads as the spec (`test_facilitator_cannot_become_spectator`). When adding business logic, add the test in the same PR — see `docs/RULES.md` rule 13.
+Test naming reads as the spec (`test_facilitator_cannot_become_spectator`). When adding business logic, add the test **and** update `docs/BUSINESS_LOGIC.md` in the same PR — see `docs/RULES.md` rule 13 (Definition of Done for new business logic). This is non-negotiable; "later" doesn't work.
 
 CI runs both layers on every push to `main`/`dev` and on PRs — `.github/workflows/ci.yml`. Concurrency is set so a new push cancels the prior run on the same branch.
 

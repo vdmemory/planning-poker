@@ -7,6 +7,18 @@ description: How to add a new feature or modify business logic in the Planning P
 
 The backend is layered. Adding a feature touches **one** place per layer, not many. Use this checklist.
 
+## 🛑 Definition of Done — every PR with new business logic
+
+The user has explicitly reinforced this (RULES.md rule 13). A feature PR is NOT done until ALL THREE are in the same PR:
+
+1. **Code** on the right layer (`services.py` for logic).
+2. **Tests** — backend pytest for every new behavior + negative cases. Playwright e2e if user-visible.
+3. **Docs** — `docs/BUSINESS_LOGIC.md` updated for the new rule, plus any other doc the change touches (see RULES.md rule #0 for the full audit list).
+
+"I'll add tests/docs later" is NOT acceptable. If something genuinely can't fit, open a follow-up issue with `tech-debt` or `docs-debt` label and explicitly say so when handing off.
+
+Why this matters: in three weeks no one remembers why `who_can_reveal=everyone` works the way it does. Tests and `BUSINESS_LOGIC.md` are the repo's memory. Without them every feature turns into magic no one wants to touch.
+
 ## Layers (top-down)
 
 1. **`backend/app/models.py`** — Pydantic types. Add fields, enums, defaults.
