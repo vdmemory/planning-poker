@@ -121,4 +121,32 @@ cd backend && source .venv/bin/activate && pytest --timeout=10
 cd ../frontend && npm run test:e2e
 ```
 
-Backend 0.1s + Playwright ~15s. CI-конфиг ещё не настроен — можно добавить отдельной задачей.
+Backend 0.1s + Playwright ~15s локально.
+
+## CI
+
+GitHub Actions: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml).
+
+Триггеры:
+- push в `main` или `dev`
+- pull_request в `main` или `dev`
+
+Два job'а параллельно:
+
+| Job | Что делает | Таймаут |
+|---|---|---|
+| `backend` | `pip install -r requirements-dev.txt` → `pytest --timeout=10 -v` | 5 мин |
+| `e2e` | install backend deps + Node deps + Playwright Chromium → `npm run test:e2e` (с `CI=true`, без reuse-existing-server) | 15 мин |
+
+Оба job'а пользуются:
+- `concurrency.cancel-in-progress` — новый push отменяет предыдущий ран на той же ветке;
+- кэшем pip и npm — повторные раны быстрее;
+- кэшем Playwright-браузеров по `package-lock.json`-hash.
+
+При падении e2e job — `playwright-report/` и `test-results/` (видео, скриншоты) аплоадятся как артефакт, доступны 7 дней.
+
+### Что важно знать
+
+- `playwright.config.ts` авто-активирует `backend/.venv/` если файл `backend/.venv/bin/activate` существует — поэтому локально `npm run test:e2e` работает без предварительного `source`. В CI venv нет, и команда `python -m uvicorn` резолвится в Python раннера, куда workflow поставил зависимости.
+- `CI=true` отключает `reuseExistingServer` — на CI всегда стартуют свежие процессы.
+- Backend job НЕ ставит fronend-инструменты; e2e job НЕ запускает pytest. Job'ы независимы.

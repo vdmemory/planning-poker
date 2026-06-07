@@ -25,7 +25,14 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: "cd ../backend && .venv/bin/uvicorn app.main:app --port 8765 --host 127.0.0.1",
+      // Auto-activate the venv if it exists (local dev) so users don't have to
+      // remember to `source .venv/bin/activate` before `npm run test:e2e`. In CI
+      // there's no venv — `python -m uvicorn` resolves to the runner's Python
+      // where `pip install` was run by the workflow.
+      command:
+        "cd ../backend && " +
+        "{ [ -f .venv/bin/activate ] && . .venv/bin/activate; } ; " +
+        "python -m uvicorn app.main:app --port 8765 --host 127.0.0.1",
       url: "http://127.0.0.1:8765/healthz",
       reuseExistingServer: !process.env.CI,
       stdout: "pipe",

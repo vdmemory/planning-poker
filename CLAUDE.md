@@ -50,6 +50,8 @@ npm run test:e2e         # 5 flows, ~15s
 
 Test naming reads as the spec (`test_facilitator_cannot_become_spectator`). When adding business logic, add the test in the same PR — see `docs/RULES.md` rule 13.
 
+CI runs both layers on every push to `main`/`dev` and on PRs — `.github/workflows/ci.yml`. Concurrency is set so a new push cancels the prior run on the same branch.
+
 ## Architecture
 
 Two independent services, no shared code:

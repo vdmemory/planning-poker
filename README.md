@@ -226,6 +226,8 @@ frontend/src/
 | Backend (pytest) | `backend/tests/` | `pytest` | 92 теста — комнаты, голосование, issues, права, WS-интеграция |
 | Frontend e2e (Playwright) | `frontend/tests/e2e/` | `npm run test:e2e` | 5 флоу — главная, создание/голосование, reveal+stats, два игрока |
 
+CI: GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) гоняет оба слоя на каждый push в `main`/`dev` и на каждый PR. При падении e2e — артефакты (видео, скриншоты) аплоадятся.
+
 Подробности — в [docs/TESTING.md](docs/TESTING.md).
 
 ## Что НЕ входит сейчас
@@ -233,4 +235,3 @@ frontend/src/
 - Регистрация и БД (всё в памяти; история игр не хранится)
 - Интеграции с Jira/Linear/GitHub
 - Биллинг и тарифы
-- CI (тесты есть, GitHub Actions ещё нет)
