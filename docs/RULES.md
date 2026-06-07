@@ -8,10 +8,13 @@
    - Допустимо: создать ветку → запушить → открыть PR → дождаться review.
    - Недопустимо: `git push origin main` без отдельного согласования в этой сессии.
 
-2. **Базовая ветка для новой работы — `dev`.**
+2. **Базовая ветка для новой работы — `dev`. Двухступенчатый flow.**
    - Новые фичи / правки ответвлять от `dev`: `git checkout -b feat/<short-name> dev`.
    - Merge: feature → `dev` → ревью → `dev` → `main` (с разрешения).
-   - **Merge method = Squash and merge** (репо настроен только на squash). Один PR = один коммит в истории целевой ветки. Это критично для release-please: иначе merge-commit + feature-commit оба заходят в CHANGELOG дублем. Title squash-коммита = title PR, body = body PR.
+   - **PR `dev → main` создаётся автоматически** workflow'ом `.github/workflows/auto-promote.yml` после каждого push в `dev`. Если PR уже открыт — он сам подтянет новые коммиты. Если закрыт — workflow откроет новый.
+   - **Merge methods (важно):**
+     - `feature → dev`: **Squash and merge**. Один PR = один conventional-commit в истории `dev` (`feat: ...`, `fix: ...`). Title squash-коммита = title PR (поэтому title PR — это и есть твой conventional commit).
+     - `dev → main`: **Create a merge commit** (НЕ squash). Squash здесь сольёт все 5 feat: коммитов в один title PR — и release-please увидит только title (если он не conventional — пропустит всё). Merge commit сохраняет индивидуальные `feat:` коммиты, release-please их корректно разнесёт по секциям CHANGELOG.
    - Feature ветки авто-удаляются после merge (`delete_branch_on_merge=true`).
 
 3. **Коммиты — на английском, по [Conventional Commits](https://www.conventionalcommits.org/).**

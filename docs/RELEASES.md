@@ -16,9 +16,25 @@ After we reach feature parity / want a public 1.0, bump manually (release-please
 ## Lifecycle
 
 ```
-                                                 ┌─ release-please —┐
-                                                 │                  │
-feature → dev → PR(dev → main) → merge → main → push triggers ─ workflow ─ opens "release PR" ─ you review ─ merge release PR ─ tag v0.X.Y + GitHub Release
+┌──────────────────────┐
+│ feature → dev (PR)   │  squash merge → 1 conventional commit on dev
+└──────────────────────┘
+            ↓
+┌──────────────────────┐
+│ auto-promote workflow│  ensures a PR dev → main is open and up to date
+└──────────────────────┘
+            ↓
+┌──────────────────────┐
+│ dev → main (PR)      │  YOU review and merge with a regular MERGE COMMIT
+└──────────────────────┘    (not squash — preserves individual feat: commits)
+            ↓
+┌──────────────────────┐
+│ release-please       │  opens release PR with CHANGELOG and version bump
+└──────────────────────┘
+            ↓
+┌──────────────────────┐
+│ release PR           │  YOU review CHANGELOG and merge → tag + GitHub Release
+└──────────────────────┘
 ```
 
 ### Step-by-step
@@ -32,21 +48,51 @@ feature → dev → PR(dev → main) → merge → main → push triggers ─ wo
 
    Closes #N
    ```
-   Allowed types: `feat`, `fix`, `perf`, `refactor`, `docs`, `ci`, `test`, `chore`, `build`, `style`. See [the rules file](RULES.md#commit-conventions) for examples.
-3. **Open PR to `dev`** → review → merge.
-4. When ready for a release: open PR from `dev` to `main`. Merge after CI is green.
-5. Release-please workflow (`.github/workflows/release-please.yml`) runs on the push to `main`:
+   Allowed types: `feat`, `fix`, `perf`, `refactor`, `docs`, `ci`, `test`, `chore`, `build`, `style`. See [RULES.md rule 3](RULES.md) for examples.
+3. **Open PR to `dev`** → review → **Squash and merge**. The squashed commit takes its message from the PR title — so the PR title MUST be a conventional commit (e.g. `feat: telegram login widget on home page`).
+4. **Auto-promote workflow** (`.github/workflows/auto-promote.yml`) runs on the push to `dev`:
+   - If a PR `dev → main` is already open — does nothing (the open PR auto-tracks new commits).
+   - Otherwise — opens a new one titled `chore: promote dev to main`.
+5. When you've accumulated enough features and want to ship them, **review and merge the `dev → main` PR**.
+   - Use **Create a merge commit** in the merge dropdown — NOT squash. Squashing here would collapse all `feat:` commits inside into one PR title, and release-please would miss them.
+   - The merge commit itself is non-conventional and release-please ignores it; the individual `feat:` / `fix:` commits inside are what matter.
+6. **Release-please workflow** (`.github/workflows/release-please.yml`) runs on the push to `main`:
    - Reads commits since the last release tag.
    - Computes the next version per Conventional Commits rules.
    - Updates `CHANGELOG.md` and `frontend/package.json`'s version field.
    - Updates `.release-please-manifest.json`.
-   - Opens a **release PR** titled like `chore(main): release 0.2.0`.
-6. **Review the release PR**:
+   - Opens a release PR titled like `chore(main): release 0.2.0`.
+7. **Review the release PR**:
    - Check the generated CHANGELOG section.
    - If anything is wrong (wrong category, missing item), close the PR, add a commit that fixes it, and the workflow will open a fresh release PR.
-7. **Merge the release PR**. Release-please then:
+8. **Merge the release PR** (squash is fine here — the release PR has exactly one bot-authored commit). Release-please then:
    - Tags the merge commit `v0.2.0`.
    - Creates a GitHub Release with the changelog section as the body.
+
+### Why two layers (auto-promote + release-please)?
+
+- **Auto-promote** answers "what's pending for the next release?" — the open `dev → main` PR is your queue.
+- **Release-please** answers "what's in this release?" — the release PR is your finalized changelog.
+
+Together they give you: never miss a PR you wanted to ship, always know what each version contains.
+
+### "Required CI on release PR" gotcha
+
+GitHub Actions, by design, does NOT trigger workflows on commits authored by `GITHUB_TOKEN`. Release-please uses `GITHUB_TOKEN`, so the required `Backend pytest` / `Frontend Playwright e2e` status checks stay at "Expected — Waiting for status to be reported" on a fresh release PR.
+
+Workaround until we wire a fine-grained PAT into release-please:
+
+```bash
+git fetch origin release-please--branches--main
+git checkout release-please--branches--main
+git commit --allow-empty -m "ci: re-trigger required CI on release PR"
+git push
+git checkout dev  # back to your usual branch
+```
+
+This empty commit is authored by you (not the bot), so it fires the `pull_request:synchronize` event and CI starts. About 30 seconds of typing per release.
+
+If this gets annoying, see RELEASES.md issue: switch to a fine-grained PAT (90-day rotation, scoped to this repo only with `contents:write` + `pull-requests:write` + `workflows:write`) and add it as the `token:` input to `release-please-action`.
 
 ## Configuration
 
