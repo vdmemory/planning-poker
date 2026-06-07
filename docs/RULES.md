@@ -11,6 +11,8 @@
 2. **Базовая ветка для новой работы — `dev`.**
    - Новые фичи / правки ответвлять от `dev`: `git checkout -b feat/<short-name> dev`.
    - Merge: feature → `dev` → ревью → `dev` → `main` (с разрешения).
+   - **Merge method = Squash and merge** (репо настроен только на squash). Один PR = один коммит в истории целевой ветки. Это критично для release-please: иначе merge-commit + feature-commit оба заходят в CHANGELOG дублем. Title squash-коммита = title PR, body = body PR.
+   - Feature ветки авто-удаляются после merge (`delete_branch_on_merge=true`).
 
 3. **Коммиты — на английском, по [Conventional Commits](https://www.conventionalcommits.org/).**
     Это требование от release-please (`docs/RELEASES.md`).
