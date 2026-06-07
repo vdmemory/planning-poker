@@ -12,7 +12,23 @@
    - Новые фичи / правки ответвлять от `dev`: `git checkout -b feat/<short-name> dev`.
    - Merge: feature → `dev` → ревью → `dev` → `main` (с разрешения).
 
-3. **Коммиты — на английском, в стиле существующих** (`git log --oneline -10` для образца). Заголовок до 70 символов, без эмодзи, без `feat:`/`fix:` обязательного префикса (стиль repo смешанный).
+3. **Коммиты — на английском, по [Conventional Commits](https://www.conventionalcommits.org/).**
+    Это требование от release-please (`docs/RELEASES.md`).
+    Шапка: `<type>: <короткое описание>`, до 70 символов, без эмодзи.
+    Допустимые типы:
+    - `feat:` новая фича (bumps minor)
+    - `fix:` баг (bumps patch)
+    - `perf:`, `refactor:` (bumps patch)
+    - `docs:`, `ci:`, `test:` (в changelog, без bump)
+    - `chore:`, `build:`, `style:` (скрыты в changelog, без bump)
+    - `feat!:` / `fix!:` или `BREAKING CHANGE:` в теле → major bump
+    Примеры:
+    ```
+    feat: telegram login widget on home page
+    fix: revote button hidden when who_can_reveal=everyone
+    docs: explain disconnect grace period in BUSINESS_LOGIC.md
+    ```
+    Старые коммиты (без префикса) релиз-плиз просто проигнорит — не будет на них ругаться.
 
 4. **Не пушить секреты.** `.env`, `*.key`, `credentials.json` не коммитятся. `.gitignore` уже их закрывает.
 

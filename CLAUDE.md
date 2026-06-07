@@ -52,6 +52,10 @@ Test naming reads as the spec (`test_facilitator_cannot_become_spectator`). When
 
 CI runs both layers on every push to `main`/`dev` and on PRs — `.github/workflows/ci.yml`. Concurrency is set so a new push cancels the prior run on the same branch.
 
+## Releases
+
+After each push to `main`, [`release-please`](https://github.com/googleapis/release-please) (workflow `.github/workflows/release-please.yml`) opens a release PR that updates `CHANGELOG.md` and `frontend/package.json` version. Merging the release PR tags the merge commit (e.g. `v0.2.0`) and creates a GitHub Release. Conventional Commits required — see `docs/RELEASES.md` and `docs/RULES.md` rule 3.
+
 ## Architecture
 
 Two independent services, no shared code:

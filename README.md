@@ -219,6 +219,12 @@ frontend/src/
 | Интеграции (Jira/Linear/CSV) | новый `integrations/` | импорт в `Room.issues` |
 | Горизонтальное масштабирование | `ws_manager.py` | Redis pub/sub для broadcast между подами |
 
+## Релизы
+
+Версионирование автоматизировано через [release-please](https://github.com/googleapis/release-please). После каждого merge в `main` workflow открывает release PR с обновлённым `CHANGELOG.md`. Полный flow и Conventional Commits — в [docs/RELEASES.md](docs/RELEASES.md).
+
+Текущая версия: см. [`CHANGELOG.md`](CHANGELOG.md) или `frontend/package.json`.
+
 ## Тесты
 
 | Слой | Где | Команда | Покрытие |
