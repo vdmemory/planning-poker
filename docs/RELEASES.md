@@ -69,12 +69,23 @@ After we reach feature parity / want a public 1.0, bump manually (release-please
    - Tags the merge commit `v0.2.0`.
    - Creates a GitHub Release with the changelog section as the body.
 
-### Why two layers (auto-promote + release-please)?
+### Why two (now three) automation layers
 
-- **Auto-promote** answers "what's pending for the next release?" — the open `dev → main` PR is your queue.
-- **Release-please** answers "what's in this release?" — the release PR is your finalized changelog.
+- **Auto-promote** (`.github/workflows/auto-promote.yml`) answers "what's pending for the next release?" — the open `dev → main` PR is your queue.
+- **Release-please** (`.github/workflows/release-please.yml`) answers "what's in this release?" — the release PR is your finalized changelog.
+- **Back-merge** (`.github/workflows/back-merge.yml`) keeps `dev` up to date with `main` after every release / hotfix. Without it, the next `dev → main` PR gets stuck on `mergeable_state: behind` because branch protection on `main` requires the source branch to be up to date (`strict: true`).
 
-Together they give you: never miss a PR you wanted to ship, always know what each version contains.
+Together: never miss a PR you wanted to ship, always know what each version contains, never get blocked by stale `dev`.
+
+### What back-merge does
+
+After a push to `main` (release PR merged, hotfix landed), the workflow:
+
+1. Checks out `dev`, fetches latest `main`.
+2. If `dev` already contains `main`'s HEAD — exits (nothing to do).
+3. Tries `git merge --no-ff origin/main`. The merge commit message starts with `Merge branch 'main'` — which is exactly the prefix `auto-promote.yml` skips on, so back-merges don't trigger redundant promote PRs.
+4. If clean — `git push origin dev`. The next `dev → main` PR is unblocked.
+5. If conflict — opens an issue labeled `tech-debt` with the resolution recipe. You merge manually, then back-merge stays out of the way on the next release.
 
 ### "Required CI on release PR" gotcha
 

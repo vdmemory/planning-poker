@@ -1,0 +1,97 @@
+name: Back-merge main → dev
+
+# After every push to `main` (release PR merged, hotfix landed) we merge
+# `main` back into `dev`. Why? Branch protection on `main` requires the
+# source branch (`dev`) to be up to date — without this back-merge, the next
+# `dev → main` promote PR is blocked with `mergeable_state: behind`.
+#
+# Push to dev happens with a merge-commit message that starts with
+# "Merge branch 'main'", which is exactly what `.github/workflows/auto-promote.yml`
+# checks for to skip on — so back-merges do NOT trigger a redundant auto-promote
+# PR. Clean loop.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+# Serialize: only one back-merge in flight at a time.
+concurrency:
+  group: back-merge-main-dev
+  cancel-in-progress: false
+
+jobs:
+  back-merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Check if back-merge is needed
+        id: check
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          if git merge-base --is-ancestor origin/main HEAD; then
+            echo "dev already contains main's HEAD — nothing to do"
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Merge main into dev (clean path)
+        if: steps.check.outputs.needed == 'true'
+        id: merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # No-ff so the back-merge shows up as an explicit merge commit.
+          # The "Merge branch 'main'" prefix is required so auto-promote.yml
+          # skips this commit (its skip condition uses startsWith on this exact
+          # string).
+          if git merge --no-ff origin/main \
+              -m "Merge branch 'main' into dev (back-merge after release)"; then
+            git push origin dev
+            echo "✓ Back-merged main → dev"
+            echo "result=ok" >> "$GITHUB_OUTPUT"
+          else
+            git merge --abort
+            echo "✗ Conflicts on back-merge"
+            echo "result=conflict" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+      - name: Open issue if back-merge hit conflicts
+        if: failure() && steps.merge.outputs.result == 'conflict'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create \
+            --title "Back-merge main → dev failed (conflicts)" \
+            --label "tech-debt" \
+            --body "$(cat <<EOF
+          The \`back-merge\` workflow couldn't auto-merge \`main\` into \`dev\` because of conflicts. Resolve manually:
+
+          \`\`\`bash
+          git checkout dev
+          git pull
+          git merge origin/main
+          # resolve conflicts in your editor
+          git push origin dev
+          \`\`\`
+
+          After that the next \`dev → main\` PR will unblock (currently it's stuck on \`mergeable_state: behind\`).
+          EOF
+          )"
