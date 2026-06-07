@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **Documentation is part of Definition of Done.** Before saying "done" or opening a PR, audit the docs listed in `docs/RULES.md` rule #0 and update anything touched by the change. Stale docs are bugs. The user has reinforced this rule explicitly.
+
 ## Project Overview
 
 Real-time Planning Poker tool for agile teams. Guest mode (no registration), WebSocket-based voting. All state is in-memory — no database, no persistence between restarts.
