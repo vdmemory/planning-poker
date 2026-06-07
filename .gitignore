@@ -37,3 +37,10 @@ yarn-error.log*
 # Misc
 *.tmp
 coverage/
+
+# Secrets — never commit
+keys
+keys.*
+*.token
+*.secret
+tokens.env
