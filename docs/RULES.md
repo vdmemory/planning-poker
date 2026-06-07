@@ -64,6 +64,14 @@
 
 19. **CI на каждый push/PR.** GitHub Actions (`.github/workflows/ci.yml`) гоняет pytest + Playwright. Не мержить PR с красным CI без объяснимой причины. Если падает только e2e — скачать `playwright-report` артефакт из ран'а, посмотреть видео.
 
+20. **Branch protection на `main`.** Включено через GitHub API. Что включено:
+    - **Required status checks**: `Backend pytest` + `Frontend Playwright e2e` — оба должны быть зелёными.
+    - **Strict** (require branches to be up to date): нельзя мержить, если ветка отстаёт от `main`.
+    - **No force pushes**, **no deletion**.
+    - **enforce_admins=false**: ты как админ можешь обойти в экстренной ситуации (но это исключение, не правило).
+
+    Изменить набор обязательных чеков (например, добавить новый job) — через PUT `/repos/vdmemory/planning-poker/branches/main/protection` или в `Settings → Branches` в UI.
+
 14. **`CLAUDE.md` — для агента.**
     - Туда идут инструкции по работе с кодом и деплоем для Claude Code.
     - Не дублировать в README то, что уже есть в CLAUDE.md; и наоборот.
