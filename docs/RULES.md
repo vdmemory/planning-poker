@@ -72,6 +72,14 @@
 
     Изменить набор обязательных чеков (например, добавить новый job) — через PUT `/repos/vdmemory/planning-poker/branches/main/protection` или в `Settings → Branches` в UI.
 
+21. **Auto-triage для новых issues.** Workflow `.github/workflows/auto-triage.yml` стартует на каждый новый issue:
+    - Скрипт `.github/scripts/auto_triage.py` дёргает GitHub Models (`gpt-4o-mini`, бесплатно)
+    - Постит комментарий с оценкой сложности, planом, файлами для правки, рисками
+    - Ставит label'ы: `easy`/`medium`/`hard`, `backend`/`frontend`/`fullstack`, опционально `security`/`breaking-change`/`needs-clarification`, плюс `auto-triaged`
+    - **Кода не пишет** — только анализ
+    - Чтобы перетриажить — навесить label `re-triage`, workflow сам его снимет после запуска
+    - Стоимость: $0 (GitHub Models free tier; rate limits действуют, но для нескольких issue в день хватит с запасом)
+
 14. **`CLAUDE.md` — для агента.**
     - Туда идут инструкции по работе с кодом и деплоем для Claude Code.
     - Не дублировать в README то, что уже есть в CLAUDE.md; и наоборот.
