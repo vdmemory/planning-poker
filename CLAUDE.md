@@ -54,7 +54,11 @@ CI runs both layers on every push to `main`/`dev` and on PRs — `.github/workfl
 
 ## Releases
 
-After each push to `main`, [`release-please`](https://github.com/googleapis/release-please) (workflow `.github/workflows/release-please.yml`) opens a release PR that updates `CHANGELOG.md` and `frontend/package.json` version. Merging the release PR tags the merge commit (e.g. `v0.2.0`) and creates a GitHub Release. Conventional Commits required — see `docs/RELEASES.md` and `docs/RULES.md` rule 3.
+Two-layer automation:
+1. **Auto-promote** (`.github/workflows/auto-promote.yml`) — on every push to `dev`, ensures a PR `dev → main` is open. The PR auto-updates as more features land. Never need to manually open the "promote" PR.
+2. **Release-please** (`.github/workflows/release-please.yml`) — on every push to `main`, opens a release PR with `CHANGELOG.md` regenerated from Conventional Commits and the version bumped in `frontend/package.json`. Merging that PR tags `v0.X.Y` and creates a GitHub Release.
+
+Merge methods: **feature → dev = squash**, **dev → main = merge commit** (preserves individual `feat:`/`fix:` for release-please). See `docs/RELEASES.md` for the full flow and `docs/RULES.md` rule 2 for the merge-method rationale.
 
 ## Architecture
 
