@@ -97,10 +97,31 @@ For things like drawing or live cursors:
 
 ## Where to test
 
-There are no automated tests (yet). For a new feature, manually:
-1. Start backend (`uvicorn app.main:app --reload`) and frontend (`npm run dev`).
-2. Open two browser windows (different profiles or incognito) → create room in one, join from the other.
-3. Trigger the new action; verify both clients see consistent state via `room_state`.
-4. Verify error cases produce `{type: "error", message}` to the sender only, not a broadcast.
+Tests are executable documentation — see `docs/TESTING.md`.
 
-When adding pytest later, `RoomService` is the easiest target (no FastAPI deps).
+### Backend test (always required for service changes)
+
+Add a test in the appropriate file under `backend/tests/`:
+- new service method → file matching the area (rooms/voting/issues/permissions)
+- new WS message type → `test_websocket.py`
+
+Pattern: name the test as a sentence describing the expected behavior (e.g. `test_revote_recomputes_issue_estimate_from_new_mode`). Use the `service` fixture for service-level tests, `client` for WS/REST integration.
+
+Run: `cd backend && pytest -k "your test name fragment"`.
+
+### Frontend e2e test (when the change is user-visible)
+
+Add a flow under `frontend/tests/e2e/`. Reuse helpers from `helpers.ts`:
+- `createRoom(page)`, `joinRoom(page, url, nickname)`, `voteCard(page, value)`.
+
+For multi-user flows, open `browser.newContext()` per user. The voteCard helper polls to work around the WS-handshake race; if you write your own action that uses WS, do the same (click in a loop until a server-observable state change appears).
+
+Run: `cd frontend && npm run test:e2e`.
+
+### Manual checks before merge
+
+Even with the above tests, smoke-test in browser:
+1. Backend + frontend running locally.
+2. Open two browser profiles → create room in one, join from the other.
+3. Trigger the new action; verify both clients see consistent state.
+4. Verify errors go to sender only (`{type: "error", message}`), not broadcast.

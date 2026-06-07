@@ -1,0 +1,124 @@
+# Тесты
+
+В репо два уровня тестов. Оба — исполняемая документация: имя теста читается как
+спецификация, тело — как пример «что должно произойти».
+
+## Сводка
+
+| Уровень | Где | Технология | Скорость |
+|---|---|---|---|
+| Backend service + WS | `backend/tests/` | pytest + FastAPI TestClient | 92 теста, <0.1s |
+| Frontend e2e | `frontend/tests/e2e/` | Playwright + Chromium | 5 тестов, ~15s |
+
+## Backend (pytest)
+
+```bash
+cd backend
+source .venv/bin/activate
+pip install -r requirements-dev.txt   # один раз
+pytest                                # все 92 теста
+pytest tests/test_voting_and_stats.py # один файл
+pytest -k "facilitator"               # все тесты со словом "facilitator"
+```
+
+### Слои
+
+Два фикстура из `conftest.py`:
+
+- **`service`** — фресь `RoomService` поверх свежего `InMemoryRoomStore`. Используется
+  для всего, что про бизнес-логику. Самый быстрый, ничего не сетапит, не поднимает HTTP.
+- **`client`** — FastAPI `TestClient` против реального `app`. Между тестами чистит
+  глобальный `store._rooms`. Используется для REST + WebSocket.
+
+### Что покрыто
+
+| Файл | Описание | Тестов |
+|---|---|---|
+| `test_rooms_and_players.py` | Создание комнаты, join/leave/kick/close, facilitator-handoff, disconnect grace, spectator-флаг, обновление ника/цвета | 25 |
+| `test_voting_and_stats.py` | Скрытые голоса до reveal, валидация карт, reveal→stats, revote, reset, mode → final_estimate, числовые vs не-числовые карты | 20 |
+| `test_issues.py` | add/update/delete/reorder/select/set_estimate; авто-выбор первой задачи; что происходит при удалении активной | 19 |
+| `test_permissions_and_settings.py` | `who_can_reveal`, `who_can_manage_issues`, facilitator-only действия, partial-update комнаты | 12 |
+| `test_websocket.py` | REST + WS интеграция: auto-join по URL, broadcast, error reply, countdown/draw relay, kick закрывает соединение, room_closed | 16 |
+
+### Что НЕ покрыто
+
+- Реальный 30-секундный grace-период (только семантика помечена; полный тайминг — flaky)
+- Drawing-сообщения в деталях (только relay-механика)
+- Бэк под нагрузкой / race conditions (не цель)
+
+## Frontend e2e (Playwright)
+
+```bash
+cd frontend
+npm install                          # включает @playwright/test
+npx playwright install chromium      # один раз
+npm run test:e2e                     # headless
+npm run test:e2e:headed              # видимый браузер
+npm run test:e2e:ui                  # Playwright UI
+```
+
+### Что Playwright поднимает
+
+Конфиг (`playwright.config.ts`) запускает **отдельные** инстансы:
+- бэкенд: `uvicorn app.main:app --port 8765`
+- фронт: `VITE_API_URL=http://localhost:8765 VITE_DISABLE_STRICT_MODE=true npx vite --port 5174`
+
+Это не конфликтует с твоим обычным `npm run dev` / `uvicorn --reload`. После последнего
+теста процессы остаются висеть для скорости повторного запуска (поведение
+`reuseExistingServer`). Чтобы их убить:
+
+```bash
+pkill -f "vite --port 5174"
+pkill -f "uvicorn.*8765"
+```
+
+### Почему `VITE_DISABLE_STRICT_MODE=true`
+
+В dev-режиме React.StrictMode двойно монтирует хуки. `useRoomSocket` открывает WS,
+оно закрывается на размонтировании, потом открывается снова. На сервере успевает
+создаться лишний игрок (auto-join: первый WS послал пустой `player_id`, сервер создал
+Bob, потом ws закрылся, потом второй WS пришёл с уже сохранённым id, реконнект). В
+тестах это даёт «1/3 voted» вместо «1/2». В проде StrictMode не активен — проблемы нет.
+
+`main.tsx` отключает StrictMode по флагу.
+
+### Что покрыто
+
+| Файл | Флоу |
+|---|---|
+| `home.spec.ts` | Главная рендерится; create-game с пустым именем показывает ошибку, не навигирует |
+| `create-and-vote.spec.ts` | Фасилитатор создаёт комнату → голосует → «Reveal cards» появляется |
+| `reveal-and-stats.spec.ts` | Голосует → Reveal → «Average» + «New round»; New round сбрасывает |
+| `two-players.spec.ts` | Два контекста (две сессии) в одной комнате → видят друг друга → оба голосуют → reveal на одном → обе видят stats |
+
+### Helpers (`tests/e2e/helpers.ts`)
+
+- `createRoom(page, gameName?, facilitatorNick?)` — Home → создать → ввести ник → ждать WS.
+- `joinRoom(page, url, nickname, asSpectator?)` — открыть URL комнаты как другой пользователь.
+- `voteCard(page, card, confirmRegex?)` — кликает карту с повторами, пока на странице не появится подтверждение (по умолчанию «All voted!»). Polling нужен потому что в коротком окне между HTTP-навигацией и WS-handshake первый клик может улететь в no-op (`send()` дропает сообщения, если ws.readyState !== OPEN).
+
+### Что НЕ покрыто
+
+- Рисование / live-курсоры (релейные сообщения, бизнес-эффекта нет)
+- Мобильные breakpoint'ы (можно добавить через `projects:` в конфиге)
+- Visual regression (нет screenshot baselines)
+- Тесты на медленных соединениях / cold start Render (offline-индикатор)
+
+## Тесты как документация — правило
+
+См. `docs/RULES.md` пункт 13: при изменении бизнес-логики обновлять `BUSINESS_LOGIC.md`
+и добавлять/менять backend-тест в `backend/tests/`; при изменении UI-флоу — добавлять
+Playwright-тест. Без этого бизнес-правило «есть только на словах», и через месяц
+никто не помнит, что оно было.
+
+## Запуск всех тестов одним хитом
+
+```bash
+# Backend
+cd backend && source .venv/bin/activate && pytest --timeout=10
+
+# Frontend e2e
+cd ../frontend && npm run test:e2e
+```
+
+Backend 0.1s + Playwright ~15s. CI-конфиг ещё не настроен — можно добавить отдельной задачей.

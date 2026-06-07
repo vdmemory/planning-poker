@@ -13,13 +13,19 @@ if (_theme === "light") {
   document.documentElement.classList.add("light");
 }
 
+// StrictMode double-mounts effects in dev, which makes useRoomSocket open the
+// WebSocket twice and confuses the join flow. Disable via env var in e2e tests.
+const tree = (
+  <BrowserRouter>
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/room/:roomId" element={<RoomPage />} />
+    </Routes>
+  </BrowserRouter>
+);
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/room/:roomId" element={<RoomPage />} />
-      </Routes>
-    </BrowserRouter>
-  </React.StrictMode>
+  import.meta.env.VITE_DISABLE_STRICT_MODE === "true"
+    ? tree
+    : <React.StrictMode>{tree}</React.StrictMode>
 );

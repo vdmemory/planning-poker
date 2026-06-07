@@ -32,6 +32,24 @@ cd frontend && npm run build   # tsc + vite build
 # Backend has no build step; deployed via Render (render.yaml at repo root)
 ```
 
+## Testing
+
+Two layers, both treated as executable documentation (`docs/TESTING.md`):
+
+```bash
+# Backend (pytest + FastAPI TestClient + WebSocket)
+cd backend && source .venv/bin/activate && pip install -r requirements-dev.txt
+pytest                   # 92 tests, ~0.1s
+
+# Frontend e2e (Playwright + Chromium)
+cd frontend
+npm install
+npx playwright install chromium
+npm run test:e2e         # 5 flows, ~15s
+```
+
+Test naming reads as the spec (`test_facilitator_cannot_become_spectator`). When adding business logic, add the test in the same PR — see `docs/RULES.md` rule 13.
+
 ## Architecture
 
 Two independent services, no shared code:

@@ -219,9 +219,18 @@ frontend/src/
 | Интеграции (Jira/Linear/CSV) | новый `integrations/` | импорт в `Room.issues` |
 | Горизонтальное масштабирование | `ws_manager.py` | Redis pub/sub для broadcast между подами |
 
+## Тесты
+
+| Слой | Где | Команда | Покрытие |
+|---|---|---|---|
+| Backend (pytest) | `backend/tests/` | `pytest` | 92 теста — комнаты, голосование, issues, права, WS-интеграция |
+| Frontend e2e (Playwright) | `frontend/tests/e2e/` | `npm run test:e2e` | 5 флоу — главная, создание/голосование, reveal+stats, два игрока |
+
+Подробности — в [docs/TESTING.md](docs/TESTING.md).
+
 ## Что НЕ входит сейчас
 
 - Регистрация и БД (всё в памяти; история игр не хранится)
 - Интеграции с Jira/Linear/GitHub
 - Биллинг и тарифы
-- Авто-тесты (production-ready: pytest на `RoomService`)
+- CI (тесты есть, GitHub Actions ещё нет)
