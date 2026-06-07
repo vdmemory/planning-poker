@@ -18,6 +18,22 @@ function saveAvatarColor(c: string) {
   localStorage.setItem("pp:avatar-color", c);
 }
 
+/**
+ * Pick a text color that contrasts the given background — used by the name pill
+ * above the player card. YIQ luma threshold of 160 keeps text readable on the
+ * mid-light palette colors (e.g. amber #eab308) while staying white on the
+ * darker ones (blue, purple, pink).
+ */
+function pickContrastTextColor(hex: string): string {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  if (!m) return "#ffffff";
+  const r = parseInt(m[1], 16);
+  const g = parseInt(m[2], 16);
+  const b = parseInt(m[3], 16);
+  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+  return yiq >= 160 ? "#0f172a" : "#ffffff";
+}
+
 export default function RoomPage() {
   const { roomId = "" } = useParams();
   const storedPlayerId = localStorage.getItem(`pp:${roomId}:player_id`);
@@ -765,7 +781,7 @@ function TableCenter({
             <div className="text-3xl">{stats.consensus ? "😎" : "🤔"}</div>
           </div>
         </div>
-        {isFacilitator && (
+        {canReveal && (
           <button
             onClick={onReset}
             className="mt-1 bg-white/20 hover:bg-white/30 text-white text-sm font-semibold px-6 py-2 rounded-full transition-colors"
@@ -875,7 +891,7 @@ function ActionBox({
             </div>
           </>
         )}
-        {isFacilitator && (
+        {canReveal && (
           <button
             onClick={onReset}
             className="bg-[var(--c-panel2)] hover:bg-[var(--c-border)] border border-[var(--c-border-hi)] text-slate-200 px-8 py-3 rounded-xl font-semibold text-lg transition-colors"
@@ -957,12 +973,21 @@ function PlayerCard({
     : {};
 
   return (
-    <div className={`flex flex-col items-center gap-1.5 group ${!player.connected ? "opacity-40" : ""}`}>
+    <div
+      data-testid="player-card"
+      data-player-nickname={player.nickname}
+      className={`flex flex-col items-center gap-1.5 group ${!player.connected ? "opacity-40" : ""}`}
+    >
+      {/* Name pill above the card. Replaces the previous letter-avatar circle:
+          the avatar color is preserved as the pill background so the player's
+          color identity stays visible. */}
       <div
-        className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0"
-        style={{ backgroundColor: bgColor }}
+        data-testid="player-name-pill"
+        className="px-2 py-0.5 rounded-full text-xs font-semibold max-w-[88px] truncate text-center shadow-sm"
+        style={{ backgroundColor: bgColor, color: pickContrastTextColor(bgColor) }}
+        title={player.nickname}
       >
-        {player.nickname[0]?.toUpperCase() ?? "?"}
+        {player.nickname}
       </div>
 
       {/* Card with optional edit/kick buttons */}
@@ -1013,9 +1038,8 @@ function PlayerCard({
         )}
       </div>
 
-      <span className="text-xs text-slate-300 max-w-[64px] truncate text-center">
-        {player.nickname}
-      </span>
+      {/* Status badges under the card. The duplicate name caption was removed —
+          the name now lives in the pill above the card (see issue #7). */}
       {isFacilitator && <span className="text-xs text-blue-400/70">host</span>}
       {player.is_spectator && <span className="text-xs text-slate-500">spectator</span>}
       {!player.connected && <span className="text-xs text-slate-500">offline</span>}

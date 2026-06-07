@@ -37,3 +37,15 @@ yarn-error.log*
 # Misc
 *.tmp
 coverage/
+
+# Secrets — never commit
+keys
+keys.*
+*.token
+*.secret
+tokens.env
+
+# Playwright artifacts
+frontend/test-results/
+frontend/playwright-report/
+frontend/.playwright/
