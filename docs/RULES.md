@@ -141,6 +141,13 @@
 
     Изменить набор обязательных чеков (например, добавить новый job) — через PUT `/repos/vdmemory/planning-poker/branches/main/protection` или в `Settings → Branches` в UI.
 
+22. **Back-merge main → dev после релиза.** Workflow `.github/workflows/back-merge.yml` стартует на каждый push в `main`:
+    - Если `dev` уже содержит `main`'s HEAD — exit (nothing to do).
+    - Иначе делает `git merge --no-ff origin/main` с сообщением `Merge branch 'main' into dev (back-merge after release)` (этот префикс auto-promote.yml skips, чтобы не создавать дублирующий promote PR).
+    - Если merge clean → push в `dev`. Следующий `dev → main` PR разблокирован.
+    - Если конфликт → открывает issue с label `tech-debt` и рецептом ручного резолва.
+    - Без этого workflow следующий `dev → main` PR блокировался бы на `mergeable_state: behind` из-за `strict: true` в branch protection.
+
 21. **Auto-triage для новых issues.** Workflow `.github/workflows/auto-triage.yml` стартует на каждый новый issue:
     - Скрипт `.github/scripts/auto_triage.py` дёргает GitHub Models (`gpt-4o-mini`, бесплатно)
     - Постит комментарий с оценкой сложности, planом, файлами для правки, рисками
