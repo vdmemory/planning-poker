@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **Documentation is part of Definition of Done.** Before saying "done" or opening a PR, audit the docs listed in `docs/RULES.md` rule #0 and update anything touched by the change. Stale docs are bugs. The user has reinforced this rule explicitly.
+
 ## Project Overview
 
 Real-time Planning Poker tool for agile teams. Guest mode (no registration), WebSocket-based voting. All state is in-memory — no database, no persistence between restarts.
@@ -48,13 +50,18 @@ npx playwright install chromium
 npm run test:e2e         # 5 flows, ~15s
 ```
 
-Test naming reads as the spec (`test_facilitator_cannot_become_spectator`). When adding business logic, add the test in the same PR — see `docs/RULES.md` rule 13.
+Test naming reads as the spec (`test_facilitator_cannot_become_spectator`). When adding business logic, add the test **and** update `docs/BUSINESS_LOGIC.md` in the same PR — see `docs/RULES.md` rule 13 (Definition of Done for new business logic). This is non-negotiable; "later" doesn't work.
 
 CI runs both layers on every push to `main`/`dev` and on PRs — `.github/workflows/ci.yml`. Concurrency is set so a new push cancels the prior run on the same branch.
 
 ## Releases
 
-After each push to `main`, [`release-please`](https://github.com/googleapis/release-please) (workflow `.github/workflows/release-please.yml`) opens a release PR that updates `CHANGELOG.md` and `frontend/package.json` version. Merging the release PR tags the merge commit (e.g. `v0.2.0`) and creates a GitHub Release. Conventional Commits required — see `docs/RELEASES.md` and `docs/RULES.md` rule 3.
+Three-layer automation:
+1. **Auto-promote** (`.github/workflows/auto-promote.yml`) — on every push to `dev`, ensures a PR `dev → main` is open. The PR auto-updates as more features land. Never need to manually open the "promote" PR.
+2. **Release-please** (`.github/workflows/release-please.yml`) — on every push to `main`, opens a release PR with `CHANGELOG.md` regenerated from Conventional Commits and the version bumped in `frontend/package.json`. Merging that PR tags `v0.X.Y` and creates a GitHub Release.
+3. **Back-merge** (`.github/workflows/back-merge.yml`) — on every push to `main`, merges `main` back into `dev` so the next `dev → main` PR isn't blocked by `mergeable_state: behind` (branch protection on main is `strict: true`).
+
+Merge methods: **feature → dev = squash**, **dev → main = merge commit** (preserves individual `feat:`/`fix:` for release-please). See `docs/RELEASES.md` for the full flow and `docs/RULES.md` rule 2 for the merge-method rationale.
 
 ## Architecture
 

@@ -221,7 +221,21 @@ frontend/src/
 
 ## Релизы
 
-Версионирование автоматизировано через [release-please](https://github.com/googleapis/release-please). После каждого merge в `main` workflow открывает release PR с обновлённым `CHANGELOG.md`. Полный flow и Conventional Commits — в [docs/RELEASES.md](docs/RELEASES.md).
+Двухслойная автоматизация для пути feature → production:
+
+| Workflow | Триггер | Что делает |
+|---|---|---|
+| `auto-promote` | push в `dev` | держит открытым PR `dev → main` (твоя очередь на следующий релиз) |
+| `release-please` | push в `main` | открывает release PR с регенерированным `CHANGELOG.md` и поднятой версией |
+
+Цикл одной фичи:
+1. PR `feature → dev` (squash merge) — title PR это твой conventional commit
+2. AUTO: workflow открывает или дополняет PR `dev → main`
+3. Ты ревьюишь PR `dev → main` → **Create a merge commit** (не squash)
+4. AUTO: release-please открывает release PR с `v0.X.Y`
+5. Ты ревьюишь CHANGELOG → squash merge → tag и GitHub Release создаются автоматически
+
+Conventional Commits обязательны для попадания в CHANGELOG. Полный flow, типы коммитов и FAQ — в [docs/RELEASES.md](docs/RELEASES.md).
 
 Текущая версия: см. [`CHANGELOG.md`](CHANGELOG.md) или `frontend/package.json`.
 

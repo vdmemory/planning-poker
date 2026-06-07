@@ -2,15 +2,46 @@
 
 Правила, которые действуют для всех, кто работает с этим репо — включая Claude.
 
+## 🛑 Definition of Done (правило #0)
+
+**Задача не считается выполненной, пока документация не обновлена.** Это не «приятный бонус», это часть результата — наравне с кодом и тестами.
+
+Перед тем как сказать «готово», открыть PR или ответить пользователю «сделано», **обязательно**:
+
+1. Пройти по diff и спросить себя: какой документ описывает то, что я только что изменил?
+2. Если такой документ есть и стал неактуальным — обновить **в том же PR**.
+3. Если описывающего документа нет, но изменение того стоит — создать.
+4. Список документов под аудит:
+   - `README.md` — внешняя витрина (стек, фичи, запуск, релизы)
+   - `CLAUDE.md` — гайд для агента (архитектура, branching, deploy, тесты, releases)
+   - `docs/ARCHITECTURE.md` — слои, контракты, потоки данных
+   - `docs/BUSINESS_LOGIC.md` — сущности, права, lifecycle, протокол
+   - `docs/DEPLOY_SETUP.md` — одноразовые UI-шаги на Render/Vercel
+   - `docs/RELEASES.md` — release flow, conventional commits, версионирование
+   - `docs/TESTING.md` — как запускать тесты, что покрыто, CI
+   - `docs/RULES.md` — этот файл; новые правила/конвенции **обязательно** сюда
+   - `.claude/skills/pp-deploy/SKILL.md` — release/deploy operations для Claude
+   - `.claude/skills/pp-feature/SKILL.md` — добавление фич
+   - `frontend/.env.example` / любые конфиги — если изменилось поведение env vars
+5. Тесты — это тоже документация: новое бизнес-правило → e2e/pytest в том же PR (правило 13).
+6. Эта проверка применяется **к каждому** PR, даже к самым маленьким. Никакого «потом задокументирую».
+
+**Если откладываешь doc-update — это считается неполной задачей**, и нужно сразу создать follow-up issue с label `docs-debt`.
+
 ## Git и ветки
 
 1. **Никогда не пушить напрямую в `main` без явного разрешения владельца.**
    - Допустимо: создать ветку → запушить → открыть PR → дождаться review.
    - Недопустимо: `git push origin main` без отдельного согласования в этой сессии.
 
-2. **Базовая ветка для новой работы — `dev`.**
+2. **Базовая ветка для новой работы — `dev`. Двухступенчатый flow.**
    - Новые фичи / правки ответвлять от `dev`: `git checkout -b feat/<short-name> dev`.
    - Merge: feature → `dev` → ревью → `dev` → `main` (с разрешения).
+   - **PR `dev → main` создаётся автоматически** workflow'ом `.github/workflows/auto-promote.yml` после каждого push в `dev`. Если PR уже открыт — он сам подтянет новые коммиты. Если закрыт — workflow откроет новый.
+   - **Merge methods (важно):**
+     - `feature → dev`: **Squash and merge**. Один PR = один conventional-commit в истории `dev` (`feat: ...`, `fix: ...`). Title squash-коммита = title PR (поэтому title PR — это и есть твой conventional commit).
+     - `dev → main`: **Create a merge commit** (НЕ squash). Squash здесь сольёт все 5 feat: коммитов в один title PR — и release-please увидит только title (если он не conventional — пропустит всё). Merge commit сохраняет индивидуальные `feat:` коммиты, release-please их корректно разнесёт по секциям CHANGELOG.
+   - Feature ветки авто-удаляются после merge (`delete_branch_on_merge=true`).
 
 3. **Коммиты — на английском, по [Conventional Commits](https://www.conventionalcommits.org/).**
     Это требование от release-please (`docs/RELEASES.md`).
@@ -67,16 +98,38 @@
     - Не хардкодить `if room.facilitator_id == ...` в новых методах. Использовать хелперы.
     - При добавлении новой настройки прав — добавить хелпер и применять единообразно.
 
-## Документация
+## 🛑 Новая функциональность = код + тесты + доки (обязательно)
 
-13. **Документация — часть результата, а не «потом».** При изменении деплоя / стека / бизнес-логики — в **том же PR** обновлять:
-    - Деплой → `README.md`, `CLAUDE.md` (раздел Branching & Deployment), `docs/DEPLOY_SETUP.md`.
-    - Бизнес-логика / роли / правила → `docs/BUSINESS_LOGIC.md` **+ e2e тест в `backend/tests/`**.
-    - Архитектура / слои / поток данных → `docs/ARCHITECTURE.md`.
-    - Внутренние правила для Claude — этот файл и `CLAUDE.md`.
-    - Новая UI-фича → Playwright e2e в `frontend/tests/e2e/` + `docs/TESTING.md`.
-    - **E2E тесты — это исполняемая документация.** Если бизнес-правило существует, оно должно быть зафиксировано тестом. Имя теста читается как спецификация (`test_facilitator_cannot_become_spectator`).
-    - Перед закрытием задачи: пробежать по diff — нет ли упомянутых файлов/концепций в документах, которые нужно подправить?
+13. **Любой новый функционал с новой бизнес-логикой ДОЛЖЕН прилететь одним PR в составе.** Дополняет общий Definition of Done из правила #0 — здесь конкретика для бизнес-логики.
+
+    **1) Код** — реализация на правильном слое (`services.py` для логики, см. правило 8).
+
+    **2) Тесты** — *обязательно*, не «потом»:
+    - **Backend (pytest)** на каждое новое поведение `RoomService`. Имя теста читается как спецификация: `test_facilitator_cannot_become_spectator`, `test_revote_recomputes_issue_estimate_from_new_mode`. Файл — соответствующий area (`test_rooms.py`, `test_voting.py`, `test_issues.py`, `test_permissions.py`, `test_websocket.py`).
+    - **Frontend e2e (Playwright)** если фича видна юзеру. Один сценарий = один пользовательский flow. Использовать хелперы из `helpers.ts`.
+    - **Негативные кейсы** — что должно НЕ работать (попытка зрителя голосовать, не-фасилитатор reveal'ит когда `who_can_reveal=facilitator` и т.д.) — отдельные тесты.
+
+    **3) Документация** — обновить **в том же PR**:
+    - `docs/BUSINESS_LOGIC.md` — описание нового правила/lifecycle/permission. Если ввели новую сущность или новое поле в существующей — добавить в соответствующую таблицу.
+    - `docs/ARCHITECTURE.md` — если изменился контракт между слоями (например, новый WS-тип сообщения, новое поле в `public_state()`).
+    - `CLAUDE.md` секция "WebSocket Protocol" / "Key Design Decisions" — если затрагивается описанная там логика.
+    - `README.md` секция "Возможности" — если фича видна юзеру.
+    - `docs/TESTING.md` — если добавили новый test file или изменили способ запуска тестов.
+    - Полный список документов для аудита — см. правило #0 (Definition of Done) в начале файла.
+
+    **Без чего PR не закрывается:**
+    - ❌ Код есть, тестов нет → не готово.
+    - ❌ Тесты есть, доки не обновлены → не готово.
+    - ❌ «Потом дотестирую / задокументирую» — НЕ работает. Открыть follow-up issue с label `tech-debt` или `docs-debt`, не делать вид что задача завершена.
+
+    **Зачем так строго:** через 3 недели ни я, ни ты не вспомним почему `who_can_reveal=everyone` именно так работает. Тест и `BUSINESS_LOGIC.md` — это память репо. Без них фича становится магией, которую страшно трогать.
+
+14. **E2E тесты — это исполняемая документация.**
+    - Имя теста = одно предложение, описывающее бизнес-правило.
+    - В теле теста: одно правило = один `test_*`. Не валить в один большой тест.
+    - При изменении правила (например, поменяли `who_can_reveal` default) — менять тест в **этом же** PR, не отдельным «починю тесты потом».
+    - Тесты на `RoomService` пишутся через `service` fixture (без HTTP/WS). На WS-протокол — через `client` fixture (`TestClient`).
+    - Playwright e2e: один сценарий = один основной flow. Multi-user — через `browser.newContext()` на каждого юзера.
 
 19. **CI на каждый push/PR.** GitHub Actions (`.github/workflows/ci.yml`) гоняет pytest + Playwright. Не мержить PR с красным CI без объяснимой причины. Если падает только e2e — скачать `playwright-report` артефакт из ран'а, посмотреть видео.
 
@@ -87,6 +140,13 @@
     - **enforce_admins=false**: ты как админ можешь обойти в экстренной ситуации (но это исключение, не правило).
 
     Изменить набор обязательных чеков (например, добавить новый job) — через PUT `/repos/vdmemory/planning-poker/branches/main/protection` или в `Settings → Branches` в UI.
+
+22. **Back-merge main → dev после релиза.** Workflow `.github/workflows/back-merge.yml` стартует на каждый push в `main`:
+    - Если `dev` уже содержит `main`'s HEAD — exit (nothing to do).
+    - Иначе делает `git merge --no-ff origin/main` с сообщением `Merge branch 'main' into dev (back-merge after release)` (этот префикс auto-promote.yml skips, чтобы не создавать дублирующий promote PR).
+    - Если merge clean → push в `dev`. Следующий `dev → main` PR разблокирован.
+    - Если конфликт → открывает issue с label `tech-debt` и рецептом ручного резолва.
+    - Без этого workflow следующий `dev → main` PR блокировался бы на `mergeable_state: behind` из-за `strict: true` в branch protection.
 
 21. **Auto-triage для новых issues.** Workflow `.github/workflows/auto-triage.yml` стартует на каждый новый issue:
     - Скрипт `.github/scripts/auto_triage.py` дёргает GitHub Models (`gpt-4o-mini`, бесплатно)
