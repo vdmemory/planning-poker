@@ -63,6 +63,8 @@ Three-layer automation:
 
 Merge methods: **feature → dev = squash**, **dev → main = merge commit** (preserves individual `feat:`/`fix:` for release-please). See `docs/RELEASES.md` for the full flow and `docs/RULES.md` rule 2 for the merge-method rationale.
 
+Branch protection: both `main` and `dev` have `allow_deletions: false` and `allow_force_pushes: false`. `main` additionally requires the two CI jobs to be green and the source branch to be up to date. `dev` is intentionally softer — no required checks — so the back-merge bot push isn't blocked. See `docs/RULES.md` rule 20 for the full setting list.
+
 ## Architecture
 
 Two independent services, no shared code:
@@ -100,6 +102,8 @@ frontend/src/
 **Permission-gated actions**: `update_room`, `kick_player`, `close_room` always require facilitator. `reveal` / `reset` are gated by `room.who_can_reveal` (`facilitator` | `everyone`). Issue actions (`add_issue`, `update_issue`, `delete_issue`, `delete_all_issues`, `reorder_issue`, `select_issue`, `set_estimate`) are gated by `room.who_can_manage_issues`. Helpers: `_require_facilitator()`, `_require_can_manage_issues()` in `RoomService`.
 
 **Disconnect grace period**: On disconnect, `mark_disconnected` sets `connected=False` + timestamp. A background task (`cleanup_disconnected_players`, runs every 5s) removes players after 30s. If the player reconnects within that window, `reconnect()` clears the flag. `player_id` is stored in `localStorage` so page refresh = reconnect as the same player.
+
+**Room expiration**: A room has `expires_at` set on creation (`services.ROOM_LIFETIME`, default 24h). A second background task (`cleanup_expired_rooms`, runs every 60s) broadcasts `{type: "room_expired", reason: "timer"}`, closes WS connections, and removes the room. `get_room` raises `RoomError("Room has expired")` before cleanup runs, so every action fails fast. The frontend renders a full-screen `room-inactive-overlay` based on a typed WS message, NOT on the close code — Render's Cloudflare edge proxy strips custom close codes (4000-4999) and the browser sees 1005 regardless. For a fresh connect to a missing/expired room the server sends `{type: "room_inactive", reason: "not_found"|"expired"}` before closing.
 
 **Auto-join via URL**: The WS endpoint accepts `?player_id=...&nickname=...`. If `player_id` is not in the room but `nickname` is provided, it creates a new player automatically (enables sharing invite links).
 
@@ -147,7 +151,9 @@ frontend/src/
 { type: "room_state", state, stats? }   # stats present after reveal/revote
 { type: "countdown", seconds }          # relay
 { type: "kicked" }                      # to the kicked player
-{ type: "room_closed" }
+{ type: "room_closed" }                 # facilitator closed the room
+{ type: "room_expired", reason }        # timer ran out, sent to already-connected clients (cleanup_expired_rooms)
+{ type: "room_inactive", reason }       # fresh WS connect to a missing/expired room (reason: not_found | expired)
 { type: "draw_*" }                      # relay
 { type: "error", message }
 ```

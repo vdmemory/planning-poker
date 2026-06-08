@@ -78,8 +78,14 @@ def test_ws_auto_join_creates_new_player_when_only_nickname_given(client):
 
 
 def test_ws_rejects_unknown_room(client):
-    with pytest.raises(Exception):  # WebSocketDisconnect
-        with client.websocket_connect("/ws/ghost?player_id=x") as ws:
+    """Connecting to a non-existent room: server sends a typed `room_inactive`
+    message (reason=not_found) and then closes. Detailed coverage of both
+    branches (not_found / expired) lives in test_room_expiration.py — here we
+    just keep the smoke check that an unknown room ends the connection."""
+    with client.websocket_connect("/ws/ghost?player_id=x") as ws:
+        msg = ws.receive_json()
+        assert msg == {"type": "room_inactive", "reason": "not_found"}
+        with pytest.raises(Exception):  # WebSocketDisconnect on the next read
             ws.receive_json()
 
 

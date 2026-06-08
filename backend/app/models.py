@@ -4,7 +4,7 @@
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Optional
 from uuid import uuid4
@@ -61,9 +61,20 @@ class Room(BaseModel):
     votes: dict[str, str] = Field(default_factory=dict)
     revealed: bool = False
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    # When the room becomes inactive. Set by `RoomService.create_room` from
+    # `ROOM_LIFETIME` (default 24h). Once `is_expired()` is true the room is
+    # closed: cleanup task broadcasts `room_expired`, removes from store; any
+    # action against an expired room raises RoomError.
+    expires_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc) + timedelta(hours=24)
+    )
 
     def deck(self) -> list[str]:
         return DECKS[self.deck_type]
+
+    def is_expired(self, now: Optional[datetime] = None) -> bool:
+        now = now or datetime.now(timezone.utc)
+        return now >= self.expires_at
 
     def public_state(self) -> dict:
         """Состояние комнаты для отправки клиентам.
@@ -85,4 +96,5 @@ class Room(BaseModel):
             "votes": self.votes if self.revealed else {pid: "hidden" for pid in self.votes},
             "voted_player_ids": list(self.votes.keys()),
             "revealed": self.revealed,
+            "expires_at": self.expires_at.isoformat(),
         }

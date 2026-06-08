@@ -160,7 +160,7 @@ function Room({
   const drawHandlerRef = useRef<((msg: object) => void) | null>(null);
   const handleDrawMessage = useCallback((msg: object) => { drawHandlerRef.current?.(msg); }, []);
 
-  const { state, stats, myPlayerId, connected, send, error, countdown, roomClosed } = useRoomSocket({
+  const { state, stats, myPlayerId, connected, send, error, countdown, roomClosed, roomInactive } = useRoomSocket({
     roomId,
     playerId: storedPlayerId,
     nickname,
@@ -294,6 +294,38 @@ function Room({
 
   if (error) {
     return <RoomErrorScreen error={error} />;
+  }
+
+  // Room expired (timer) or never existed at this URL. useRoomSocket already
+  // disabled reconnect when this flag was set, so we just present the dead
+  // end to the user with a way back to the home page.
+  if (roomInactive) {
+    const isExpired = roomInactive === "expired";
+    return (
+      <div
+        data-testid="room-inactive-overlay"
+        data-reason={roomInactive}
+        className="min-h-screen flex items-center justify-center bg-[var(--c-bg)] text-white p-6"
+      >
+        <div className="max-w-md text-center space-y-5">
+          <div className="text-6xl">⌛</div>
+          <h1 className="text-2xl font-bold">
+            {isExpired ? "This room is no longer active" : "Room not found"}
+          </h1>
+          <p className="text-slate-300">
+            {isExpired
+              ? "The room timer ran out and it was closed automatically. Start a new one to keep planning."
+              : "We couldn't find a room at this URL — it may have already been closed."}
+          </p>
+          <button
+            onClick={() => navigate("/")}
+            className="inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-blue-500 hover:bg-blue-400 text-white font-semibold shadow"
+          >
+            Back to home
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (!state || !myPlayerId) {

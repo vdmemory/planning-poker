@@ -107,3 +107,40 @@ async def cleanup_disconnected_players(service: RoomService) -> None:
         except Exception as e:
             # Не даём упасть всему циклу из-за одной ошибки
             print(f"[cleanup] error: {e}")
+
+
+# How often to check the store for expired rooms. The check itself is cheap
+# (constant number of rooms in memory), so we don't need to run it often.
+EXPIRED_ROOMS_CHECK_INTERVAL_SECONDS = 60
+
+
+async def cleanup_expired_rooms(service: RoomService) -> None:
+    """Фоновая задача: периодически закрывает комнаты, у которых истёк `expires_at`.
+
+    Для каждой такой комнаты:
+      1. Broadcast'им `{type: "room_expired"}` всем подключённым клиентам.
+      2. Закрываем их WebSocket-соединения с кодом 4005, чтобы фронт не пытался
+         реконнектиться к мёртвой комнате.
+      3. Удаляем комнату из store через `service.expire_room()`.
+
+    После этого любой новый запрос к комнате — `Room {id} not found`.
+    """
+    while True:
+        await asyncio.sleep(EXPIRED_ROOMS_CHECK_INTERVAL_SECONDS)
+        try:
+            now = datetime.now(timezone.utc)
+            for room in list(store.all()):
+                if not room.is_expired(now):
+                    continue
+                room_id = room.id
+                # Snapshot connection map before we tear it down.
+                player_ids = list(manager._connections.get(room_id, {}).keys())
+                await manager.broadcast(
+                    room_id, {"type": "room_expired", "reason": "timer"}
+                )
+                for pid in player_ids:
+                    await manager.close_connection(room_id, pid, code=4005)
+                service.expire_room(room_id)
+        except Exception as e:
+            # Не даём упасть всему циклу из-за одной ошибки
+            print(f"[cleanup_expired_rooms] error: {e}")

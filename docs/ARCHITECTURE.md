@@ -72,6 +72,8 @@ class RoomStore(Protocol):
 
 **Cleanup**: `cleanup_disconnected_players(service)` запускается как `asyncio.create_task` в `lifespan` и каждые 5 секунд удаляет игроков с `disconnected_at` старше 30s. Если в комнате не осталось игроков — комната удаляется из store.
 
+**Room expiration**: вторая фоновая задача `cleanup_expired_rooms(service)` стартует в том же `lifespan` и раз в 60 секунд проверяет `Room.is_expired()`. Для каждой expired-комнаты: broadcast'ит `{type: "room_expired", reason: "timer"}` всем подключённым клиентам, закрывает их WS с кодом 4005, удаляет комнату из store через `RoomService.expire_room`. Дефолтный lifetime — 24 часа (`services.ROOM_LIFETIME`), monkeypatch'ится в тестах. Подробности и UX-флоу на фронте — в `docs/BUSINESS_LOGIC.md` секция «Lifecycle комнаты и истечение таймера».
+
 **Внимание (масштабирование)**: connection map хранится в памяти одного пода. Для горизонтального масштабирования нужен Redis pub/sub: broadcast превращается в publish в канал комнаты, каждый под слушает свои каналы.
 
 ### Auto-join по URL

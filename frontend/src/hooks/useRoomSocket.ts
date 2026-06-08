@@ -17,6 +17,9 @@ interface UseRoomSocketResult {
   error: string | null;
   countdown: number | null;
   roomClosed: boolean;
+  // Set when the room timer expired or the URL points at a stale/missing
+  // room. UI shows a "no longer active" overlay and does NOT reconnect.
+  roomInactive: "expired" | "not_found" | null;
 }
 
 export function useRoomSocket({
@@ -32,6 +35,7 @@ export function useRoomSocket({
   const [error, setError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [roomClosed, setRoomClosed] = useState(false);
+  const [roomInactive, setRoomInactive] = useState<"expired" | "not_found" | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const onDrawMessageRef = useRef(onDrawMessage);
   useEffect(() => { onDrawMessageRef.current = onDrawMessage; });
@@ -93,6 +97,20 @@ export function useRoomSocket({
         }, 1000);
       } else if (msg.type === "room_closed" || msg.type === "kicked") {
         setRoomClosed(true);
+      } else if (msg.type === "room_expired") {
+        // Server-side timer ran out while we were connected.
+        shouldReconnectRef.current = false;
+        setRoomInactive("expired");
+      } else if (msg.type === "room_inactive") {
+        // Sent by the server right after WS accept when the room is missing
+        // ("not_found") or already past expires_at ("expired"). We rely on
+        // this typed message because Render's Cloudflare proxy strips custom
+        // close codes (4004/4005 arrive in the browser as 1005); without a
+        // recognisable signal the hook would loop on auto-reconnect. See the
+        // ws_endpoint comment in backend/app/main.py for the full story.
+        shouldReconnectRef.current = false;
+        const reason = (msg as { reason?: string }).reason;
+        setRoomInactive(reason === "expired" ? "expired" : "not_found");
       } else if (msg.type === "draw_stroke" || msg.type === "draw_cursor" || msg.type === "draw_clear") {
         onDrawMessageRef.current?.(msg);
       } else if (msg.type === "error") {
@@ -104,7 +122,15 @@ export function useRoomSocket({
       setConnected(false);
       wsRef.current = null;
       if (event.code === 4004) {
-        setError("Room not found");
+        // Room never existed (or was already removed by cleanup).
+        shouldReconnectRef.current = false;
+        setRoomInactive("not_found");
+        return;
+      }
+      if (event.code === 4005) {
+        // Room timer expired but room not yet removed from the store.
+        shouldReconnectRef.current = false;
+        setRoomInactive("expired");
         return;
       }
       if (event.code === 4001) {
@@ -142,5 +168,5 @@ export function useRoomSocket({
     }
   }, []);
 
-  return { state, stats, myPlayerId, connected, send, error, countdown, roomClosed };
+  return { state, stats, myPlayerId, connected, send, error, countdown, roomClosed, roomInactive };
 }
