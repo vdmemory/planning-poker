@@ -133,20 +133,19 @@
 
 19. **CI на каждый push/PR.** GitHub Actions (`.github/workflows/ci.yml`) гоняет pytest + Playwright. Не мержить PR с красным CI без объяснимой причины. Если падает только e2e — скачать `playwright-report` артефакт из ран'а, посмотреть видео.
 
-20. **Branch protection на `main`.** Включено через GitHub API. Что включено:
+20. **Branch protection на `main` и `dev`** — включена через GitHub API.
+
+    **`main` (strict gate перед prod):**
     - **Required status checks**: `Backend pytest` + `Frontend Playwright e2e` — оба должны быть зелёными.
-    - **Strict** (require branches to be up to date): нельзя мержить, если ветка отстаёт от `main`.
-    - **No force pushes**, **no deletion**.
-    - **enforce_admins=false**: ты как админ можешь обойти в экстренной ситуации (но это исключение, не правило).
+    - **Strict** (require branches to be up to date): нельзя мержить, если source отстаёт от `main`.
+    - No force pushes, no deletion.
+    - `enforce_admins=false` — ты как админ можешь обойти в экстренной ситуации (исключение, не правило).
 
-    Изменить набор обязательных чеков (например, добавить новый job) — через PUT `/repos/vdmemory/planning-poker/branches/main/protection` или в `Settings → Branches` в UI.
+    **`dev` (softer floor — protect against the catastrophic):**
+    - No force pushes, no deletion. Это главное: без него `delete_branch_on_merge=true` снесёт ветку после dev→main merge (так и случилось в первой итерации — пришлось пересоздавать dev из main).
+    - **НЕ требуем** status checks и PR на push — back-merge workflow пушит напрямую от `github-actions[bot]`, мы не хотим его блокировать. Дисциплина feature → dev через PR держится самостоятельно.
 
-22. **Back-merge main → dev после релиза.** Workflow `.github/workflows/back-merge.yml` стартует на каждый push в `main`:
-    - Если `dev` уже содержит `main`'s HEAD — exit (nothing to do).
-    - Иначе делает `git merge --no-ff origin/main` с сообщением `Merge branch 'main' into dev (back-merge after release)` (этот префикс auto-promote.yml skips, чтобы не создавать дублирующий promote PR).
-    - Если merge clean → push в `dev`. Следующий `dev → main` PR разблокирован.
-    - Если конфликт → открывает issue с label `tech-debt` и рецептом ручного резолва.
-    - Без этого workflow следующий `dev → main` PR блокировался бы на `mergeable_state: behind` из-за `strict: true` в branch protection.
+    Изменить — через PUT `/repos/vdmemory/planning-poker/branches/{main|dev}/protection` или в `Settings → Branches` в UI.
 
 21. **Auto-triage для новых issues.** Workflow `.github/workflows/auto-triage.yml` стартует на каждый новый issue:
     - Скрипт `.github/scripts/auto_triage.py` дёргает GitHub Models (`gpt-4o-mini`, бесплатно)
@@ -155,6 +154,13 @@
     - **Кода не пишет** — только анализ
     - Чтобы перетриажить — навесить label `re-triage`, workflow сам его снимет после запуска
     - Стоимость: $0 (GitHub Models free tier; rate limits действуют, но для нескольких issue в день хватит с запасом)
+
+22. **Back-merge main → dev после релиза.** Workflow `.github/workflows/back-merge.yml` стартует на каждый push в `main`:
+    - Если `dev` уже содержит `main`'s HEAD — exit (nothing to do).
+    - Иначе делает `git merge --no-ff origin/main` с сообщением `Merge branch 'main' into dev (back-merge after release)` (этот префикс auto-promote.yml skips, чтобы не создавать дублирующий promote PR).
+    - Если merge clean → push в `dev`. Следующий `dev → main` PR разблокирован.
+    - Если конфликт → открывает issue с label `tech-debt` и рецептом ручного резолва.
+    - Без этого workflow следующий `dev → main` PR блокировался бы на `mergeable_state: behind` из-за `strict: true` в branch protection.
 
 14. **`CLAUDE.md` — для агента.**
     - Туда идут инструкции по работе с кодом и деплоем для Claude Code.

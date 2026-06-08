@@ -63,6 +63,8 @@ Three-layer automation:
 
 Merge methods: **feature → dev = squash**, **dev → main = merge commit** (preserves individual `feat:`/`fix:` for release-please). See `docs/RELEASES.md` for the full flow and `docs/RULES.md` rule 2 for the merge-method rationale.
 
+Branch protection: both `main` and `dev` have `allow_deletions: false` and `allow_force_pushes: false`. `main` additionally requires the two CI jobs to be green and the source branch to be up to date. `dev` is intentionally softer — no required checks — so the back-merge bot push isn't blocked. See `docs/RULES.md` rule 20 for the full setting list.
+
 ## Architecture
 
 Two independent services, no shared code:
