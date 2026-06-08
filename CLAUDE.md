@@ -101,6 +101,8 @@ frontend/src/
 
 **Disconnect grace period**: On disconnect, `mark_disconnected` sets `connected=False` + timestamp. A background task (`cleanup_disconnected_players`, runs every 5s) removes players after 30s. If the player reconnects within that window, `reconnect()` clears the flag. `player_id` is stored in `localStorage` so page refresh = reconnect as the same player.
 
+**Room expiration**: A room has `expires_at` set on creation (`services.ROOM_LIFETIME`, default 24h). A second background task (`cleanup_expired_rooms`, runs every 60s) broadcasts `{type: "room_expired", reason: "timer"}`, closes WS connections with code 4005, and removes the room. `get_room` raises `RoomError("Room has expired")` before cleanup runs, so every action fails fast. The frontend differentiates close codes: 4005 = "expired", 4004 = "never existed"; both render a full-screen `room-inactive-overlay`.
+
 **Auto-join via URL**: The WS endpoint accepts `?player_id=...&nickname=...`. If `player_id` is not in the room but `nickname` is provided, it creates a new player automatically (enables sharing invite links).
 
 **Facilitator handoff**: If the facilitator disconnects and is removed, the role passes to the first remaining player.
@@ -147,7 +149,8 @@ frontend/src/
 { type: "room_state", state, stats? }   # stats present after reveal/revote
 { type: "countdown", seconds }          # relay
 { type: "kicked" }                      # to the kicked player
-{ type: "room_closed" }
+{ type: "room_closed" }                 # facilitator closed the room
+{ type: "room_expired", reason }        # timer ran out (cleanup_expired_rooms)
 { type: "draw_*" }                      # relay
 { type: "error", message }
 ```
