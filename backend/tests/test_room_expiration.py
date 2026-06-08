@@ -135,17 +135,17 @@ def test_rest_get_active_room_returns_state_with_expires_at(client) -> None:
 # ─── WebSocket connect on expired room ────────────────────────────────────────
 
 
-def test_ws_connect_to_expired_room_closes_with_4005(
+def test_ws_connect_to_expired_room_sends_typed_message_then_closes(
     client, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Connecting WS to an expired room closes with code 4005 (distinct from
-    4004 which means "no such room ever"). The frontend differentiates between
-    these so it can show the right message.
+    """Connecting WS to an expired room: first a typed `room_inactive` message
+    with `reason="expired"`, then a close with code 4005.
 
-    The server accepts the handshake and then closes — this is the only way
-    browser-side `ws.onclose` receives the real code; a server-side close
-    BEFORE accept() arrives as 1006 (abnormal close) in the browser. Inside
-    TestClient the close lands on the next `receive_*` call.
+    The typed message is the contract we rely on in production — Render's
+    Cloudflare proxy strips custom WS close codes (4000-4999), so the close
+    code alone wouldn't reach the browser (it arrives as 1005). Inside
+    TestClient there is no Cloudflare, so both the message AND the code are
+    visible — we assert both to keep the contract pinned.
     """
     from starlette.websockets import WebSocketDisconnect
 
@@ -154,18 +154,23 @@ def test_ws_connect_to_expired_room_closes_with_4005(
     room_id = data["room_id"]
     pid = data["player_id"]
     with client.websocket_connect(f"/ws/{room_id}?player_id={pid}") as ws:
+        msg = ws.receive_json()
+        assert msg == {"type": "room_inactive", "reason": "expired"}
         with pytest.raises(WebSocketDisconnect) as excinfo:
             ws.receive_text()
         assert excinfo.value.code == 4005
 
 
-def test_ws_connect_to_missing_room_closes_with_4004(client) -> None:
-    """Symmetric to the expired case: a room that never existed yields 4004.
-    The frontend uses the difference for the "Room not found" vs "Room is no
-    longer active" overlay copy."""
+def test_ws_connect_to_missing_room_sends_typed_message_then_closes(client) -> None:
+    """Symmetric to the expired case: a room that never existed yields the
+    same `room_inactive` envelope but with `reason="not_found"`, then a close
+    with code 4004. The frontend uses the reason field to pick the right
+    overlay copy ("Room not found" vs "This room is no longer active")."""
     from starlette.websockets import WebSocketDisconnect
 
     with client.websocket_connect("/ws/never-existed?player_id=x") as ws:
+        msg = ws.receive_json()
+        assert msg == {"type": "room_inactive", "reason": "not_found"}
         with pytest.raises(WebSocketDisconnect) as excinfo:
             ws.receive_text()
         assert excinfo.value.code == 4004

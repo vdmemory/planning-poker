@@ -83,11 +83,18 @@ async def ws_endpoint(websocket: WebSocket, room_id: str, player_id: str, nickna
     """
     room = store.get(room_id)
     if not room or room.is_expired():
-        # The client must see a clean close with a code, but a server-side
-        # close BEFORE accept() arrives at the browser as code 1006 (abnormal)
-        # — the WS handshake never completed. Accept and then close so the
-        # browser delivers the 4004/4005 code to `ws.onclose` correctly.
+        # Why a typed data message + plain close rather than a custom close
+        # code: Render's Cloudflare edge proxy strips custom WS close codes
+        # (4000-4999). The browser receives code 1005 ("No Status Received")
+        # regardless of what we send. Without a code the frontend can't tell
+        # "room is inactive" from "transient network blip" and keeps trying
+        # to reconnect. A typed data message lands as a real frame before
+        # close, so the frontend always learns the reason. We also send the
+        # legacy `code=4004/4005` close for local tests (TestClient does not
+        # go through Cloudflare); in production it just gets stripped.
         await websocket.accept()
+        reason = "expired" if room else "not_found"
+        await websocket.send_json({"type": "room_inactive", "reason": reason})
         await websocket.close(code=4005 if room else 4004)
         return
 

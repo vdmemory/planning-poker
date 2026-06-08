@@ -101,6 +101,16 @@ export function useRoomSocket({
         // Server-side timer ran out while we were connected.
         shouldReconnectRef.current = false;
         setRoomInactive("expired");
+      } else if (msg.type === "room_inactive") {
+        // Sent by the server right after WS accept when the room is missing
+        // ("not_found") or already past expires_at ("expired"). We rely on
+        // this typed message because Render's Cloudflare proxy strips custom
+        // close codes (4004/4005 arrive in the browser as 1005); without a
+        // recognisable signal the hook would loop on auto-reconnect. See the
+        // ws_endpoint comment in backend/app/main.py for the full story.
+        shouldReconnectRef.current = false;
+        const reason = (msg as { reason?: string }).reason;
+        setRoomInactive(reason === "expired" ? "expired" : "not_found");
       } else if (msg.type === "draw_stroke" || msg.type === "draw_cursor" || msg.type === "draw_clear") {
         onDrawMessageRef.current?.(msg);
       } else if (msg.type === "error") {

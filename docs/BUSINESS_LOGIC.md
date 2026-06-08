@@ -214,20 +214,22 @@ WebSocket `/ws/{room_id}?player_id=...&nickname=...`.
 | Триггер | Эффект |
 |---|---|
 | Любой `RoomService.<action>` (`vote`, `reveal`, `add_issue`, и т.д.) | `get_room` сразу райзит `RoomError("Room {id} has expired")`. WS-роутер ловит и шлёт `{type: "error", message: "..."}` отправителю. |
-| Background task `cleanup_expired_rooms` (каждые 60s) | На каждую expired-комнату: broadcast'ит `{type: "room_expired", reason: "timer"}` всем подключённым клиентам, закрывает их WS с кодом 4005, удаляет комнату из store через `RoomService.expire_room`. |
-| Новый WS-connect к expired-комнате (до того как cleanup отработал) | Сервер делает `await websocket.accept()` затем `await websocket.close(code=4005)`. Браузер получает чистый код 4005 в `ws.onclose`. |
-| Новый WS-connect к удалённой комнате (после cleanup) | То же что выше, только код **4004** («room never existed»). |
+| Background task `cleanup_expired_rooms` (каждые 60s) | На каждую expired-комнату broadcast'ит `{type: "room_expired", reason: "timer"}` всем подключённым клиентам, затем закрывает их WS (код 4005 локально, в проде Cloudflare сводит к 1005 — фронт ловит по типу сообщения). Удаляет комнату через `RoomService.expire_room`. |
+| Новый WS-connect к expired-комнате (до того как cleanup отработал) | Сервер: `accept` → `send_json({type: "room_inactive", reason: "expired"})` → `close(code=4005)`. **Фронт реагирует на типизированное сообщение** — close-код опциональный. |
+| Новый WS-connect к удалённой комнате (после cleanup) | То же что выше, только `reason: "not_found"` и close-код 4004. |
 | REST `GET /api/rooms/{id}` для expired/удалённой комнаты | 404. Фронт это использует чтобы показать overlay «no longer active» без захода в WS. |
 
 ### UX на фронте
 
-`useRoomSocket` выставляет `roomInactive: "expired" | "not_found" | null`:
+`useRoomSocket` выставляет `roomInactive: "expired" | "not_found" | null`. Главный сигнал — **типизированное WS-сообщение**, не close-код:
 
 | Источник | Значение |
 |---|---|
 | WS-сообщение `{type: "room_expired"}` (получено когда уже подключён) | `"expired"` |
-| WS close код 4005 (сервер закрыл сразу при connect) | `"expired"` |
-| WS close код 4004 | `"not_found"` |
+| WS-сообщение `{type: "room_inactive", reason: "expired"}` (на connect) | `"expired"` |
+| WS-сообщение `{type: "room_inactive", reason: "not_found"}` (на connect) | `"not_found"` |
+| WS close код 4005 (TestClient / локалка без Cloudflare) | `"expired"` |
+| WS close код 4004 (TestClient / локалка без Cloudflare) | `"not_found"` |
 | Иначе | `null` |
 
 При `roomInactive !== null` хук **выставляет `shouldReconnectRef.current = false`** — никаких повторных попыток. `RoomPage` рендерит full-screen overlay c text-кой «This room is no longer active» / «Room not found», иконкой ⌛ и кнопкой «Back to home».
@@ -235,8 +237,9 @@ WebSocket `/ws/{room_id}?player_id=...&nickname=...`.
 ### Дизайн-решения
 
 - **Почему фиксированные 24h** (а не настройка фасилитатора)? Чтобы scope первой итерации остался MVP. Будущий issue может добавить per-room timer config в `update_room` (`expires_in_hours`).
-- **Почему 4005 vs 4004?** Разная text-ка на overlay: «timer expired» имеет смысл только если комната когда-то была. Иначе пользователь думает «комната исчезла», тогда как реально он ткнул в чужой/опечатанный URL.
-- **Почему accept перед close?** Браузерный WebSocket API получает реальный close code только после успешного handshake. Server-side close ДО `accept()` приходит как code 1006 (abnormal close), без шанса разобрать причину.
+- **Почему типизированное сообщение, а не custom close-код?** Render держит Cloudflare как edge proxy, и Cloudflare strip'ит коды close в диапазоне 4000-4999. На бэке мы делаем `close(code=4005)`, но в браузере приходит `event.code === 1005` («No Status Received»). Без явного сигнала фронт не отличил бы «комната неактивна» от обычного разрыва и крутил бы бесконечный reconnect. Поэтому контракт у нас — **типизированный `{type: "room_inactive", reason: "..."}` data-frame перед close**. Close-код мы всё равно шлём, но он живёт только для unit-тестов и локальной разработки (где TestClient не идёт через Cloudflare).
+- **Почему `reason: "expired"` vs `"not_found"`?** Разная text-ка на overlay: «timer expired» имеет смысл только если комната когда-то была. Иначе пользователь думает «комната исчезла», тогда как реально он ткнул в чужой/опечатанный URL.
+- **Почему accept перед close?** Браузерный WebSocket API не доставляет ни close-код, ни данные если server-side close произошёл до `accept()` — handshake не завершился, всё видно как code 1006 (abnormal). Сначала accept → потом send + close — guaranteed delivery message-frame'а.
 
 ## Реконнект и потери связи
 
