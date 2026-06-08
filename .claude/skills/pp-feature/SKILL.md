@@ -9,11 +9,12 @@ The backend is layered. Adding a feature touches **one** place per layer, not ma
 
 ## 🛑 Definition of Done — every PR with new business logic
 
-The user has explicitly reinforced this (RULES.md rule 13). A feature PR is NOT done until ALL THREE are in the same PR:
+The user has explicitly reinforced this (RULES.md rule 13). A feature PR is NOT done until ALL FOUR are in the same PR or follow-up:
 
 1. **Code** on the right layer (`services.py` for logic).
 2. **Tests** — backend pytest for every new behavior + negative cases. Playwright e2e if user-visible.
 3. **Docs** — `docs/BUSINESS_LOGIC.md` updated for the new rule, plus any other doc the change touches (see RULES.md rule #0 for the full audit list).
+4. **Live smoke-test on dev** after the PR is merged into `dev`. Wait ~3-5 min for Render rebuild + Vercel rebuild, then open `https://frontend-git-dev-vadims-projects-2f476800.vercel.app/...` and walk the happy-path of the feature you just shipped. Local tests do NOT catch infrastructure differences (CDN, proxy, env vars, cold starts). Real example: PR #25 (room expiration) was 106 pytest + 7 Playwright green locally, but Render's Cloudflare strip'ed our WS close codes so the user saw "Connecting…" instead of the overlay. The bug was caught by the user, not by me.
 
 "I'll add tests/docs later" is NOT acceptable. If something genuinely can't fit, open a follow-up issue with `tech-debt` or `docs-debt` label and explicitly say so when handing off.
 
