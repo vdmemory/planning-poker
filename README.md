@@ -128,7 +128,8 @@ frontend/src/
 | `countdown` | Релей для анимации перед reveal |
 | `kicked` | Прилетает кикнутому игроку перед закрытием соединения |
 | `room_closed` | Комната закрыта фасилитатором |
-| `room_expired` | Истёк таймер комнаты. `{ reason: "timer" }`. WS закрывается с кодом 4005. |
+| `room_expired` | Истёк таймер комнаты, шлётся уже подключённым. `{ reason: "timer" }`. |
+| `room_inactive` | На свежий WS-connect: комната отсутствует или истекла. `{ reason: "not_found" \| "expired" }`. |
 | `draw_*` | Релей рисования |
 | `error` | `{ message }` |
 
