@@ -9,12 +9,28 @@ export const DRAW_COLORS = [
   "#8b5cf6",
 ];
 
+// Issue #3 — strokes auto-fade (Slack-style). For LIFETIME ms each completed
+// stroke is fully visible; over the last FADE_OUT_MS it linearly fades; then
+// it's removed from the in-memory arrays so the canvas stays clean. Cursors
+// and in-progress (not-yet-`done`) strokes are NOT affected — only completed
+// drawings.
+const STROKE_LIFETIME_MS = 5000;
+const STROKE_FADE_OUT_MS = 1000;
+
 interface Point { x: number; y: number; }
+
+interface Stroke {
+  color: string;
+  points: Point[];
+  // Wall-clock ms (Date.now) when the stroke was completed locally / received
+  // from the network. Drives the fade-out animation.
+  startedAt: number;
+}
 
 interface PlayerState {
   nickname: string;
   color: string;
-  completedStrokes: { color: string; points: Point[] }[];
+  completedStrokes: Stroke[];
   currentPoints: Point[];
   cursorX: number;
   cursorY: number;
@@ -72,7 +88,7 @@ export function DrawingCanvas({ myPlayerId, myNickname, isActive, activeColor, s
       player.color = color;
       if (msg.done) {
         if ((msg.points as Point[])?.length > 1) {
-          player.completedStrokes.push({ color, points: msg.points });
+          player.completedStrokes.push({ color, points: msg.points, startedAt: Date.now() });
         }
         player.currentPoints = [];
       } else {
@@ -107,14 +123,14 @@ export function DrawingCanvas({ myPlayerId, myNickname, isActive, activeColor, s
     const w = canvas.width;
     const h = canvas.height;
 
-    function drawPath(points: Point[], color: string) {
-      if (points.length < 2) return;
+    function drawPath(points: Point[], color: string, alpha = 0.85) {
+      if (points.length < 2 || alpha <= 0) return;
       ctx!.save();
       ctx!.strokeStyle = color;
       ctx!.lineWidth = 3;
       ctx!.lineCap = "round";
       ctx!.lineJoin = "round";
-      ctx!.globalAlpha = 0.85;
+      ctx!.globalAlpha = alpha;
       ctx!.beginPath();
       ctx!.moveTo(points[0].x * w, points[0].y * h);
       for (let i = 1; i < points.length; i++) {
@@ -122,6 +138,18 @@ export function DrawingCanvas({ myPlayerId, myNickname, isActive, activeColor, s
       }
       ctx!.stroke();
       ctx!.restore();
+    }
+
+    // Issue #3 — alpha as a function of stroke age:
+    //   [0, LIFETIME - FADE_OUT)        → full 0.85
+    //   [LIFETIME - FADE_OUT, LIFETIME) → linearly fading from 0.85 to 0
+    //   >= LIFETIME                     → 0 (will also be filtered out below)
+    function strokeAlpha(stroke: Stroke, nowMs: number): number {
+      const age = nowMs - stroke.startedAt;
+      if (age >= STROKE_LIFETIME_MS) return 0;
+      const remaining = STROKE_LIFETIME_MS - age;
+      if (remaining >= STROKE_FADE_OUT_MS) return 0.85;
+      return 0.85 * (remaining / STROKE_FADE_OUT_MS);
     }
 
     function drawCursorLabel(x: number, y: number, name: string, color: string) {
@@ -143,28 +171,58 @@ export function DrawingCanvas({ myPlayerId, myNickname, isActive, activeColor, s
     }
 
     const now = Date.now();
+    let totalStrokes = 0;
 
-    // Draw other players
+    // Draw all players (others + me). For each, drop strokes that have aged
+    // past STROKE_LIFETIME_MS, and draw the survivors with age-based alpha.
     for (const [pid, player] of playersRef.current) {
-      if (pid === myPlayerId) continue;
-      for (const s of player.completedStrokes) drawPath(s.points, s.color);
-      if (player.currentPoints.length > 1) drawPath(player.currentPoints, player.color);
-      if (now - player.lastUpdate < 3000 && (player.completedStrokes.length > 0 || player.currentPoints.length > 0)) {
+      // Drop strokes that finished fading. Mutating the same array is safe —
+      // playersRef is a ref, not React state.
+      if (player.completedStrokes.length > 0) {
+        player.completedStrokes = player.completedStrokes.filter(
+          (s) => now - s.startedAt < STROKE_LIFETIME_MS
+        );
+      }
+      totalStrokes += player.completedStrokes.length;
+
+      const isMe = pid === myPlayerId;
+      for (const s of player.completedStrokes) {
+        drawPath(s.points, s.color, strokeAlpha(s, now));
+      }
+      // In-progress strokes (still being drawn) don't fade — they're live.
+      if (player.currentPoints.length > 1) {
+        drawPath(player.currentPoints, player.color);
+      }
+      // Cursor label: only for others, only briefly after their last update.
+      if (
+        !isMe &&
+        now - player.lastUpdate < 3000 &&
+        (player.completedStrokes.length > 0 || player.currentPoints.length > 0)
+      ) {
         drawCursorLabel(player.cursorX, player.cursorY, player.nickname, player.color);
       }
     }
 
-    // Draw my own strokes
-    const me = playersRef.current.get(myPlayerId);
-    if (me) {
-      for (const s of me.completedStrokes) drawPath(s.points, s.color);
-      if (me.currentPoints.length > 1) drawPath(me.currentPoints, me.color);
+    // Expose the live stroke count on the canvas DOM node so e2e tests can
+    // observe the fade-out deterministically without poking the canvas
+    // pixels. Updated every render frame; in production this attribute is
+    // ignored.
+    if (canvas.getAttribute("data-stroke-count") !== String(totalStrokes)) {
+      canvas.setAttribute("data-stroke-count", String(totalStrokes));
     }
   }, [myPlayerId]);
 
   useEffect(() => {
     const loop = () => {
-      if (dirtyRef.current) { render(); dirtyRef.current = false; }
+      // Render every frame while there are any completed strokes (so the
+      // fade animation looks smooth). Otherwise honour the dirty flag.
+      const hasStrokes = Array.from(playersRef.current.values()).some(
+        (p) => p.completedStrokes.length > 0
+      );
+      if (dirtyRef.current || hasStrokes) {
+        render();
+        dirtyRef.current = false;
+      }
       animFrameRef.current = requestAnimationFrame(loop);
     };
     animFrameRef.current = requestAnimationFrame(loop);
@@ -253,7 +311,7 @@ export function DrawingCanvas({ myPlayerId, myNickname, isActive, activeColor, s
     if (me) {
       me.currentPoints.push(pt);
       if (me.currentPoints.length > 1) {
-        const stroke = { color: me.color, points: [...me.currentPoints] };
+        const stroke: Stroke = { color: me.color, points: [...me.currentPoints], startedAt: Date.now() };
         me.completedStrokes.push(stroke);
         sendRef.current({ type: "draw_stroke", color: activeColor, points: stroke.points, done: true });
       }
@@ -265,6 +323,8 @@ export function DrawingCanvas({ myPlayerId, myNickname, isActive, activeColor, s
   return (
     <canvas
       ref={canvasRef}
+      data-testid="drawing-canvas"
+      data-stroke-count="0"
       className="fixed inset-0 z-40"
       style={{ pointerEvents: isActive ? "auto" : "none", cursor: "none" }}
       onMouseDown={handleMouseDown}
