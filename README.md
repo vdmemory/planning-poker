@@ -26,7 +26,7 @@ Real-time инструмент для оценки задач agile-команд
 - ConfirmModal для деструктивных действий (delete issue, close room, kick player) с ESC и backdrop-cancel
 - Countdown перед reveal
 - Авто-реконнект через 30s grace-период; `player_id` сохраняется в `localStorage`
-- Передача роли фасилитатора, если он покинул комнату
+- Передача роли фасилитатора, если он покинул комнату — или (issue #19) опциональное закрытие комнаты для всех вместо handoff'а через настройку «Close room when facilitator leaves»
 - Авто-закрытие комнаты через 24h (timer expiration), full-screen уведомление для участников
 
 ## Запуск локально
@@ -113,7 +113,7 @@ frontend/src/
 | `reorder_issue` | `{ issue_id, direction: "top"\|"up"\|"down"\|"bottom" }` | по `who_can_manage_issues` |
 | `select_issue` | `{ issue_id }` | по `who_can_manage_issues` |
 | `set_estimate` | `{ issue_id, estimate }` | по `who_can_manage_issues` |
-| `update_room` | `{ name?, deck_type?, card_back?, who_can_reveal?, who_can_manage_issues? }` | facilitator |
+| `update_room` | `{ name?, deck_type?, card_back?, who_can_reveal?, who_can_manage_issues?, close_on_facilitator_leave? }` | facilitator |
 | `update_nickname` | `{ nickname }` | сам игрок |
 | `update_avatar_color` | `{ color }` | сам игрок |
 | `toggle_spectator` | — | сам игрок (не facilitator) |
@@ -130,7 +130,7 @@ frontend/src/
 | `room_state` | После любой успешной операции, broadcast всем. `{ state, stats? }` (stats только после reveal/revote) |
 | `countdown` | Релей для анимации перед reveal |
 | `kicked` | Прилетает кикнутому игроку перед закрытием соединения |
-| `room_closed` | Комната закрыта фасилитатором |
+| `room_closed` | Комната закрыта фасилитатором — явно (`close_room`) или из-за `close_on_facilitator_leave` (issue #19). `{ reason: "creator_left" }`. |
 | `room_expired` | Истёк таймер комнаты, шлётся уже подключённым. `{ reason: "timer" }`. |
 | `room_inactive` | На свежий WS-connect: комната отсутствует или истекла. `{ reason: "not_found" \| "expired" }`. |
 | `draw_*` | Релей рисования |

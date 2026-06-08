@@ -74,6 +74,72 @@ def test_facilitator_role_passes_to_next_player_when_facilitator_leaves(service)
     assert fresh.players[bob.id].is_facilitator is True
 
 
+# ---------- Issue #19 — close-on-facilitator-leave setting ----------
+
+def test_default_close_on_facilitator_leave_is_false(service):
+    """Existing rooms (and rooms created without opting in) keep the legacy
+    handoff behaviour, so issue #19 doesn't change anyone's day-1 UX."""
+    room, _ = service.create_room("X", DeckType.FIBONACCI, "alice")
+    assert room.close_on_facilitator_leave is False
+
+
+def test_close_on_facilitator_leave_appears_in_public_state(service):
+    room, _ = service.create_room("X", DeckType.FIBONACCI, "alice")
+    assert room.public_state()["close_on_facilitator_leave"] is False
+
+
+def test_update_room_can_toggle_close_on_facilitator_leave(service):
+    room, alice = service.create_room("X", DeckType.FIBONACCI, "alice")
+    service.update_room(room.id, alice.id, close_on_facilitator_leave=True)
+    assert service.get_room(room.id).close_on_facilitator_leave is True
+
+
+def test_remove_facilitator_with_setting_closes_room_and_signals_caller(service):
+    """When the room is configured to close on facilitator leave AND other
+    players remain, `remove_player` returns True (so the WS layer can
+    broadcast room_closed) and deletes the room from the store."""
+    room, alice = service.create_room("X", DeckType.FIBONACCI, "alice")
+    service.update_room(room.id, alice.id, close_on_facilitator_leave=True)
+    service.join(room.id, "bob")
+    result = service.remove_player(room.id, alice.id)
+    assert result is True
+    with pytest.raises(RoomError):
+        service.get_room(room.id)  # room is gone
+
+
+def test_remove_facilitator_without_setting_still_hands_off(service):
+    """Legacy behaviour stays intact for rooms that didn't opt in."""
+    room, alice = service.create_room("X", DeckType.FIBONACCI, "alice")
+    bob = service.join(room.id, "bob")
+    result = service.remove_player(room.id, alice.id)
+    assert result is False
+    fresh = service.get_room(room.id)
+    assert fresh.facilitator_id == bob.id
+
+
+def test_setting_does_not_affect_non_facilitator_removal(service):
+    """`close_on_facilitator_leave` only applies to the facilitator
+    dropping out. A regular player leaving never closes the room."""
+    room, alice = service.create_room("X", DeckType.FIBONACCI, "alice")
+    service.update_room(room.id, alice.id, close_on_facilitator_leave=True)
+    bob = service.join(room.id, "bob")
+    result = service.remove_player(room.id, bob.id)
+    assert result is False
+    assert service.get_room(room.id).facilitator_id == alice.id
+
+
+def test_setting_with_last_player_still_deletes_room_but_returns_false(service):
+    """If the facilitator is the LAST player in the room, the room is
+    deleted regardless of the setting — but `remove_player` returns False
+    because there are no other clients to notify."""
+    room, alice = service.create_room("X", DeckType.FIBONACCI, "alice")
+    service.update_room(room.id, alice.id, close_on_facilitator_leave=True)
+    result = service.remove_player(room.id, alice.id)
+    assert result is False  # no peers to notify
+    with pytest.raises(RoomError):
+        service.get_room(room.id)
+
+
 def test_last_player_leaving_deletes_the_room(service):
     room, alice = service.create_room("X", DeckType.FIBONACCI, "alice")
     service.remove_player(room.id, alice.id)

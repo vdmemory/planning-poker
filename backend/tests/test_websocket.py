@@ -286,7 +286,9 @@ def test_close_room_broadcasts_room_closed(client):
         ws_a.send_json({"type": "close_room"})
         for ws in (ws_a, ws_b):
             msg = ws.receive_json()
-            assert msg == {"type": "room_closed"}
+            # Issue #19 — broadcast now includes reason="creator_left" so the
+            # frontend can render the right overlay copy.
+            assert msg == {"type": "room_closed", "reason": "creator_left"}
 
     # After close, the room is gone
     r = client.get(f"/api/rooms/{data['room_id']}")

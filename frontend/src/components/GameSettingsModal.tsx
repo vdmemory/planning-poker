@@ -7,7 +7,17 @@ interface Props {
   settings: GameSettings;
   isFacilitator: boolean;
   facilitatorName: string;
-  onSave: (roomPatch: { name?: string; deck_type?: string; card_back?: string; who_can_reveal?: string; who_can_manage_issues?: string }, settingsPatch: Partial<GameSettings>) => void;
+  onSave: (
+    roomPatch: {
+      name?: string;
+      deck_type?: string;
+      card_back?: string;
+      who_can_reveal?: string;
+      who_can_manage_issues?: string;
+      close_on_facilitator_leave?: boolean;
+    },
+    settingsPatch: Partial<GameSettings>,
+  ) => void;
   onClose: () => void;
 }
 
@@ -17,6 +27,12 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
   const [cardBack, setCardBack] = useState(state.card_back ?? "blue_stripes");
   const [whoCanReveal, setWhoCanReveal] = useState(state.who_can_reveal ?? "facilitator");
   const [whoCanManageIssues, setWhoCanManageIssues] = useState(state.who_can_manage_issues ?? "facilitator");
+  // Issue #19 — opt-in: when the facilitator leaves, close the room for
+  // everyone instead of handing the role to the next player. Facilitator-
+  // only; default false so existing rooms keep handoff behaviour.
+  const [closeOnFacilitatorLeave, setCloseOnFacilitatorLeave] = useState(
+    state.close_on_facilitator_leave ?? false,
+  );
   const [localSettings, setLocalSettings] = useState<GameSettings>({ ...settings });
 
   function toggle(key: keyof GameSettings) {
@@ -24,12 +40,22 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
   }
 
   function save() {
-    const roomPatch: { name?: string; deck_type?: string; card_back?: string; who_can_reveal?: string; who_can_manage_issues?: string } = {};
+    const roomPatch: {
+      name?: string;
+      deck_type?: string;
+      card_back?: string;
+      who_can_reveal?: string;
+      who_can_manage_issues?: string;
+      close_on_facilitator_leave?: boolean;
+    } = {};
     if (name.trim() !== state.name) roomPatch.name = name.trim();
     if (deckType !== state.deck_type) roomPatch.deck_type = deckType;
     if (cardBack !== state.card_back) roomPatch.card_back = cardBack;
     if (whoCanReveal !== state.who_can_reveal) roomPatch.who_can_reveal = whoCanReveal;
     if (whoCanManageIssues !== state.who_can_manage_issues) roomPatch.who_can_manage_issues = whoCanManageIssues;
+    if (closeOnFacilitatorLeave !== state.close_on_facilitator_leave) {
+      roomPatch.close_on_facilitator_leave = closeOnFacilitatorLeave;
+    }
     onSave(roomPatch, localSettings);
     onClose();
   }
@@ -111,6 +137,20 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
               disabled={!isFacilitator}
             />
           </div>
+
+          {/* Issue #19 — facilitator-only opt-in: when the facilitator
+              leaves, close the room for everyone (instead of handing the
+              role off to the next player). */}
+          {isFacilitator && (
+            <div data-testid="close-on-facilitator-leave-row">
+              <ToggleRow
+                label="Close room when facilitator leaves"
+                description="End the session for everyone if the facilitator disconnects, instead of passing the role to the next player."
+                checked={closeOnFacilitatorLeave}
+                onChange={() => setCloseOnFacilitatorLeave((v) => !v)}
+              />
+            </div>
+          )}
 
           <div className="border-t border-[var(--c-border)]" />
 
