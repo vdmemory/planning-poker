@@ -421,12 +421,19 @@ function Room({
             👥
           </button>
 
-          {/* Drawing mode button */}
-          <div className="relative">
+          {/* Drawing mode button — click to toggle on/off (issue #6).
+              Color picker moved to the small swatch button next to it. ESC
+              still exits via the keydown handler.
+              z-50 keeps the toggle (and the color swatch) clickable when the
+              drawing canvas covers the screen — the canvas itself is z-40
+              with pointer-events:auto, so anything below z-50 gets eaten. */}
+          <div className="relative flex items-center gap-1 z-50">
             <button
+              data-testid="drawing-toggle"
+              data-active={isDrawingMode ? "true" : "false"}
               onClick={() => {
                 if (isDrawingMode) { exitDrawing(); }
-                else { setShowColorPicker((v) => !v); }
+                else { setIsDrawingMode(true); setShowColorPicker(false); }
               }}
               title={isDrawingMode ? "Stop drawing (ESC)" : "Draw on screen"}
               className={`p-2 rounded-lg border transition-colors ${
@@ -440,7 +447,14 @@ function Room({
                 <path d="M11.5 4l2.5 2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
               </svg>
             </button>
-            {showColorPicker && !isDrawingMode && (
+            <button
+              data-testid="drawing-color-picker-toggle"
+              onClick={() => setShowColorPicker((v) => !v)}
+              title="Choose drawing color"
+              className="w-7 h-7 rounded-full ring-2 ring-[var(--c-border)] hover:ring-white/60 transition-shadow shrink-0"
+              style={{ backgroundColor: drawColor }}
+            />
+            {showColorPicker && (
               <div
                 ref={colorPickerRef}
                 className="absolute top-full right-0 mt-2 bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl p-2.5 shadow-2xl z-50 flex gap-2"
@@ -448,7 +462,7 @@ function Room({
                 {DRAW_COLORS.map((color) => (
                   <button
                     key={color}
-                    onClick={() => { setDrawColor(color); setIsDrawingMode(true); setShowColorPicker(false); }}
+                    onClick={() => { setDrawColor(color); setShowColorPicker(false); }}
                     className="w-7 h-7 rounded-full transition-transform hover:scale-125 shadow-md ring-2 ring-transparent hover:ring-white/40"
                     style={{ backgroundColor: color }}
                   />
