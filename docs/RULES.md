@@ -25,8 +25,12 @@
    - `frontend/.env.example` / любые конфиги — если изменилось поведение env vars
 5. Тесты — это тоже документация: новое бизнес-правило → e2e/pytest в том же PR (правило 13).
 6. Эта проверка применяется **к каждому** PR, даже к самым маленьким. Никакого «потом задокументирую».
+7. **После merge feature PR в `dev` — обязательно открыть dev-URL и проверить что фича работает в живую.** Зелёные локальные тесты не гарантируют что фича выживет в проде: разница между dev-окружением и production-стеком есть всегда. Пример из практики: PR #25 (room expiration) проходил все 106 pytest + 7 Playwright локально, но в проде упирался в Cloudflare Render'а — strip'ал custom WS close-коды (4004/4005 → 1005), пользователь видел «Connecting…» вместо overlay. Bug всплыл когда пользователь зашёл по живой ссылке, а не я после merge'а. Контракт:
+   - feature → dev merged → жди ~3-5 мин (Render rebuild + Vercel rebuild)
+   - Открой `https://frontend-git-dev-vadims-projects-2f476800.vercel.app/...` и пройди главный happy-path фичи
+   - Если что-то ломается в проде но работает локально — высока вероятность отличия инфры (CDN, proxy, env vars, cold start). Открыть follow-up issue, починить fix-PR'ом перед промоушеном в main.
 
-**Если откладываешь doc-update — это считается неполной задачей**, и нужно сразу создать follow-up issue с label `docs-debt`.
+**Если откладываешь doc-update или live smoke-test — это считается неполной задачей**, и нужно сразу создать follow-up issue с label `docs-debt`.
 
 ## Git и ветки
 
