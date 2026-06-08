@@ -192,6 +192,22 @@ async def handle_message(room_id: str, player_id: str, data: dict) -> None:
             # Relay countdown to all clients so everyone sees the animation
             await manager.broadcast(room_id, {"type": "countdown", "seconds": data.get("seconds", 3)})
             return
+        elif msg_type == "reaction":
+            # Relay a quick reaction (emoji or time-value) to ALL clients —
+            # including the sender, because the rising animation and the
+            # on-card overlay should appear on their own screen too. Issue #32.
+            # Not stored in Room: this is pure UX, like `draw_*` / `countdown`.
+            room = store.get(room_id)
+            player = room.players.get(player_id) if room else None
+            await manager.broadcast(room_id, {
+                "type": "reaction",
+                "player_id": player_id,
+                "nickname": player.nickname if player else "",
+                "avatar_color": player.avatar_color if player else "#3b82f6",
+                "kind": data.get("kind", "emoji"),
+                "value": data.get("value", ""),
+            })
+            return
         else:
             await manager.send_to(
                 room_id, player_id, {"type": "error", "message": f"Unknown type: {msg_type}"}

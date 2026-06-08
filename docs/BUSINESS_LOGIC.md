@@ -275,6 +275,49 @@ WebSocket `/ws/{room_id}?player_id=...&nickname=...`.
 
 Состояние режима **локальное** (`useState` в `RoomPage.tsx`), не шарится через WS. Когда выходишь — отправляется `draw_clear` чтобы убрать свои штрихи у других, но фейд они получают и без этого.
 
+## Reactions (issue #32)
+
+Google Meet-style quick reactions: участник кликает на эмодзи или time-значение → у всех (включая отправителя) видны два эффекта:
+1. Маленькая иконка/лейбл всплывает над **карточкой того, кто кликнул** на ~3 сек.
+2. В **нижнем-левом углу** экрана появляется большой floater — иконка + плашка с именем — поднимается вверх и затухает за ~3.5 сек.
+
+### WS-протокол
+
+| Сторона | Сообщение |
+|---|---|
+| Client → Server | `{ type: "reaction", kind: "emoji" \| "number", value }` |
+| Server → All clients (sender included) | `{ type: "reaction", player_id, nickname, avatar_color, kind, value }` |
+
+Не хранится в `Room` — pure relay, как `countdown`/`draw_*`. Сервер обогащает сообщение `nickname`/`avatar_color` отправителя, чтобы получателям не нужно было держать карту игроков синхронной.
+
+### Наборы значений
+
+Конфигурируются в `frontend/src/components/ReactionsPanel.tsx`:
+- **Emoji**: `💖 👍 🎉 👏 😂 😮 😢 🤔 👎` (9 шт.)
+- **Number** (time-values, **вариант A** из issue #32): `1h 2h 4h 8h 16h 1d 2d 3d` (8 шт., логарифмическая шкала для capacity planning)
+
+Переключение режимов — toggle на самой панели, локальный state, не шарится.
+
+### Lane allocation для floater'ов
+
+Чтобы реакции от разных игроков не накладывались друг на друга, в нижне-левой зоне есть 5 «полос» (lanes) шириной 72px каждая. При новой реакции хук `useReactionAnimations`:
+1. Ищет первую полосу, чей предыдущий floater уже истёк (Date.now > expiresAt).
+2. Если все заняты — берёт ту, что освободится первой (oldest expiry).
+
+Floater живёт `REACTION_FLOATER_MS = 3500ms`, overlay над карточкой — `REACTION_OVERLAY_MS = 3000ms`.
+
+### Throttle
+
+На клиенте не больше **1 reaction в секунду** (`REACTION_THROTTLE_MS = 1000`). Лишние клики молча игнорируются — никаких баннеров/ошибок.
+
+### Mobile
+
+На узких экранах (< md = 768px) панель сворачивается в одну кнопку 😀 в header'е → клик открывает **bottom-sheet** с тем же содержимым и затемнённым backdrop'ом. Клик по выбору закрывает sheet автоматически.
+
+### Доступность
+
+Каждая кнопка — `aria-label="React with {value}"`, toggle-кнопки режима — `role="tab"` с `aria-selected`. Скринридер прочитает «React with 👍», «React with 4h» и т.д.
+
 ## Countdown
 
 Сообщение `{type: "countdown", seconds: 3}` релеется всем как есть — клиенты сами показывают анимацию обратного отсчёта перед `reveal`. Никакого серверного таймера или валидации.

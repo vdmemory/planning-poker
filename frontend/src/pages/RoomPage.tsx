@@ -7,6 +7,9 @@ import { IssueSidebar } from "../components/IssueSidebar";
 import { GameSettingsModal, CARD_BACKS } from "../components/GameSettingsModal";
 import { DrawingCanvas, DRAW_COLORS } from "../components/DrawingCanvas";
 import { ProfileMenu } from "../components/ProfileMenu";
+import { ReactionsPanel } from "../components/ReactionsPanel";
+import { ReactionFloater } from "../components/ReactionFloater";
+import { useReactionAnimations, type CardReaction } from "../hooks/useReactionAnimations";
 import type { Player, RoomState, Stats, GameSettings } from "../types";
 import QRCode from "qrcode";
 
@@ -160,11 +163,16 @@ function Room({
   const drawHandlerRef = useRef<((msg: object) => void) | null>(null);
   const handleDrawMessage = useCallback((msg: object) => { drawHandlerRef.current?.(msg); }, []);
 
+  // Issue #32 — receive `reaction` broadcasts and feed them to the animation
+  // manager. Used for the on-card overlay AND the rising floaters.
+  const { cardReactions, floaters, handleReactionMessage } = useReactionAnimations();
+
   const { state, stats, myPlayerId, connected, send, error, countdown, roomClosed, roomInactive } = useRoomSocket({
     roomId,
     playerId: storedPlayerId,
     nickname,
     onDrawMessage: handleDrawMessage,
+    onReactionMessage: handleReactionMessage,
   });
   const { theme, setTheme } = useTheme();
   const { settings, setSettings } = useSettings();
@@ -421,6 +429,14 @@ function Room({
             👥
           </button>
 
+          {/* Reactions panel (issue #32) — Google Meet-style quick reactions.
+              Desktop: inline row; mobile: collapses to a single trigger that
+              opens a bottom-sheet. Sends `reaction` WS messages; the server
+              broadcasts back to all connected clients (sender included). */}
+          <ReactionsPanel
+            onReact={(kind, value) => send({ type: "reaction", kind, value })}
+          />
+
           {/* Drawing mode button — click to toggle on/off (issue #6).
               Color picker moved to the small swatch button next to it. ESC
               still exits via the keydown handler.
@@ -531,6 +547,7 @@ function Room({
               onReset={() => send({ type: "reset" })}
               onRevote={(card) => send({ type: "revote", card })}
               onKickPlayer={isFacilitator ? onKickPlayer : undefined}
+              cardReactions={cardReactions}
             />
           </div>
 
@@ -562,6 +579,7 @@ function Room({
                   onRevote={(card) => send({ type: "revote", card })}
                   canKick={isFacilitator && player.id !== myPlayerId}
                   onKick={() => onKickPlayer(player.id)}
+                  reaction={cardReactions[player.id]}
                 />
               ))}
             </div>
@@ -600,6 +618,20 @@ function Room({
           </aside>
         )}
       </div>
+
+      {/* Rising reaction floaters in the lower-left of the screen (#32).
+          The hook hands each floater an X-lane so concurrent reactions
+          don't stack on the same column. */}
+      {floaters.map((f) => (
+        <ReactionFloater
+          key={f.id}
+          kind={f.kind}
+          value={f.value}
+          nickname={f.nickname}
+          color={f.color}
+          xLane={f.xLane}
+        />
+      ))}
 
       {/* Drawing canvas — always mounted so others' strokes are visible */}
       {myPlayerId && (
@@ -676,6 +708,7 @@ function PokerTable({
   onReset,
   onRevote,
   onKickPlayer,
+  cardReactions,
 }: {
   state: RoomState;
   stats: Stats | null;
@@ -690,6 +723,7 @@ function PokerTable({
   onReset: () => void;
   onRevote: (card: string) => void;
   onKickPlayer?: (id: string) => void;
+  cardReactions: Record<string, CardReaction>;
 }) {
   const players = state.players;
   const n = players.length;
@@ -768,6 +802,7 @@ function PokerTable({
               onRevote={onRevote}
               canKick={!!onKickPlayer && player.id !== myPlayerId}
               onKick={onKickPlayer ? () => onKickPlayer(player.id) : undefined}
+              reaction={cardReactions[player.id]}
             />
           </div>
         );
@@ -997,6 +1032,7 @@ function PlayerCard({
   onRevote,
   canKick,
   onKick,
+  reaction,
 }: {
   player: Player;
   voted: boolean;
@@ -1010,6 +1046,10 @@ function PlayerCard({
   onRevote?: (card: string) => void;
   canKick?: boolean;
   onKick?: () => void;
+  // Issue #32 — most recent reaction this player has fired; shown as a
+  // pop-in overlay above the card for REACTION_OVERLAY_MS. Parent (RoomPage)
+  // owns the timer.
+  reaction?: CardReaction | null;
 }) {
   const [showPicker, setShowPicker] = useState(false);
   const bgColor = avatarColor || "#3a4f6a";
@@ -1054,6 +1094,21 @@ function PlayerCard({
               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
               <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2"/>
             </svg>
+          )}
+          {/* Issue #32 — reaction overlay above the card (centered, pop-in). */}
+          {reaction && (
+            <div
+              data-testid="reaction-overlay"
+              data-reaction-value={reaction.value}
+              data-reaction-kind={reaction.kind}
+              className={`absolute -top-7 left-1/2 -translate-x-1/2 pointer-events-none reactions-overlay-pop ${
+                reaction.kind === "emoji"
+                  ? "text-3xl"
+                  : "text-xs font-bold text-white bg-slate-800/90 rounded-full px-2 py-0.5 shadow"
+              }`}
+            >
+              {reaction.value}
+            </div>
           )}
         </div>
 

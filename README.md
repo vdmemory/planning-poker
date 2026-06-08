@@ -22,6 +22,7 @@ Real-time инструмент для оценки задач agile-команд
 - Кастомные цвета аватара и рубашка карты
 - Kick игрока фасилитатором, закрытие комнаты
 - Drawing: рисование на экране и live-курсоры; штрихи автоматически исчезают через 5s (Slack-style)
+- Quick reactions: эмодзи + time-values (1h-3d) с pop-overlay над карточкой и Google Meet-style анимацией подъёма
 - Countdown перед reveal
 - Авто-реконнект через 30s grace-период; `player_id` сохраняется в `localStorage`
 - Передача роли фасилитатора, если он покинул комнату
@@ -118,6 +119,7 @@ frontend/src/
 | `kick_player` | `{ target_player_id }` | facilitator |
 | `close_room` | — | facilitator |
 | `draw_stroke` / `draw_cursor` / `draw_clear` | payload рисования | релей всем кроме отправителя |
+| `reaction` | `{ kind: "emoji" \| "number", value }` | любой; релей всем включая отправителя |
 
 **Server → Client**
 
