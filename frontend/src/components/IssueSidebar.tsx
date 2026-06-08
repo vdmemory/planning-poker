@@ -1,5 +1,17 @@
 import { useState, useRef, useEffect, type CSSProperties } from "react";
 import type { RoomState, Issue } from "../types";
+import { ConfirmModal } from "./ConfirmModal";
+
+/**
+ * Internal state for the three issue-deletion confirmation flows. `kind`
+ * tells the modal what to ask (single issue vs. all), `id` is only set for
+ * the single-issue case so the parent knows which issue to delete on
+ * confirm.
+ */
+type PendingDelete =
+  | { kind: "one"; id: string; title: string }
+  | { kind: "all" }
+  | null;
 
 interface Props {
   state: RoomState;
@@ -17,6 +29,9 @@ export function IssueSidebar({ state, canManageIssues, myPlayerId, send, onClose
   const [showBulkMenu, setShowBulkMenu] = useState(false);
   const [issueMenuId, setIssueMenuId] = useState<string | null>(null);
   const [estimatePickerId, setEstimatePickerId] = useState<string | null>(null);
+  // Issue #4 — replaces the three previous `confirm("Delete…")` browser
+  // dialogs with a single in-app ConfirmModal driven by this state.
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete>(null);
 
   const totalPoints = state.issues.reduce((sum, i) => {
     const n = Number(i.final_estimate);
@@ -99,9 +114,7 @@ export function IssueSidebar({ state, canManageIssues, myPlayerId, send, onClose
                     label="Delete all issues"
                     danger
                     onClick={() => {
-                      if (confirm("Delete all issues?")) {
-                        send({ type: "delete_all_issues" });
-                      }
+                      setPendingDelete({ kind: "all" });
                       setShowBulkMenu(false);
                     }}
                   />
@@ -143,7 +156,7 @@ export function IssueSidebar({ state, canManageIssues, myPlayerId, send, onClose
               onCloseEstimate={() => setEstimatePickerId(null)}
               onMoveTop={() => { send({ type: "reorder_issue", issue_id: issue.id, direction: "top" }); setIssueMenuId(null); }}
               onMoveBottom={() => { send({ type: "reorder_issue", issue_id: issue.id, direction: "bottom" }); setIssueMenuId(null); }}
-              onDelete={() => { if (confirm("Delete this issue?")) send({ type: "delete_issue", issue_id: issue.id }); setIssueMenuId(null); }}
+              onDelete={() => { setPendingDelete({ kind: "one", id: issue.id, title: issue.title }); setIssueMenuId(null); }}
               onSetEstimate={(v) => { send({ type: "set_estimate", issue_id: issue.id, estimate: v }); setEstimatePickerId(null); }}
             />
           );
@@ -216,14 +229,37 @@ export function IssueSidebar({ state, canManageIssues, myPlayerId, send, onClose
             setEditingIssue((prev) => prev ? { ...prev, final_estimate: v } : prev);
           }}
           onDelete={() => {
-            if (confirm("Delete this issue?")) {
-              send({ type: "delete_issue", issue_id: editingIssue.id });
+            if (editingIssue) {
+              setPendingDelete({ kind: "one", id: editingIssue.id, title: editingIssue.title });
               setEditingIssue(null);
             }
           }}
           onClose={() => setEditingIssue(null)}
         />
       )}
+
+      {/* Issue #4 — single ConfirmModal driving the three issue-delete flows
+          (one / all / from-edit-form). Replaces the previous browser confirm()
+          dialogs. */}
+      <ConfirmModal
+        open={pendingDelete !== null}
+        title={pendingDelete?.kind === "all" ? "Delete all issues?" : "Delete this issue?"}
+        message={
+          pendingDelete?.kind === "all"
+            ? `${state.issues.length} issue${state.issues.length === 1 ? "" : "s"} will be removed from the room.`
+            : pendingDelete?.kind === "one"
+            ? `“${pendingDelete.title}” will be removed from the room.`
+            : undefined
+        }
+        confirmLabel="Delete"
+        icon="🗑️"
+        onConfirm={() => {
+          if (pendingDelete?.kind === "all") send({ type: "delete_all_issues" });
+          else if (pendingDelete?.kind === "one") send({ type: "delete_issue", issue_id: pendingDelete.id });
+          setPendingDelete(null);
+        }}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

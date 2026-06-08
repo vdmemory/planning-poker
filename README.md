@@ -23,6 +23,7 @@ Real-time инструмент для оценки задач agile-команд
 - Kick игрока фасилитатором, закрытие комнаты
 - Drawing: рисование на экране и live-курсоры; штрихи автоматически исчезают через 5s (Slack-style)
 - Quick reactions: эмодзи + time-values (1h-3d) с pop-overlay над карточкой и Google Meet-style анимацией подъёма
+- ConfirmModal для деструктивных действий (delete issue, close room, kick player) с ESC и backdrop-cancel
 - Countdown перед reveal
 - Авто-реконнект через 30s grace-период; `player_id` сохраняется в `localStorage`
 - Передача роли фасилитатора, если он покинул комнату

@@ -275,6 +275,28 @@ WebSocket `/ws/{room_id}?player_id=...&nickname=...`.
 
 Состояние режима **локальное** (`useState` в `RoomPage.tsx`), не шарится через WS. Когда выходишь — отправляется `draw_clear` чтобы убрать свои штрихи у других, но фейд они получают и без этого.
 
+## Подтверждение деструктивных действий (issue #4)
+
+Все четыре destructive-флоу используют единый компонент `ConfirmModal` (`frontend/src/components/ConfirmModal.tsx`) вместо нативного `confirm()`:
+
+| Триггер | Title | Confirm button | Подтверждение приводит к |
+|---|---|---|---|
+| Delete one issue (kebab → Delete) | `Delete this issue?` + название | `Delete` | WS `delete_issue` |
+| Delete all issues (bulk-меню) | `Delete all issues?` + счёт | `Delete` | WS `delete_all_issues` |
+| Close room (Profile menu → Close room for everyone) | `Close room for everyone?` | `Close room` | WS `close_room` |
+| Kick player (hover-X на чужой карточке, только facilitator) | `Remove {nickname} from the room?` | `Remove` | WS `kick_player` |
+
+Поведение модалки:
+- Confirm-кнопка autofocus'ит (Enter подтверждает); destructive variant — красная.
+- ESC закрывает (cancel).
+- Клик по backdrop'у — cancel.
+- `role="dialog"`, `aria-modal="true"`, `aria-labelledby` — для скринридеров.
+- `data-testid="confirm-modal"`, `confirm-modal-confirm`, `confirm-modal-cancel`, `confirm-modal-backdrop` — для e2e.
+
+Старый bespoke компонент `CloseRoomModal` удалён — заменён общим ConfirmModal.
+
+Kick раньше срабатывал моментально (одиночный клик по X). Теперь — двухшаговое подтверждение, чтобы случайный клик не выкидывал коллегу из комнаты.
+
 ## Reactions (issue #32)
 
 Google Meet-style quick reactions: участник кликает на эмодзи или time-значение → у всех (включая отправителя) видны два эффекта:
