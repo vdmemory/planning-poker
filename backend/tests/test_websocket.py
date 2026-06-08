@@ -187,6 +187,42 @@ def test_countdown_is_relayed_to_all_including_sender(client):
             assert msg == {"type": "countdown", "seconds": 3}
 
 
+def test_reaction_is_relayed_to_all_including_sender(client):
+    """Issue #32 — reaction broadcasts to everyone (sender included), with the
+    sender's nickname + avatar_color enriched server-side so receivers don't
+    have to keep a player map in sync. The reaction never lands in the Room
+    object — it's pure UX, same pattern as `countdown`."""
+    data = create_room_via_api(client)
+    with client.websocket_connect(_ws_url(data["room_id"], data["player_id"])) as ws_a, \
+         client.websocket_connect(_ws_url(data["room_id"], "x", "bob")) as ws_b:
+        for w in (ws_a, ws_b):
+            w.receive_json(); w.receive_json()
+        ws_a.receive_json()  # bob-joined broadcast
+
+        ws_a.send_json({"type": "reaction", "kind": "emoji", "value": "👍"})
+        for ws in (ws_a, ws_b):
+            msg = ws.receive_json()
+            assert msg["type"] == "reaction"
+            assert msg["kind"] == "emoji"
+            assert msg["value"] == "👍"
+            assert msg["player_id"] == data["player_id"]
+            assert msg["nickname"] == "alice"
+            assert "avatar_color" in msg
+
+
+def test_reaction_with_time_value_is_relayed(client):
+    """Numbers mode: kind=number, value is a string label like "4h" or "2d".
+    Server doesn't validate the value (it's a UI label, not a vote)."""
+    data = create_room_via_api(client)
+    with client.websocket_connect(_ws_url(data["room_id"], data["player_id"])) as ws:
+        ws.receive_json(); ws.receive_json()
+        ws.send_json({"type": "reaction", "kind": "number", "value": "4h"})
+        msg = ws.receive_json()
+        assert msg["type"] == "reaction"
+        assert msg["kind"] == "number"
+        assert msg["value"] == "4h"
+
+
 def test_draw_stroke_is_relayed_to_everyone_except_sender(client):
     data = create_room_via_api(client)
     with client.websocket_connect(_ws_url(data["room_id"], data["player_id"])) as ws_a, \
@@ -250,7 +286,9 @@ def test_close_room_broadcasts_room_closed(client):
         ws_a.send_json({"type": "close_room"})
         for ws in (ws_a, ws_b):
             msg = ws.receive_json()
-            assert msg == {"type": "room_closed"}
+            # Issue #19 — broadcast now includes reason="creator_left" so the
+            # frontend can render the right overlay copy.
+            assert msg == {"type": "room_closed", "reason": "creator_left"}
 
     # After close, the room is gone
     r = client.get(f"/api/rooms/{data['room_id']}")

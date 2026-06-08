@@ -14,6 +14,7 @@
 | `card_back` | string | визуальный стиль рубашки карты |
 | `who_can_reveal` | `facilitator`\|`everyone` | кто может открывать карты и сбрасывать раунд |
 | `who_can_manage_issues` | `facilitator`\|`everyone` | кто управляет списком задач |
+| `close_on_facilitator_leave` | bool, дефолт `false` | issue #19 — если `true`, уход фасилитатора закрывает комнату для всех вместо передачи роли |
 | `facilitator_id` | string\|null | id текущего фасилитатора |
 | `players` | dict[id, Player] | участники |
 | `issues` | list[Issue] | очередь задач |
@@ -197,7 +198,18 @@ WebSocket `/ws/{room_id}?player_id=...&nickname=...`.
 
 ### close_room
 
-Фасилитатор закрывает комнату. Все клиенты получают `{type: "room_closed"}` и переходят на главную. Комната удаляется из store.
+Фасилитатор закрывает комнату. Все клиенты получают `{type: "room_closed", reason: "creator_left"}`. Комната удаляется из store. Фронт показывает full-screen overlay «The room was closed by the creator» с кнопкой «Back to home» (это та же `roomInactive`-overlay что для expired/not_found, см. ниже).
+
+### close_on_facilitator_leave (issue #19)
+
+Опциональный режим, который фасилитатор включает в Game Settings (`update_room {close_on_facilitator_leave: true}`). Эффект:
+
+- При **обычном** уходе фасилитатора (disconnect > 30s, cleanup задача удаляет игрока): если в комнате остались другие игроки и `close_on_facilitator_leave=true` → `remove_player` удаляет комнату и возвращает `True`. WS-слой ловит этот сигнал и шлёт `{type: "room_closed", reason: "creator_left"}` всем оставшимся клиентам, после чего закрывает их сокеты. Это re-using контракта `close_room` — на фронте та же overlay.
+- При **выключенной** настройке (дефолт): сохраняется legacy-поведение — `remove_player` передаёт роль `facilitator` первому из оставшихся `players.values()` и возвращает `False`. Никакого broadcast'а `room_closed` не происходит.
+- Если фасилитатор — **последний** игрок в комнате, комната всегда удаляется (как и раньше), но `remove_player` возвращает `False` — некому слать notify.
+- Уход обычного игрока (`is_facilitator=false`) никогда не закрывает комнату, независимо от флага.
+
+Тесты этого пути живут в `backend/tests/test_rooms_and_players.py` (7 кейсов, охватывают все ветки).
 
 ## Lifecycle комнаты и истечение таймера
 
@@ -221,18 +233,27 @@ WebSocket `/ws/{room_id}?player_id=...&nickname=...`.
 
 ### UX на фронте
 
-`useRoomSocket` выставляет `roomInactive: "expired" | "not_found" | null`. Главный сигнал — **типизированное WS-сообщение**, не close-код:
+`useRoomSocket` выставляет `roomInactive: "expired" | "not_found" | "closed" | null`. Главный сигнал — **типизированное WS-сообщение**, не close-код:
 
 | Источник | Значение |
 |---|---|
 | WS-сообщение `{type: "room_expired"}` (получено когда уже подключён) | `"expired"` |
 | WS-сообщение `{type: "room_inactive", reason: "expired"}` (на connect) | `"expired"` |
 | WS-сообщение `{type: "room_inactive", reason: "not_found"}` (на connect) | `"not_found"` |
+| WS-сообщение `{type: "room_closed", reason: "creator_left"}` (issue #19) | `"closed"` |
 | WS close код 4005 (TestClient / локалка без Cloudflare) | `"expired"` |
 | WS close код 4004 (TestClient / локалка без Cloudflare) | `"not_found"` |
 | Иначе | `null` |
 
-При `roomInactive !== null` хук **выставляет `shouldReconnectRef.current = false`** — никаких повторных попыток. `RoomPage` рендерит full-screen overlay c text-кой «This room is no longer active» / «Room not found», иконкой ⌛ и кнопкой «Back to home».
+При `roomInactive !== null` хук **выставляет `shouldReconnectRef.current = false`** — никаких повторных попыток. `RoomPage` рендерит full-screen overlay с одной из трёх копий:
+
+| `roomInactive` | Иконка | Заголовок | Когда показывается |
+|---|---|---|---|
+| `"expired"` | ⌛ | This room is no longer active | Истёк 24h-таймер |
+| `"closed"` | 🚪 | The room was closed by the creator | Фасилитатор закрыл комнату (явно или через issue #19) |
+| `"not_found"` | 🔗 | Room not found | Чужой/опечатанный URL |
+
+Кикнутые игроки (`{type: "kicked"}`) **не** идут через overlay — у них короткий путь сразу на главную (`roomClosed=true` → `navigate("/")`), потому что им незачем читать пояснение «комната закрыта» — их персонально удалили.
 
 ### Дизайн-решения
 
@@ -247,7 +268,7 @@ WebSocket `/ws/{room_id}?player_id=...&nickname=...`.
 |---|---|
 | Игрок теряет коннект | `connected=false`, `disconnected_at=now`. В UI становится серым с пометкой «offline». Голос сохраняется. |
 | Возвращается до 30s | `connect=true`, `disconnected_at=null`. Ник может обновиться. |
-| Не вернулся 30s | Cleanup-задача удаляет. Если это был фасилитатор — роль переходит первому из `players.values()`. Если в комнате никого — комната удаляется. |
+| Не вернулся 30s | Cleanup-задача удаляет. Если это был фасилитатор и в комнате включён `close_on_facilitator_leave` — комната закрывается для всех (см. секцию `close_on_facilitator_leave` выше). Иначе legacy-поведение: роль переходит первому из `players.values()`. Если в комнате никого — комната удаляется. |
 | Page refresh | `player_id` из `localStorage` → реконнект как тот же игрок без потери голоса/прав. |
 
 ## Drawing и курсоры (вспомогательная фича)
@@ -274,6 +295,71 @@ WebSocket `/ws/{room_id}?player_id=...&nickname=...`.
 - **ESC** → выходит из режима рисования (как раньше; работает параллельно с кликом).
 
 Состояние режима **локальное** (`useState` в `RoomPage.tsx`), не шарится через WS. Когда выходишь — отправляется `draw_clear` чтобы убрать свои штрихи у других, но фейд они получают и без этого.
+
+## Подтверждение деструктивных действий (issue #4)
+
+Все четыре destructive-флоу используют единый компонент `ConfirmModal` (`frontend/src/components/ConfirmModal.tsx`) вместо нативного `confirm()`:
+
+| Триггер | Title | Confirm button | Подтверждение приводит к |
+|---|---|---|---|
+| Delete one issue (kebab → Delete) | `Delete this issue?` + название | `Delete` | WS `delete_issue` |
+| Delete all issues (bulk-меню) | `Delete all issues?` + счёт | `Delete` | WS `delete_all_issues` |
+| Close room (Profile menu → Close room for everyone) | `Close room for everyone?` | `Close room` | WS `close_room` |
+| Kick player (hover-X на чужой карточке, только facilitator) | `Remove {nickname} from the room?` | `Remove` | WS `kick_player` |
+
+Поведение модалки:
+- Confirm-кнопка autofocus'ит (Enter подтверждает); destructive variant — красная.
+- ESC закрывает (cancel).
+- Клик по backdrop'у — cancel.
+- `role="dialog"`, `aria-modal="true"`, `aria-labelledby` — для скринридеров.
+- `data-testid="confirm-modal"`, `confirm-modal-confirm`, `confirm-modal-cancel`, `confirm-modal-backdrop` — для e2e.
+
+Старый bespoke компонент `CloseRoomModal` удалён — заменён общим ConfirmModal.
+
+Kick раньше срабатывал моментально (одиночный клик по X). Теперь — двухшаговое подтверждение, чтобы случайный клик не выкидывал коллегу из комнаты.
+
+## Reactions (issue #32)
+
+Google Meet-style quick reactions: участник кликает на эмодзи или time-значение → у всех (включая отправителя) видны два эффекта:
+1. Маленькая иконка/лейбл всплывает над **карточкой того, кто кликнул** на ~3 сек.
+2. В **нижнем-левом углу** экрана появляется большой floater — иконка + плашка с именем — поднимается вверх и затухает за ~3.5 сек.
+
+### WS-протокол
+
+| Сторона | Сообщение |
+|---|---|
+| Client → Server | `{ type: "reaction", kind: "emoji" \| "number", value }` |
+| Server → All clients (sender included) | `{ type: "reaction", player_id, nickname, avatar_color, kind, value }` |
+
+Не хранится в `Room` — pure relay, как `countdown`/`draw_*`. Сервер обогащает сообщение `nickname`/`avatar_color` отправителя, чтобы получателям не нужно было держать карту игроков синхронной.
+
+### Наборы значений
+
+Конфигурируются в `frontend/src/components/ReactionsPanel.tsx`:
+- **Emoji**: `💖 👍 🎉 👏 😂 😮 😢 🤔 👎` (9 шт.)
+- **Number** (time-values, **вариант A** из issue #32): `1h 2h 4h 8h 16h 1d 2d 3d` (8 шт., логарифмическая шкала для capacity planning)
+
+Переключение режимов — toggle на самой панели, локальный state, не шарится.
+
+### Lane allocation для floater'ов
+
+Чтобы реакции от разных игроков не накладывались друг на друга, в нижне-левой зоне есть 5 «полос» (lanes) шириной 72px каждая. При новой реакции хук `useReactionAnimations`:
+1. Ищет первую полосу, чей предыдущий floater уже истёк (Date.now > expiresAt).
+2. Если все заняты — берёт ту, что освободится первой (oldest expiry).
+
+Floater живёт `REACTION_FLOATER_MS = 3500ms`, overlay над карточкой — `REACTION_OVERLAY_MS = 3000ms`.
+
+### Throttle
+
+На клиенте не больше **1 reaction в секунду** (`REACTION_THROTTLE_MS = 1000`). Лишние клики молча игнорируются — никаких баннеров/ошибок.
+
+### Mobile
+
+На узких экранах (< md = 768px) панель сворачивается в одну кнопку 😀 в header'е → клик открывает **bottom-sheet** с тем же содержимым и затемнённым backdrop'ом. Клик по выбору закрывает sheet автоматически.
+
+### Доступность
+
+Каждая кнопка — `aria-label="React with {value}"`, toggle-кнопки режима — `role="tab"` с `aria-selected`. Скринридер прочитает «React with 👍», «React with 4h» и т.д.
 
 ## Countdown
 

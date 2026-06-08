@@ -30,6 +30,11 @@ export interface RoomState {
   card_back: string;
   who_can_reveal: "facilitator" | "everyone";
   who_can_manage_issues: "facilitator" | "everyone";
+  // Issue #19 — when true, dropping the facilitator (timeout cleanup OR
+  // explicit leave) tears the room down for everyone instead of handing
+  // the role to the next player. Default false to keep existing rooms on
+  // the legacy handoff behaviour.
+  close_on_facilitator_leave: boolean;
   deck: string[];
   facilitator_id: string | null;
   players: Player[];

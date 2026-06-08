@@ -96,3 +96,28 @@ html.light textarea {
 
 /* Divider lines */
 html.light .bg-blue-400\/70 { color: rgba(37,99,235,0.8); }
+
+
+/* Issue #32 — Google Meet-style rising reaction animation. The floater is
+   anchored at bottom:0; the keyframes lift it up the screen and fade it out.
+   Component handles the per-instance lane position via inline style; this
+   class only controls the rise + fade timing. */
+@keyframes reaction-float-up {
+  0%   { transform: translateY(0)      scale(0.85); opacity: 0; }
+  10%  { transform: translateY(-20px)  scale(1.05); opacity: 1; }
+  100% { transform: translateY(-360px) scale(0.7);  opacity: 0; }
+}
+.reactions-float-up {
+  animation: reaction-float-up 3.5s ease-out forwards;
+}
+
+/* Card overlay — slight pop-in scale + small float. */
+@keyframes reaction-overlay-pop {
+  0%   { transform: scale(0.5); opacity: 0; }
+  20%  { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1);   opacity: 1; }
+}
+.reactions-overlay-pop {
+  animation: reaction-overlay-pop 280ms ease-out forwards;
+}
+

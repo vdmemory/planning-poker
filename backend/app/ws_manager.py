@@ -80,7 +80,14 @@ manager = ConnectionManager()
 
 
 async def cleanup_disconnected_players(service: RoomService) -> None:
-    """Фоновая задача: каждые 5 секунд удаляет игроков, которые в дисконнекте > 30 сек."""
+    """Фоновая задача: каждые 5 секунд удаляет игроков, которые в дисконнекте > 30 сек.
+
+    Issue #19: if removing the facilitator triggers a creator-left close (the
+    room had `close_on_facilitator_leave=True` and other players remained),
+    we broadcast `room_closed` with `reason="creator_left"` to all still
+    connected clients and tear down the WS connections instead of pushing a
+    handoff `room_state`.
+    """
     while True:
         await asyncio.sleep(5)
         try:
@@ -94,16 +101,34 @@ async def cleanup_disconnected_players(service: RoomService) -> None:
                         and (now - player.disconnected_at).total_seconds() > DISCONNECT_GRACE_SECONDS
                     ):
                         to_remove.append(player.id)
+                if not to_remove:
+                    continue
+
+                creator_left_close = False
                 for pid in to_remove:
-                    service.remove_player(room.id, pid)
-                if to_remove:
-                    # Шлём обновлённое состояние оставшимся
-                    fresh = store.get(room.id)
-                    if fresh:
-                        await manager.broadcast(
-                            room.id,
-                            {"type": "room_state", "state": fresh.public_state()},
-                        )
+                    if service.remove_player(room.id, pid):
+                        creator_left_close = True
+
+                if creator_left_close:
+                    # Snapshot connections, tell everyone, drop their sockets.
+                    player_ids = list(manager._connections.get(room.id, {}).keys())
+                    await manager.broadcast(
+                        room.id,
+                        {"type": "room_closed", "reason": "creator_left"},
+                    )
+                    for pid in player_ids:
+                        await manager.close_connection(room.id, pid)
+                    continue
+
+                # No creator-left: room may still exist (handoff path or
+                # cleanup-only). Broadcast fresh state to the remaining
+                # clients so the UI updates (player list, facilitator dot).
+                fresh = store.get(room.id)
+                if fresh:
+                    await manager.broadcast(
+                        room.id,
+                        {"type": "room_state", "state": fresh.public_state()},
+                    )
         except Exception as e:
             # Не даём упасть всему циклу из-за одной ошибки
             print(f"[cleanup] error: {e}")

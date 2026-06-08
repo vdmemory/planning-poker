@@ -107,7 +107,7 @@ frontend/src/
 
 **Auto-join via URL**: The WS endpoint accepts `?player_id=...&nickname=...`. If `player_id` is not in the room but `nickname` is provided, it creates a new player automatically (enables sharing invite links).
 
-**Facilitator handoff**: If the facilitator disconnects and is removed, the role passes to the first remaining player.
+**Facilitator handoff**: If the facilitator disconnects and is removed, the role passes to the first remaining player. The facilitator can opt out of handoff via `close_on_facilitator_leave` (issue #19) — when enabled, dropping the facilitator closes the room for everyone (broadcast `{type: "room_closed", reason: "creator_left"}`) instead of handing the role off.
 
 ## WebSocket Protocol
 
@@ -131,7 +131,7 @@ frontend/src/
 { type: "set_estimate", issue_id, estimate }
 
 # Room / player
-{ type: "update_room", name?, deck_type?, card_back?, who_can_reveal?, who_can_manage_issues? }
+{ type: "update_room", name?, deck_type?, card_back?, who_can_reveal?, who_can_manage_issues?, close_on_facilitator_leave? }
 { type: "update_nickname", nickname }
 { type: "update_avatar_color", color }
 { type: "toggle_spectator" }                  # any non-facilitator player
@@ -142,6 +142,9 @@ frontend/src/
 { type: "draw_stroke", ... }
 { type: "draw_cursor", ... }
 { type: "draw_clear" }
+
+# Reactions (relay to all incl. sender)
+{ type: "reaction", kind: "emoji" | "number", value }
 ```
 
 **Server → Client:**
@@ -151,7 +154,7 @@ frontend/src/
 { type: "room_state", state, stats? }   # stats present after reveal/revote
 { type: "countdown", seconds }          # relay
 { type: "kicked" }                      # to the kicked player
-{ type: "room_closed" }                 # facilitator closed the room
+{ type: "room_closed", reason }         # facilitator closed the room or left a close-on-leave room (reason: creator_left) — issue #19
 { type: "room_expired", reason }        # timer ran out, sent to already-connected clients (cleanup_expired_rooms)
 { type: "room_inactive", reason }       # fresh WS connect to a missing/expired room (reason: not_found | expired)
 { type: "draw_*" }                      # relay

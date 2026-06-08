@@ -7,6 +7,10 @@ import { IssueSidebar } from "../components/IssueSidebar";
 import { GameSettingsModal, CARD_BACKS } from "../components/GameSettingsModal";
 import { DrawingCanvas, DRAW_COLORS } from "../components/DrawingCanvas";
 import { ProfileMenu } from "../components/ProfileMenu";
+import { ReactionsPanel } from "../components/ReactionsPanel";
+import { ReactionFloater } from "../components/ReactionFloater";
+import { ConfirmModal } from "../components/ConfirmModal";
+import { useReactionAnimations, type CardReaction } from "../hooks/useReactionAnimations";
 import type { Player, RoomState, Stats, GameSettings } from "../types";
 import QRCode from "qrcode";
 
@@ -160,11 +164,16 @@ function Room({
   const drawHandlerRef = useRef<((msg: object) => void) | null>(null);
   const handleDrawMessage = useCallback((msg: object) => { drawHandlerRef.current?.(msg); }, []);
 
+  // Issue #32 — receive `reaction` broadcasts and feed them to the animation
+  // manager. Used for the on-card overlay AND the rising floaters.
+  const { cardReactions, floaters, handleReactionMessage } = useReactionAnimations();
+
   const { state, stats, myPlayerId, connected, send, error, countdown, roomClosed, roomInactive } = useRoomSocket({
     roomId,
     playerId: storedPlayerId,
     nickname,
     onDrawMessage: handleDrawMessage,
+    onReactionMessage: handleReactionMessage,
   });
   const { theme, setTheme } = useTheme();
   const { settings, setSettings } = useSettings();
@@ -187,6 +196,10 @@ function Room({
   const colorPickerRef = useRef<HTMLDivElement>(null);
 
   const [showCloseRoomModal, setShowCloseRoomModal] = useState(false);
+  // Issue #4 — facilitator confirms before kicking a player. The state holds
+  // the target id + nickname; the ConfirmModal reads them, the close handler
+  // clears them. Previously kick was a single-click action with no guardrail.
+  const [pendingKick, setPendingKick] = useState<{ id: string; nickname: string } | null>(null);
 
   function exitDrawing() {
     setIsDrawingMode(false);
@@ -283,7 +296,16 @@ function Room({
   }
 
   function handleGameSettingsSave(
-    roomPatch: { name?: string; deck_type?: string; card_back?: string; who_can_reveal?: string; who_can_manage_issues?: string },
+    roomPatch: {
+      name?: string;
+      deck_type?: string;
+      card_back?: string;
+      who_can_reveal?: string;
+      who_can_manage_issues?: string;
+      // Issue #19 — when changed in settings, the backend hands this back
+      // in the next `room_state` so every client renders consistently.
+      close_on_facilitator_leave?: boolean;
+    },
     settingsPatch: Partial<GameSettings>
   ) {
     if (Object.keys(roomPatch).length > 0) {
@@ -296,11 +318,32 @@ function Room({
     return <RoomErrorScreen error={error} />;
   }
 
-  // Room expired (timer) or never existed at this URL. useRoomSocket already
-  // disabled reconnect when this flag was set, so we just present the dead
-  // end to the user with a way back to the home page.
+  // Room expired (timer), never existed at this URL, OR (issue #19) was
+  // closed by the facilitator while we were connected. useRoomSocket has
+  // already disabled reconnect for all three, so we just render the dead
+  // end with a way back home.
   if (roomInactive) {
-    const isExpired = roomInactive === "expired";
+    const copy = (() => {
+      if (roomInactive === "expired") {
+        return {
+          icon: "⌛",
+          title: "This room is no longer active",
+          body: "The room timer ran out and it was closed automatically. Start a new one to keep planning.",
+        };
+      }
+      if (roomInactive === "closed") {
+        return {
+          icon: "🚪",
+          title: "The room was closed by the creator",
+          body: "The facilitator ended the session, so the room is no longer available. Start a new one to keep planning.",
+        };
+      }
+      return {
+        icon: "🔗",
+        title: "Room not found",
+        body: "We couldn't find a room at this URL — it may have already been closed.",
+      };
+    })();
     return (
       <div
         data-testid="room-inactive-overlay"
@@ -308,15 +351,9 @@ function Room({
         className="min-h-screen flex items-center justify-center bg-[var(--c-bg)] text-white p-6"
       >
         <div className="max-w-md text-center space-y-5">
-          <div className="text-6xl">⌛</div>
-          <h1 className="text-2xl font-bold">
-            {isExpired ? "This room is no longer active" : "Room not found"}
-          </h1>
-          <p className="text-slate-300">
-            {isExpired
-              ? "The room timer ran out and it was closed automatically. Start a new one to keep planning."
-              : "We couldn't find a room at this URL — it may have already been closed."}
-          </p>
+          <div className="text-6xl">{copy.icon}</div>
+          <h1 className="text-2xl font-bold">{copy.title}</h1>
+          <p className="text-slate-300">{copy.body}</p>
           <button
             onClick={() => navigate("/")}
             className="inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-blue-500 hover:bg-blue-400 text-white font-semibold shadow"
@@ -340,7 +377,13 @@ function Room({
   const isFacilitator = state.facilitator_id === myPlayerId;
   const canReveal = isFacilitator || state.who_can_reveal === "everyone";
   const canManageIssues = isFacilitator || state.who_can_manage_issues === "everyone";
-  function onKickPlayer(targetId: string) { send({ type: "kick_player", target_player_id: targetId }); }
+  function onKickPlayer(targetId: string) {
+    // `state` is non-null below the early return above, but TS can't track
+    // that across a closure — guard explicitly.
+    const target = state?.players.find((p) => p.id === targetId);
+    if (!target) return;
+    setPendingKick({ id: target.id, nickname: target.nickname });
+  }
   const currentIssue = state.issues.find((i) => i.id === state.current_issue_id);
   const activePlayers = state.players.filter((p) => !p.is_spectator);
   const everyoneVoted =
@@ -420,6 +463,14 @@ function Room({
           >
             👥
           </button>
+
+          {/* Reactions panel (issue #32) — Google Meet-style quick reactions.
+              Desktop: inline row; mobile: collapses to a single trigger that
+              opens a bottom-sheet. Sends `reaction` WS messages; the server
+              broadcasts back to all connected clients (sender included). */}
+          <ReactionsPanel
+            onReact={(kind, value) => send({ type: "reaction", kind, value })}
+          />
 
           {/* Drawing mode button — click to toggle on/off (issue #6).
               Color picker moved to the small swatch button next to it. ESC
@@ -531,6 +582,7 @@ function Room({
               onReset={() => send({ type: "reset" })}
               onRevote={(card) => send({ type: "revote", card })}
               onKickPlayer={isFacilitator ? onKickPlayer : undefined}
+              cardReactions={cardReactions}
             />
           </div>
 
@@ -562,6 +614,7 @@ function Room({
                   onRevote={(card) => send({ type: "revote", card })}
                   canKick={isFacilitator && player.id !== myPlayerId}
                   onKick={() => onKickPlayer(player.id)}
+                  reaction={cardReactions[player.id]}
                 />
               ))}
             </div>
@@ -601,6 +654,20 @@ function Room({
         )}
       </div>
 
+      {/* Rising reaction floaters in the lower-left of the screen (#32).
+          The hook hands each floater an X-lane so concurrent reactions
+          don't stack on the same column. */}
+      {floaters.map((f) => (
+        <ReactionFloater
+          key={f.id}
+          kind={f.kind}
+          value={f.value}
+          nickname={f.nickname}
+          color={f.color}
+          xLane={f.xLane}
+        />
+      ))}
+
       {/* Drawing canvas — always mounted so others' strokes are visible */}
       {myPlayerId && (
         <DrawingCanvas
@@ -637,12 +704,31 @@ function Room({
         </div>
       )}
 
-      {showCloseRoomModal && (
-        <CloseRoomModal
-          onConfirm={() => { send({ type: "close_room" }); setShowCloseRoomModal(false); }}
-          onCancel={() => setShowCloseRoomModal(false)}
-        />
-      )}
+      {/* Issue #4 — close-room confirmation uses the shared ConfirmModal
+          instead of the old bespoke CloseRoomModal (which has been removed). */}
+      <ConfirmModal
+        open={showCloseRoomModal}
+        title="Close room for everyone?"
+        message="All participants will be disconnected and the session will end."
+        confirmLabel="Close room"
+        onConfirm={() => { send({ type: "close_room" }); setShowCloseRoomModal(false); }}
+        onCancel={() => setShowCloseRoomModal(false)}
+      />
+
+      {/* Issue #4 — kick-player confirmation. New guardrail; previously the
+          facilitator's click on the hover X kicked instantly. */}
+      <ConfirmModal
+        open={pendingKick !== null}
+        icon="👋"
+        title={pendingKick ? `Remove ${pendingKick.nickname} from the room?` : ""}
+        message="They'll be disconnected and won't be able to reconnect to this room."
+        confirmLabel="Remove"
+        onConfirm={() => {
+          if (pendingKick) send({ type: "kick_player", target_player_id: pendingKick.id });
+          setPendingKick(null);
+        }}
+        onCancel={() => setPendingKick(null)}
+      />
 
       {showInvite && <InviteModal onClose={() => setShowInvite(false)} />}
 
@@ -676,6 +762,7 @@ function PokerTable({
   onReset,
   onRevote,
   onKickPlayer,
+  cardReactions,
 }: {
   state: RoomState;
   stats: Stats | null;
@@ -690,6 +777,7 @@ function PokerTable({
   onReset: () => void;
   onRevote: (card: string) => void;
   onKickPlayer?: (id: string) => void;
+  cardReactions: Record<string, CardReaction>;
 }) {
   const players = state.players;
   const n = players.length;
@@ -768,6 +856,7 @@ function PokerTable({
               onRevote={onRevote}
               canKick={!!onKickPlayer && player.id !== myPlayerId}
               onKick={onKickPlayer ? () => onKickPlayer(player.id) : undefined}
+              reaction={cardReactions[player.id]}
             />
           </div>
         );
@@ -997,6 +1086,7 @@ function PlayerCard({
   onRevote,
   canKick,
   onKick,
+  reaction,
 }: {
   player: Player;
   voted: boolean;
@@ -1010,6 +1100,10 @@ function PlayerCard({
   onRevote?: (card: string) => void;
   canKick?: boolean;
   onKick?: () => void;
+  // Issue #32 — most recent reaction this player has fired; shown as a
+  // pop-in overlay above the card for REACTION_OVERLAY_MS. Parent (RoomPage)
+  // owns the timer.
+  reaction?: CardReaction | null;
 }) {
   const [showPicker, setShowPicker] = useState(false);
   const bgColor = avatarColor || "#3a4f6a";
@@ -1054,6 +1148,21 @@ function PlayerCard({
               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
               <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2"/>
             </svg>
+          )}
+          {/* Issue #32 — reaction overlay above the card (centered, pop-in). */}
+          {reaction && (
+            <div
+              data-testid="reaction-overlay"
+              data-reaction-value={reaction.value}
+              data-reaction-kind={reaction.kind}
+              className={`absolute -top-7 left-1/2 -translate-x-1/2 pointer-events-none reactions-overlay-pop ${
+                reaction.kind === "emoji"
+                  ? "text-3xl"
+                  : "text-xs font-bold text-white bg-slate-800/90 rounded-full px-2 py-0.5 shadow"
+              }`}
+            >
+              {reaction.value}
+            </div>
           )}
         </div>
 
@@ -1205,39 +1314,6 @@ function VotingCard({
     >
       {value}
     </button>
-  );
-}
-
-// ─── Close Room Modal ─────────────────────────────────────────────────────────
-
-function CloseRoomModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
-  return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onCancel}>
-      <div
-        className="bg-[var(--c-panel)] rounded-2xl p-8 w-full max-w-sm shadow-2xl text-center"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="text-4xl mb-4">⚠️</div>
-        <h2 className="text-lg font-bold text-white mb-2">Close room for everyone?</h2>
-        <p className="text-slate-400 text-sm mb-6">
-          All participants will be disconnected and the session will end.
-        </p>
-        <div className="flex gap-3">
-          <button
-            onClick={onCancel}
-            className="flex-1 border border-[var(--c-border)] text-slate-300 hover:bg-[var(--c-panel2)] py-2.5 rounded-xl text-sm font-medium transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors"
-          >
-            Close room
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }
 

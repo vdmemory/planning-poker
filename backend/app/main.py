@@ -155,7 +155,15 @@ async def handle_message(room_id: str, player_id: str, data: dict) -> None:
             service.update_nickname(room_id, player_id, data["nickname"])
         elif msg_type == "update_room":
             deck_type = DeckType(data["deck_type"]) if data.get("deck_type") else None
-            service.update_room(room_id, player_id, name=data.get("name"), deck_type=deck_type, card_back=data.get("card_back"), who_can_reveal=data.get("who_can_reveal"), who_can_manage_issues=data.get("who_can_manage_issues"))
+            service.update_room(
+                room_id, player_id,
+                name=data.get("name"),
+                deck_type=deck_type,
+                card_back=data.get("card_back"),
+                who_can_reveal=data.get("who_can_reveal"),
+                who_can_manage_issues=data.get("who_can_manage_issues"),
+                close_on_facilitator_leave=data.get("close_on_facilitator_leave"),
+            )
         elif msg_type == "update_issue":
             service.update_issue(room_id, player_id, data["issue_id"],
                                  title=data.get("title"), description=data.get("description"), link=data.get("link"))
@@ -173,8 +181,11 @@ async def handle_message(room_id: str, player_id: str, data: dict) -> None:
             await manager.close_connection(room_id, target_id, code=4003)
             service.kick_player(room_id, player_id, target_id)
         elif msg_type == "close_room":
+            # Issue #19 — broadcast includes a reason field so the frontend
+            # can show "Room was closed by the creator" copy. close_room is
+            # facilitator-only, so the reason is always the same.
             service.close_room(room_id, player_id)
-            await manager.broadcast(room_id, {"type": "room_closed"})
+            await manager.broadcast(room_id, {"type": "room_closed", "reason": "creator_left"})
             return
         elif msg_type == "update_avatar_color":
             service.update_avatar_color(room_id, player_id, data["color"])
@@ -191,6 +202,22 @@ async def handle_message(room_id: str, player_id: str, data: dict) -> None:
         elif msg_type == "countdown":
             # Relay countdown to all clients so everyone sees the animation
             await manager.broadcast(room_id, {"type": "countdown", "seconds": data.get("seconds", 3)})
+            return
+        elif msg_type == "reaction":
+            # Relay a quick reaction (emoji or time-value) to ALL clients —
+            # including the sender, because the rising animation and the
+            # on-card overlay should appear on their own screen too. Issue #32.
+            # Not stored in Room: this is pure UX, like `draw_*` / `countdown`.
+            room = store.get(room_id)
+            player = room.players.get(player_id) if room else None
+            await manager.broadcast(room_id, {
+                "type": "reaction",
+                "player_id": player_id,
+                "nickname": player.nickname if player else "",
+                "avatar_color": player.avatar_color if player else "#3b82f6",
+                "kind": data.get("kind", "emoji"),
+                "value": data.get("value", ""),
+            })
             return
         else:
             await manager.send_to(

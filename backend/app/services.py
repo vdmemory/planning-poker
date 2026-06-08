@@ -103,7 +103,11 @@ class RoomService:
         player.nickname = nickname.strip() or player.nickname
         self.store.save(room)
 
-    def update_room(self, room_id: str, player_id: str, name: Optional[str] = None, deck_type: Optional[DeckType] = None, card_back: Optional[str] = None, who_can_reveal: Optional[str] = None, who_can_manage_issues: Optional[str] = None) -> None:
+    def update_room(self, room_id: str, player_id: str, name: Optional[str] = None,
+                    deck_type: Optional[DeckType] = None, card_back: Optional[str] = None,
+                    who_can_reveal: Optional[str] = None,
+                    who_can_manage_issues: Optional[str] = None,
+                    close_on_facilitator_leave: Optional[bool] = None) -> None:
         room = self.get_room(room_id)
         self._require_facilitator(room, player_id)
         if name is not None:
@@ -118,6 +122,8 @@ class RoomService:
             room.who_can_reveal = who_can_reveal
         if who_can_manage_issues is not None:
             room.who_can_manage_issues = who_can_manage_issues
+        if close_on_facilitator_leave is not None:
+            room.close_on_facilitator_leave = close_on_facilitator_leave
         self.store.save(room)
 
     def kick_player(self, room_id: str, player_id: str, target_player_id: str) -> None:
@@ -139,14 +145,36 @@ class RoomService:
         self.store.save(room)
         return True
 
-    def remove_player(self, room_id: str, player_id: str) -> None:
+    def remove_player(self, room_id: str, player_id: str) -> bool:
+        """Remove a player from the room (called by cleanup task on grace
+        timeout, by `kick_player`, and indirectly by `close_room`).
+
+        Returns `True` if removing this player triggered an Issue #19
+        "creator-left close" — i.e. the player was the facilitator AND the
+        room has `close_on_facilitator_leave = True` AND there were other
+        players left to notify. In that case the room is also deleted from
+        the store before returning.
+
+        Callers that drive a side-effect on creator-left (the WS broadcast
+        of `room_closed`, closing all sockets) check this return value.
+        """
         room = self.store.get(room_id)
         if not room:
-            return
+            return False
+        was_facilitator = room.facilitator_id == player_id
         room.players.pop(player_id, None)
         room.votes.pop(player_id, None)
-        # Если ушёл фасилитатор — передаём роль первому из оставшихся.
-        if room.facilitator_id == player_id and room.players:
+
+        # Issue #19 — when the facilitator (creator) drops out AND the room
+        # opted into close-on-leave, close the room for everyone instead of
+        # handing the role off.
+        if was_facilitator and room.close_on_facilitator_leave and room.players:
+            self.store.delete(room_id)
+            return True
+
+        # Default behaviour: hand off the facilitator role to the first of
+        # the remaining players.
+        if was_facilitator and room.players:
             new_facilitator = next(iter(room.players.values()))
             new_facilitator.is_facilitator = True
             room.facilitator_id = new_facilitator.id
@@ -155,6 +183,7 @@ class RoomService:
             self.store.delete(room_id)
         else:
             self.store.save(room)
+        return False
 
     def toggle_spectator(self, room_id: str, player_id: str) -> None:
         room = self.get_room(room_id)

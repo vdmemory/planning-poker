@@ -6,6 +6,10 @@ interface UseRoomSocketArgs {
   playerId: string | null;
   nickname: string;
   onDrawMessage?: (msg: object) => void;
+  // Issue #32 — fired on every server-side `reaction` broadcast (includes the
+  // sender's own click, so their on-card overlay + rising floater both appear).
+  // Held in a ref so changing the handler doesn't tear down the WS.
+  onReactionMessage?: (msg: object) => void;
 }
 
 interface UseRoomSocketResult {
@@ -17,9 +21,11 @@ interface UseRoomSocketResult {
   error: string | null;
   countdown: number | null;
   roomClosed: boolean;
-  // Set when the room timer expired or the URL points at a stale/missing
-  // room. UI shows a "no longer active" overlay and does NOT reconnect.
-  roomInactive: "expired" | "not_found" | null;
+  // Set when the room timer expired, the URL points at a stale/missing
+  // room, OR (issue #19) the facilitator closed/left a room configured
+  // with `close_on_facilitator_leave`. UI shows a "no longer active"
+  // overlay and does NOT reconnect.
+  roomInactive: "expired" | "not_found" | "closed" | null;
 }
 
 export function useRoomSocket({
@@ -27,6 +33,7 @@ export function useRoomSocket({
   playerId,
   nickname,
   onDrawMessage,
+  onReactionMessage,
 }: UseRoomSocketArgs): UseRoomSocketResult {
   const [state, setState] = useState<RoomState | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -35,10 +42,12 @@ export function useRoomSocket({
   const [error, setError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [roomClosed, setRoomClosed] = useState(false);
-  const [roomInactive, setRoomInactive] = useState<"expired" | "not_found" | null>(null);
+  const [roomInactive, setRoomInactive] = useState<"expired" | "not_found" | "closed" | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const onDrawMessageRef = useRef(onDrawMessage);
   useEffect(() => { onDrawMessageRef.current = onDrawMessage; });
+  const onReactionMessageRef = useRef(onReactionMessage);
+  useEffect(() => { onReactionMessageRef.current = onReactionMessage; });
   const reconnectTimeoutRef = useRef<number | null>(null);
   const countdownTimerRef = useRef<number | null>(null);
   const shouldReconnectRef = useRef(true);
@@ -95,8 +104,16 @@ export function useRoomSocket({
             setCountdown(null);
           }
         }, 1000);
-      } else if (msg.type === "room_closed" || msg.type === "kicked") {
+      } else if (msg.type === "kicked") {
+        // Kicked players still navigate straight home — they don't need to
+        // see the "room closed" overlay.
         setRoomClosed(true);
+      } else if (msg.type === "room_closed") {
+        // Issue #19 — facilitator closed the room (explicit "close room" OR
+        // creator-left auto-close). Show the inactive overlay so the user
+        // learns *why* they were dropped instead of bouncing home silently.
+        shouldReconnectRef.current = false;
+        setRoomInactive("closed");
       } else if (msg.type === "room_expired") {
         // Server-side timer ran out while we were connected.
         shouldReconnectRef.current = false;
@@ -113,6 +130,8 @@ export function useRoomSocket({
         setRoomInactive(reason === "expired" ? "expired" : "not_found");
       } else if (msg.type === "draw_stroke" || msg.type === "draw_cursor" || msg.type === "draw_clear") {
         onDrawMessageRef.current?.(msg);
+      } else if (msg.type === "reaction") {
+        onReactionMessageRef.current?.(msg);
       } else if (msg.type === "error") {
         setError(msg.message);
       }
