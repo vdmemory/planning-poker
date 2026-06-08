@@ -296,7 +296,16 @@ function Room({
   }
 
   function handleGameSettingsSave(
-    roomPatch: { name?: string; deck_type?: string; card_back?: string; who_can_reveal?: string; who_can_manage_issues?: string },
+    roomPatch: {
+      name?: string;
+      deck_type?: string;
+      card_back?: string;
+      who_can_reveal?: string;
+      who_can_manage_issues?: string;
+      // Issue #19 — when changed in settings, the backend hands this back
+      // in the next `room_state` so every client renders consistently.
+      close_on_facilitator_leave?: boolean;
+    },
     settingsPatch: Partial<GameSettings>
   ) {
     if (Object.keys(roomPatch).length > 0) {
@@ -309,11 +318,32 @@ function Room({
     return <RoomErrorScreen error={error} />;
   }
 
-  // Room expired (timer) or never existed at this URL. useRoomSocket already
-  // disabled reconnect when this flag was set, so we just present the dead
-  // end to the user with a way back to the home page.
+  // Room expired (timer), never existed at this URL, OR (issue #19) was
+  // closed by the facilitator while we were connected. useRoomSocket has
+  // already disabled reconnect for all three, so we just render the dead
+  // end with a way back home.
   if (roomInactive) {
-    const isExpired = roomInactive === "expired";
+    const copy = (() => {
+      if (roomInactive === "expired") {
+        return {
+          icon: "⌛",
+          title: "This room is no longer active",
+          body: "The room timer ran out and it was closed automatically. Start a new one to keep planning.",
+        };
+      }
+      if (roomInactive === "closed") {
+        return {
+          icon: "🚪",
+          title: "The room was closed by the creator",
+          body: "The facilitator ended the session, so the room is no longer available. Start a new one to keep planning.",
+        };
+      }
+      return {
+        icon: "🔗",
+        title: "Room not found",
+        body: "We couldn't find a room at this URL — it may have already been closed.",
+      };
+    })();
     return (
       <div
         data-testid="room-inactive-overlay"
@@ -321,15 +351,9 @@ function Room({
         className="min-h-screen flex items-center justify-center bg-[var(--c-bg)] text-white p-6"
       >
         <div className="max-w-md text-center space-y-5">
-          <div className="text-6xl">⌛</div>
-          <h1 className="text-2xl font-bold">
-            {isExpired ? "This room is no longer active" : "Room not found"}
-          </h1>
-          <p className="text-slate-300">
-            {isExpired
-              ? "The room timer ran out and it was closed automatically. Start a new one to keep planning."
-              : "We couldn't find a room at this URL — it may have already been closed."}
-          </p>
+          <div className="text-6xl">{copy.icon}</div>
+          <h1 className="text-2xl font-bold">{copy.title}</h1>
+          <p className="text-slate-300">{copy.body}</p>
           <button
             onClick={() => navigate("/")}
             className="inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-blue-500 hover:bg-blue-400 text-white font-semibold shadow"

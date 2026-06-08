@@ -14,6 +14,7 @@
 | `card_back` | string | визуальный стиль рубашки карты |
 | `who_can_reveal` | `facilitator`\|`everyone` | кто может открывать карты и сбрасывать раунд |
 | `who_can_manage_issues` | `facilitator`\|`everyone` | кто управляет списком задач |
+| `close_on_facilitator_leave` | bool, дефолт `false` | issue #19 — если `true`, уход фасилитатора закрывает комнату для всех вместо передачи роли |
 | `facilitator_id` | string\|null | id текущего фасилитатора |
 | `players` | dict[id, Player] | участники |
 | `issues` | list[Issue] | очередь задач |
@@ -197,7 +198,18 @@ WebSocket `/ws/{room_id}?player_id=...&nickname=...`.
 
 ### close_room
 
-Фасилитатор закрывает комнату. Все клиенты получают `{type: "room_closed"}` и переходят на главную. Комната удаляется из store.
+Фасилитатор закрывает комнату. Все клиенты получают `{type: "room_closed", reason: "creator_left"}`. Комната удаляется из store. Фронт показывает full-screen overlay «The room was closed by the creator» с кнопкой «Back to home» (это та же `roomInactive`-overlay что для expired/not_found, см. ниже).
+
+### close_on_facilitator_leave (issue #19)
+
+Опциональный режим, который фасилитатор включает в Game Settings (`update_room {close_on_facilitator_leave: true}`). Эффект:
+
+- При **обычном** уходе фасилитатора (disconnect > 30s, cleanup задача удаляет игрока): если в комнате остались другие игроки и `close_on_facilitator_leave=true` → `remove_player` удаляет комнату и возвращает `True`. WS-слой ловит этот сигнал и шлёт `{type: "room_closed", reason: "creator_left"}` всем оставшимся клиентам, после чего закрывает их сокеты. Это re-using контракта `close_room` — на фронте та же overlay.
+- При **выключенной** настройке (дефолт): сохраняется legacy-поведение — `remove_player` передаёт роль `facilitator` первому из оставшихся `players.values()` и возвращает `False`. Никакого broadcast'а `room_closed` не происходит.
+- Если фасилитатор — **последний** игрок в комнате, комната всегда удаляется (как и раньше), но `remove_player` возвращает `False` — некому слать notify.
+- Уход обычного игрока (`is_facilitator=false`) никогда не закрывает комнату, независимо от флага.
+
+Тесты этого пути живут в `backend/tests/test_rooms_and_players.py` (7 кейсов, охватывают все ветки).
 
 ## Lifecycle комнаты и истечение таймера
 
@@ -221,18 +233,27 @@ WebSocket `/ws/{room_id}?player_id=...&nickname=...`.
 
 ### UX на фронте
 
-`useRoomSocket` выставляет `roomInactive: "expired" | "not_found" | null`. Главный сигнал — **типизированное WS-сообщение**, не close-код:
+`useRoomSocket` выставляет `roomInactive: "expired" | "not_found" | "closed" | null`. Главный сигнал — **типизированное WS-сообщение**, не close-код:
 
 | Источник | Значение |
 |---|---|
 | WS-сообщение `{type: "room_expired"}` (получено когда уже подключён) | `"expired"` |
 | WS-сообщение `{type: "room_inactive", reason: "expired"}` (на connect) | `"expired"` |
 | WS-сообщение `{type: "room_inactive", reason: "not_found"}` (на connect) | `"not_found"` |
+| WS-сообщение `{type: "room_closed", reason: "creator_left"}` (issue #19) | `"closed"` |
 | WS close код 4005 (TestClient / локалка без Cloudflare) | `"expired"` |
 | WS close код 4004 (TestClient / локалка без Cloudflare) | `"not_found"` |
 | Иначе | `null` |
 
-При `roomInactive !== null` хук **выставляет `shouldReconnectRef.current = false`** — никаких повторных попыток. `RoomPage` рендерит full-screen overlay c text-кой «This room is no longer active» / «Room not found», иконкой ⌛ и кнопкой «Back to home».
+При `roomInactive !== null` хук **выставляет `shouldReconnectRef.current = false`** — никаких повторных попыток. `RoomPage` рендерит full-screen overlay с одной из трёх копий:
+
+| `roomInactive` | Иконка | Заголовок | Когда показывается |
+|---|---|---|---|
+| `"expired"` | ⌛ | This room is no longer active | Истёк 24h-таймер |
+| `"closed"` | 🚪 | The room was closed by the creator | Фасилитатор закрыл комнату (явно или через issue #19) |
+| `"not_found"` | 🔗 | Room not found | Чужой/опечатанный URL |
+
+Кикнутые игроки (`{type: "kicked"}`) **не** идут через overlay — у них короткий путь сразу на главную (`roomClosed=true` → `navigate("/")`), потому что им незачем читать пояснение «комната закрыта» — их персонально удалили.
 
 ### Дизайн-решения
 
@@ -247,7 +268,7 @@ WebSocket `/ws/{room_id}?player_id=...&nickname=...`.
 |---|---|
 | Игрок теряет коннект | `connected=false`, `disconnected_at=now`. В UI становится серым с пометкой «offline». Голос сохраняется. |
 | Возвращается до 30s | `connect=true`, `disconnected_at=null`. Ник может обновиться. |
-| Не вернулся 30s | Cleanup-задача удаляет. Если это был фасилитатор — роль переходит первому из `players.values()`. Если в комнате никого — комната удаляется. |
+| Не вернулся 30s | Cleanup-задача удаляет. Если это был фасилитатор и в комнате включён `close_on_facilitator_leave` — комната закрывается для всех (см. секцию `close_on_facilitator_leave` выше). Иначе legacy-поведение: роль переходит первому из `players.values()`. Если в комнате никого — комната удаляется. |
 | Page refresh | `player_id` из `localStorage` → реконнект как тот же игрок без потери голоса/прав. |
 
 ## Drawing и курсоры (вспомогательная фича)

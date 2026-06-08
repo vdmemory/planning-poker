@@ -53,6 +53,11 @@ class Room(BaseModel):
     card_back: str = "blue_stripes"
     who_can_reveal: str = "facilitator"
     who_can_manage_issues: str = "facilitator"
+    # Issue #19 — when True, dropping the facilitator (the room creator) via
+    # the disconnect-cleanup task closes the room for everyone instead of
+    # handing the role off. Default False to preserve existing behaviour for
+    # rooms created before the setting existed.
+    close_on_facilitator_leave: bool = False
     facilitator_id: Optional[str] = None
     players: dict[str, Player] = Field(default_factory=dict)
     issues: list[Issue] = Field(default_factory=list)
@@ -88,6 +93,7 @@ class Room(BaseModel):
             "card_back": self.card_back,
             "who_can_reveal": self.who_can_reveal,
             "who_can_manage_issues": self.who_can_manage_issues,
+            "close_on_facilitator_leave": self.close_on_facilitator_leave,
             "deck": self.deck(),
             "facilitator_id": self.facilitator_id,
             "players": [p.model_dump(mode="json") for p in self.players.values()],
