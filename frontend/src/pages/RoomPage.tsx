@@ -9,6 +9,7 @@ import { DrawingCanvas, DRAW_COLORS } from "../components/DrawingCanvas";
 import { ProfileMenu } from "../components/ProfileMenu";
 import { ReactionsPanel } from "../components/ReactionsPanel";
 import { ReactionFloater } from "../components/ReactionFloater";
+import { ConfirmModal } from "../components/ConfirmModal";
 import { useReactionAnimations, type CardReaction } from "../hooks/useReactionAnimations";
 import type { Player, RoomState, Stats, GameSettings } from "../types";
 import QRCode from "qrcode";
@@ -195,6 +196,10 @@ function Room({
   const colorPickerRef = useRef<HTMLDivElement>(null);
 
   const [showCloseRoomModal, setShowCloseRoomModal] = useState(false);
+  // Issue #4 — facilitator confirms before kicking a player. The state holds
+  // the target id + nickname; the ConfirmModal reads them, the close handler
+  // clears them. Previously kick was a single-click action with no guardrail.
+  const [pendingKick, setPendingKick] = useState<{ id: string; nickname: string } | null>(null);
 
   function exitDrawing() {
     setIsDrawingMode(false);
@@ -348,7 +353,13 @@ function Room({
   const isFacilitator = state.facilitator_id === myPlayerId;
   const canReveal = isFacilitator || state.who_can_reveal === "everyone";
   const canManageIssues = isFacilitator || state.who_can_manage_issues === "everyone";
-  function onKickPlayer(targetId: string) { send({ type: "kick_player", target_player_id: targetId }); }
+  function onKickPlayer(targetId: string) {
+    // `state` is non-null below the early return above, but TS can't track
+    // that across a closure — guard explicitly.
+    const target = state?.players.find((p) => p.id === targetId);
+    if (!target) return;
+    setPendingKick({ id: target.id, nickname: target.nickname });
+  }
   const currentIssue = state.issues.find((i) => i.id === state.current_issue_id);
   const activePlayers = state.players.filter((p) => !p.is_spectator);
   const everyoneVoted =
@@ -669,12 +680,31 @@ function Room({
         </div>
       )}
 
-      {showCloseRoomModal && (
-        <CloseRoomModal
-          onConfirm={() => { send({ type: "close_room" }); setShowCloseRoomModal(false); }}
-          onCancel={() => setShowCloseRoomModal(false)}
-        />
-      )}
+      {/* Issue #4 — close-room confirmation uses the shared ConfirmModal
+          instead of the old bespoke CloseRoomModal (which has been removed). */}
+      <ConfirmModal
+        open={showCloseRoomModal}
+        title="Close room for everyone?"
+        message="All participants will be disconnected and the session will end."
+        confirmLabel="Close room"
+        onConfirm={() => { send({ type: "close_room" }); setShowCloseRoomModal(false); }}
+        onCancel={() => setShowCloseRoomModal(false)}
+      />
+
+      {/* Issue #4 — kick-player confirmation. New guardrail; previously the
+          facilitator's click on the hover X kicked instantly. */}
+      <ConfirmModal
+        open={pendingKick !== null}
+        icon="👋"
+        title={pendingKick ? `Remove ${pendingKick.nickname} from the room?` : ""}
+        message="They'll be disconnected and won't be able to reconnect to this room."
+        confirmLabel="Remove"
+        onConfirm={() => {
+          if (pendingKick) send({ type: "kick_player", target_player_id: pendingKick.id });
+          setPendingKick(null);
+        }}
+        onCancel={() => setPendingKick(null)}
+      />
 
       {showInvite && <InviteModal onClose={() => setShowInvite(false)} />}
 
@@ -1260,39 +1290,6 @@ function VotingCard({
     >
       {value}
     </button>
-  );
-}
-
-// ─── Close Room Modal ─────────────────────────────────────────────────────────
-
-function CloseRoomModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
-  return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onCancel}>
-      <div
-        className="bg-[var(--c-panel)] rounded-2xl p-8 w-full max-w-sm shadow-2xl text-center"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="text-4xl mb-4">⚠️</div>
-        <h2 className="text-lg font-bold text-white mb-2">Close room for everyone?</h2>
-        <p className="text-slate-400 text-sm mb-6">
-          All participants will be disconnected and the session will end.
-        </p>
-        <div className="flex gap-3">
-          <button
-            onClick={onCancel}
-            className="flex-1 border border-[var(--c-border)] text-slate-300 hover:bg-[var(--c-panel2)] py-2.5 rounded-xl text-sm font-medium transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors"
-          >
-            Close room
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }
 
