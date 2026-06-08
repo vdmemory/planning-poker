@@ -38,6 +38,10 @@ export interface RoomState {
   votes: Record<string, string>; // value либо "hidden"
   voted_player_ids: string[];
   revealed: boolean;
+  // ISO-8601 timestamp. After this moment the room is auto-closed by the
+  // backend's `cleanup_expired_rooms` task and the client receives a
+  // `room_expired` WS message (or the connect attempt closes with 4005).
+  expires_at: string;
 }
 
 export interface Stats {

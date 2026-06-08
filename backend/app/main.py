@@ -12,16 +12,20 @@ from pydantic import BaseModel
 from .models import DeckType
 from .services import RoomError, RoomService
 from .store import store
-from .ws_manager import cleanup_disconnected_players, manager
+from .ws_manager import cleanup_disconnected_players, cleanup_expired_rooms, manager
 
 service = RoomService(store)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    task = asyncio.create_task(cleanup_disconnected_players(service))
+    tasks = [
+        asyncio.create_task(cleanup_disconnected_players(service)),
+        asyncio.create_task(cleanup_expired_rooms(service)),
+    ]
     yield
-    task.cancel()
+    for t in tasks:
+        t.cancel()
 
 
 app = FastAPI(title="Planning Poker", lifespan=lifespan)
@@ -78,8 +82,13 @@ async def ws_endpoint(websocket: WebSocket, room_id: str, player_id: str, nickna
     - player_id не найден, но передан nickname → создаём нового игрока (быстрый join по URL)
     """
     room = store.get(room_id)
-    if not room:
-        await websocket.close(code=4004)
+    if not room or room.is_expired():
+        # The client must see a clean close with a code, but a server-side
+        # close BEFORE accept() arrives at the browser as code 1006 (abnormal)
+        # — the WS handshake never completed. Accept and then close so the
+        # browser delivers the 4004/4005 code to `ws.onclose` correctly.
+        await websocket.accept()
+        await websocket.close(code=4005 if room else 4004)
         return
 
     # Авто-join, если зашли по ссылке без явного REST-вызова
