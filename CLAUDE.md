@@ -142,6 +142,9 @@ frontend/src/
 { type: "draw_stroke", ... }
 { type: "draw_cursor", ... }
 { type: "draw_clear" }
+
+# Reactions (relay to all incl. sender)
+{ type: "reaction", kind: "emoji" | "number", value }
 ```
 
 **Server → Client:**

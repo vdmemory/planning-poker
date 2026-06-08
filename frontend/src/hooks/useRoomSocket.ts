@@ -6,6 +6,10 @@ interface UseRoomSocketArgs {
   playerId: string | null;
   nickname: string;
   onDrawMessage?: (msg: object) => void;
+  // Issue #32 — fired on every server-side `reaction` broadcast (includes the
+  // sender's own click, so their on-card overlay + rising floater both appear).
+  // Held in a ref so changing the handler doesn't tear down the WS.
+  onReactionMessage?: (msg: object) => void;
 }
 
 interface UseRoomSocketResult {
@@ -27,6 +31,7 @@ export function useRoomSocket({
   playerId,
   nickname,
   onDrawMessage,
+  onReactionMessage,
 }: UseRoomSocketArgs): UseRoomSocketResult {
   const [state, setState] = useState<RoomState | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -39,6 +44,8 @@ export function useRoomSocket({
   const wsRef = useRef<WebSocket | null>(null);
   const onDrawMessageRef = useRef(onDrawMessage);
   useEffect(() => { onDrawMessageRef.current = onDrawMessage; });
+  const onReactionMessageRef = useRef(onReactionMessage);
+  useEffect(() => { onReactionMessageRef.current = onReactionMessage; });
   const reconnectTimeoutRef = useRef<number | null>(null);
   const countdownTimerRef = useRef<number | null>(null);
   const shouldReconnectRef = useRef(true);
@@ -113,6 +120,8 @@ export function useRoomSocket({
         setRoomInactive(reason === "expired" ? "expired" : "not_found");
       } else if (msg.type === "draw_stroke" || msg.type === "draw_cursor" || msg.type === "draw_clear") {
         onDrawMessageRef.current?.(msg);
+      } else if (msg.type === "reaction") {
+        onReactionMessageRef.current?.(msg);
       } else if (msg.type === "error") {
         setError(msg.message);
       }
