@@ -1,9 +1,11 @@
 import { Suspense, lazy, useEffect, useState } from "react";
 import { REACTION_EMOJI_LOTTIE } from "./ReactionsPanel";
+import { getCachedLottie, preloadLottie } from "./reaction-lottie-cache";
 
-// Lazy-load lottie-react so the ~85 KB gz of lottie-web only ships when
-// the room actually fires a reaction. Initial Home + Room paint stays
-// lean — Lottie loads in the background after the first click.
+// Lazy-load lottie-react so the ~85 KB gz of lottie-web doesn't sit in the
+// main bundle. `ReactionsPanel` warms this chunk on mount (issue #43) so by
+// the time the user actually clicks an emoji the chunk is usually already
+// in memory — Suspense here is the safety net for cold starts.
 const Lottie = lazy(() => import("lottie-react"));
 
 /**
@@ -14,17 +16,18 @@ const Lottie = lazy(() => import("lottie-react"));
  * Lane allocation lives in `useReactionAnimations` — by the time we render
  * the floater here, the `xLane` is fixed for its whole lifetime.
  *
- * Follow-up to the initial MP4 implementation: emoji floaters render a
- * Lottie animation from `public/reactions-lottie/` (Google Noto Animated
- * Emoji, Apache 2.0). Lottie has a real alpha channel — no more white
- * square on the dark theme. Text glyph stays as the fallback if a peer
- * sends an emoji we don't have an asset for. Time-value chips never use
- * an animation — they're rendered as a labelled pill.
+ * Animated emojis render a Lottie animation from
+ * `public/reactions-lottie/<codepoint>.json` (Google Noto Animated Emoji,
+ * Apache 2.0). Lottie has a real alpha channel — no white square on the
+ * dark theme. Text glyph stays as the fallback if a peer sends an emoji
+ * we don't have an asset for. Time-value chips never use an animation.
  *
- * JSON fetching: we hit the public URL on mount, but the browser caches it
- * after the first request so subsequent floaters of the same emoji render
- * instantly. The blob is in the ~30–140 KB range per emoji and they sit on
- * the same origin, so this is fast in practice.
+ * Issue #43 follow-up: the Lottie JSON is preloaded by `ReactionsPanel`
+ * at room-mount time (`reaction-lottie-cache.ts`), so the synchronous
+ * `getCachedLottie` read below usually hits. The effect is the fallback:
+ * if preload hasn't finished or failed (e.g. brand-new emoji on a peer
+ * client running an older asset set), we trigger a live fetch on the
+ * floater's own mount.
  */
 interface Props {
   kind: "emoji" | "number";
@@ -37,10 +40,6 @@ interface Props {
 const LANE_WIDTH_PX = 72;
 const LANE_LEFT_OFFSET_PX = 24;
 const LOTTIE_SIZE_PX = 72;
-
-// Module-level cache so the same emoji isn't re-fetched and re-parsed for
-// every floater. Keyed by URL → parsed Lottie animation data.
-const lottieCache: Record<string, object> = {};
 
 export function ReactionFloater({ kind, value, nickname, color, xLane }: Props) {
   const left = LANE_LEFT_OFFSET_PX + xLane * LANE_WIDTH_PX;
@@ -77,29 +76,22 @@ export function ReactionFloater({ kind, value, nickname, color, xLane }: Props) 
 }
 
 /**
- * Inner component that owns the Lottie fetch + render. Split out so the
- * outer floater stays simple and the cached-fetch logic is co-located with
- * its only consumer.
+ * Inner component that owns the Lottie render. The cache lookup is
+ * synchronous so on the happy path (panel preload finished) the animation
+ * is in the first paint. The effect is the fallback for cache miss.
  */
 function LottieEmoji({ url }: { url: string }) {
-  const [data, setData] = useState<object | null>(() => lottieCache[url] ?? null);
+  const [data, setData] = useState<unknown>(() => getCachedLottie(url) ?? null);
 
   useEffect(() => {
-    if (lottieCache[url]) {
-      setData(lottieCache[url]);
-      return;
-    }
+    if (data) return;
     let cancelled = false;
-    fetch(url)
-      .then((r) => r.json())
-      .then((json) => {
-        lottieCache[url] = json;
-        if (!cancelled) setData(json);
-      })
-      .catch(() => { /* If the fetch fails, the parent floater is still
-                        visible with the nickname pill — better than nothing. */ });
+    preloadLottie(url)
+      .then((json) => { if (!cancelled) setData(json); })
+      .catch(() => { /* Floater still renders the nickname pill — better
+                        than rendering nothing. */ });
     return () => { cancelled = true; };
-  }, [url]);
+  }, [url, data]);
 
   // Reserve the box size even before the JSON loads, so the floater's
   // overall position doesn't jump once the animation arrives.
@@ -109,7 +101,7 @@ function LottieEmoji({ url }: { url: string }) {
       data-lottie-url={url}
       style={{ width: LOTTIE_SIZE_PX, height: LOTTIE_SIZE_PX }}
     >
-      {data && (
+      {data ? (
         <Suspense fallback={null}>
           <Lottie
             animationData={data}
@@ -118,7 +110,7 @@ function LottieEmoji({ url }: { url: string }) {
             style={{ width: LOTTIE_SIZE_PX, height: LOTTIE_SIZE_PX }}
           />
         </Suspense>
-      )}
+      ) : null}
     </div>
   );
 }

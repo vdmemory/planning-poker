@@ -353,8 +353,14 @@ Google Meet-style quick reactions: участник кликает на эмод
 
 #### Реализация
 
-- `lottie-react` подгружается через `React.lazy()` — основной бандл остаётся ~83 KB gz, lottie-web (~82 KB gz) идёт отдельным chunk'ом и грузится только когда в комнате прилетит первая reaction.
-- JSON-файл фетчится один раз на эмоджи и кэшируется в module-level `lottieCache` (Map'е): второй и последующие флоатеры того же эмоджи рендерятся мгновенно. Browser HTTP cache страхует на refresh.
+- `lottie-react` подгружается через `React.lazy()` — основной бандл остаётся ~83 KB gz, lottie-web (~82 KB gz) идёт отдельным chunk'ом.
+- **Issue #43 — eager preload**: при mount'е `ReactionsPanel` (то есть при заходе в комнату) `useEffect` сразу запускает:
+  1. `import("lottie-react")` — прогрев chunk'а через Vite.
+  2. `preloadAllReactionLottie()` — параллельный fetch всех 10 JSON-файлов в shared cache (`frontend/src/components/reaction-lottie-cache.ts`).
+
+  К моменту первого клика по эмоджи и chunk, и JSON уже в памяти — флоатер рендерится в первый же кадр без сетевой задержки. На холодном кэше DevTools'у видна серия параллельных запросов `/reactions-lottie/*.json` сразу после mount'а, до любого клика.
+- Cache живёт в module-level `Map`'е (`getCachedLottie` / `preloadLottie` / `preloadAllReactionLottie` экспортируются из `reaction-lottie-cache.ts`). Переход между комнатами в рамках SPA-сессии — попадание; полная перезагрузка — попадание через HTTP-cache браузера.
+- Fallback path: если preload-fetch упал (404, offline), `ReactionFloater` на mount пытается live-fetch — без preload'а сценарий деградирует к старому «загружаем при клике» поведению, а не к пустому квадрату.
 - Размер контейнера 72×72 px зарезервирован до подгрузки JSON, чтобы лента флоатеров не дёргалась при первом запуске.
 
 Overlay над карточкой остаётся текстовым эмоджи — он маленький и эфемерный, Lottie там было бы избыточно.

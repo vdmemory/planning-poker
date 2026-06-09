@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build)",
+      "Bash(pytest)",
+      "Bash(pytest *)",
+      "Bash(git fetch *)",
+      "Bash(railway whoami)"
+    ]
+  }
+}
