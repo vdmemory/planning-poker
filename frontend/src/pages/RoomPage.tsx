@@ -401,7 +401,7 @@ function Room({
   return (
     <div className="min-h-screen flex flex-col bg-[var(--c-bg)] text-white">
       {/* Header */}
-      <header className="flex items-center justify-between px-3 sm:px-6 py-3 border-b border-[var(--c-panel2)] shrink-0 gap-2">
+      <header className="flex items-center justify-between px-3 sm:px-6 py-3 border-b border-[var(--c-border)] shrink-0 gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <div className="w-7 h-7 sm:w-8 sm:h-8 bg-accent rounded-full flex items-center justify-center text-sm shrink-0">
             🃏
@@ -650,7 +650,7 @@ function Room({
         </main>
 
         {sidebarOpen && (
-          <aside className="w-72 sm:w-80 border-l border-[var(--c-panel2)] overflow-y-auto shrink-0">
+          <aside className="w-72 sm:w-80 border-l border-[var(--c-border)] overflow-y-auto shrink-0">
             <IssueSidebar
               state={state}
               canManageIssues={canManageIssues}
@@ -1143,7 +1143,7 @@ function PlayerCard({
         <div
           className={`w-14 h-20 rounded-xl border-2 flex items-center justify-center font-bold text-lg transition-all ${
             !voted
-              ? "bg-[var(--c-panel)] border-[var(--c-border)]"
+              ? "bg-[var(--c-panel)] border-[var(--c-border-hi)]"
               : revealed
               ? "bg-[var(--c-panel)] border-accent text-white"
               : "border-accent"

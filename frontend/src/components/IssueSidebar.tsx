@@ -67,7 +67,7 @@ export function IssueSidebar({ state, canManageIssues, myPlayerId, send, onClose
   return (
     <div className="h-full flex flex-col bg-[var(--c-bg)]">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--c-panel2)]">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--c-border)]">
         <div>
           <h3 className="font-semibold text-white">Issues</h3>
           <p className="text-xs text-slate-400">
@@ -171,7 +171,7 @@ export function IssueSidebar({ state, canManageIssues, myPlayerId, send, onClose
 
       {/* Add issue */}
       {canManageIssues && (
-        <div className="px-3 py-3 border-t border-[var(--c-panel2)]">
+        <div className="px-3 py-3 border-t border-[var(--c-border)]">
           {adding ? (
             <>
               <input
