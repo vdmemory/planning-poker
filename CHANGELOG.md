@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.1](https://github.com/vdmemory/planning-poker/compare/v0.2.0...v0.2.1) (2026-06-09)
+
+
+### Performance
+
+* preload reaction Lottie chunk + JSON when panel mounts ([#43](https://github.com/vdmemory/planning-poker/issues/43)) ([#44](https://github.com/vdmemory/planning-poker/issues/44)) ([2c9ea1e](https://github.com/vdmemory/planning-poker/commit/2c9ea1e3ee6f827fbcbb251488d68216ece01555))
+
+
+### CI / Tooling
+
+* replace dev→main promote flow with feature→main directly ([#41](https://github.com/vdmemory/planning-poker/issues/41)) ([95e4541](https://github.com/vdmemory/planning-poker/commit/95e45417e2441e736820c11ce61c36f9c3f0511b))
+
 ## [0.2.0](https://github.com/vdmemory/planning-poker/compare/v0.1.0...v0.2.0) (2026-06-07)
 
 
