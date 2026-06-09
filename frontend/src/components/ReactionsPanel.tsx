@@ -11,16 +11,46 @@ import { useState, useRef } from "react";
  * The panel lives in the room header on desktop (visible inline). On mobile
  * it collapses into a single button that opens a bottom-sheet drawer.
  *
- * Throttling: at most one reaction per second per client. Anything faster is
- * silently dropped — kept simple to avoid UI annoyance.
+ * Throttling: at most one reaction every 600 ms per client. Anything faster
+ * is silently dropped — kept tight so the float-up animation stays lively
+ * without spamming peers.
+ *
+ * Emoji list is pinned to the animated Lottie assets in
+ * `public/reactions-lottie/` — see `REACTION_EMOJI_LOTTIE` below. Adding a
+ * new emoji means dropping a `<codepoint>.json` (from Google Noto Animated
+ * Emoji) in there AND adding a row to that map.
  */
 
-export const REACTION_EMOJIS = ["💖", "👍", "🎉", "👏", "😂", "😮", "😢", "🤔", "👎"];
-export const REACTION_NUMBERS = ["1h", "2h", "4h", "8h", "16h", "1d", "2d", "3d"];
+// Codepoint hex (matches the JSON filenames in public/reactions-lottie/) → emoji.
+// Kept in this order so the panel reads positive → neutral → negative:
+//   love/approval → celebration/hype → laughter/surprise/think → sad/dislike
+export const REACTION_EMOJIS = ["💖", "👍", "👏", "🎉", "🔥", "😂", "😮", "🤔", "😢", "👎"];
+
+// Each emoji has a matching Lottie JSON in `public/reactions-lottie/`,
+// sourced from Google's Noto Animated Emoji (Apache 2.0). Lottie was
+// chosen over MP4 because it ships with a real alpha channel, so the
+// floaters drop onto the dark theme without a white square around them.
+export const REACTION_EMOJI_LOTTIE: Record<string, string> = {
+  "💖": "/reactions-lottie/1f496.json",
+  "👍": "/reactions-lottie/1f44d.json",
+  "👏": "/reactions-lottie/1f44f.json",
+  "🎉": "/reactions-lottie/1f389.json",
+  "🔥": "/reactions-lottie/1f525.json",
+  "😂": "/reactions-lottie/1f602.json",
+  "😮": "/reactions-lottie/1f62e.json",
+  "🤔": "/reactions-lottie/1f914.json",
+  "😢": "/reactions-lottie/1f622.json",
+  "👎": "/reactions-lottie/1f44e.json",
+};
+
+// Time-value chips for the "capacity gut-check" mode. The list is the user's
+// chosen ladder — not strictly monotonic past `6h`: `1d` sits before `12h`
+// on purpose, so the most common "a day" chip is one tap away.
+export const REACTION_NUMBERS = ["1h", "2h", "3h", "4h", "5h", "6h", "1d", "12h", "2d", "3d"];
 
 export type ReactionKind = "emoji" | "number";
 
-const THROTTLE_MS = 1000;
+const THROTTLE_MS = 600;
 
 interface Props {
   onReact: (kind: ReactionKind, value: string) => void;

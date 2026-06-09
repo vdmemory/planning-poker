@@ -192,9 +192,10 @@ WebSocket `/ws/{room_id}?player_id=...&nickname=...`.
 ### kick_player
 
 Фасилитатор удаляет игрока. Эффекты:
-1. Кикнутому игроку шлётся `{type: "kicked"}`, его WS закрывается с кодом 4003 (фронт показывает экран «вас удалили из комнаты» и не пытается реконнектиться).
-2. Игрок и его голос удаляются из комнаты.
-3. Себя кикнуть нельзя.
+1. Кикнутому игроку шлётся `{type: "kicked"}`, его WS закрывается с кодом 4003.
+2. Фронт ловит типизированное сообщение и показывает overlay `roomInactive="kicked"` с копией «You were removed from this room» (issue #37). Реконнект отключается, чтобы Cloudflare-сценарий (где close-код приходит как 1005) не открыл WS заново и не вошёл по auto-join как новый игрок с тем же ником.
+3. Игрок и его голос удаляются из комнаты.
+4. Себя кикнуть нельзя.
 
 ### close_room
 
@@ -233,7 +234,7 @@ WebSocket `/ws/{room_id}?player_id=...&nickname=...`.
 
 ### UX на фронте
 
-`useRoomSocket` выставляет `roomInactive: "expired" | "not_found" | "closed" | null`. Главный сигнал — **типизированное WS-сообщение**, не close-код:
+`useRoomSocket` выставляет `roomInactive: "expired" | "not_found" | "closed" | "kicked" | null`. Главный сигнал — **типизированное WS-сообщение**, не close-код:
 
 | Источник | Значение |
 |---|---|
@@ -241,19 +242,22 @@ WebSocket `/ws/{room_id}?player_id=...&nickname=...`.
 | WS-сообщение `{type: "room_inactive", reason: "expired"}` (на connect) | `"expired"` |
 | WS-сообщение `{type: "room_inactive", reason: "not_found"}` (на connect) | `"not_found"` |
 | WS-сообщение `{type: "room_closed", reason: "creator_left"}` (issue #19) | `"closed"` |
+| WS-сообщение `{type: "kicked"}` (issue #37) | `"kicked"` |
 | WS close код 4005 (TestClient / локалка без Cloudflare) | `"expired"` |
 | WS close код 4004 (TestClient / локалка без Cloudflare) | `"not_found"` |
+| WS close код 4003 (TestClient / локалка без Cloudflare) | `"kicked"` (fallback, обычно типизированное сообщение приходит раньше) |
 | Иначе | `null` |
 
-При `roomInactive !== null` хук **выставляет `shouldReconnectRef.current = false`** — никаких повторных попыток. `RoomPage` рендерит full-screen overlay с одной из трёх копий:
+При `roomInactive !== null` хук **выставляет `shouldReconnectRef.current = false`** — никаких повторных попыток. `RoomPage` рендерит full-screen overlay с одной из четырёх копий:
 
 | `roomInactive` | Иконка | Заголовок | Когда показывается |
 |---|---|---|---|
 | `"expired"` | ⌛ | This room is no longer active | Истёк 24h-таймер |
 | `"closed"` | 🚪 | The room was closed by the creator | Фасилитатор закрыл комнату (явно или через issue #19) |
+| `"kicked"` | 👋 | You were removed from this room | Фасилитатор кикнул конкретно этого игрока (issue #37). Комната живёт дальше — overlay видит только кикнутый. |
 | `"not_found"` | 🔗 | Room not found | Чужой/опечатанный URL |
 
-Кикнутые игроки (`{type: "kicked"}`) **не** идут через overlay — у них короткий путь сразу на главную (`roomClosed=true` → `navigate("/")`), потому что им незачем читать пояснение «комната закрыта» — их персонально удалили.
+Почему `kicked` отдельный, а не `closed`? Закрытие комнаты — общее событие для всех; кик — персональное. Для всех остальных в комнате после кика всё работает как раньше, поэтому копия «room is no longer available» была бы неточной. Под капотом — общий механизм (тот же `roomInactive` union, та же overlay, тот же reconnect-block), только заголовок/иконка отличаются.
 
 ### Дизайн-решения
 
@@ -336,10 +340,24 @@ Google Meet-style quick reactions: участник кликает на эмод
 ### Наборы значений
 
 Конфигурируются в `frontend/src/components/ReactionsPanel.tsx`:
-- **Emoji**: `💖 👍 🎉 👏 😂 😮 😢 🤔 👎` (9 шт.)
-- **Number** (time-values, **вариант A** из issue #32): `1h 2h 4h 8h 16h 1d 2d 3d` (8 шт., логарифмическая шкала для capacity planning)
+- **Emoji**: `💖 👍 👏 🎉 🔥 😂 😮 🤔 😢 👎` (10 шт.). Порядок: love/approval → celebration/hype → laughter/surprise/think → sad/dislike.
+- **Number** (time-values): `1h 2h 3h 4h 5h 6h 1d 12h 2d 3d` (10 шт.). Часовая шкала идёт линейно до 6h; дальше `1d` стоит перед `12h`, потому что «день» — самая ходовая фишка в planning poker, и её удобнее иметь в один тап.
 
 Переключение режимов — toggle на самой панели, локальный state, не шарится.
+
+### Анимированные эмоджи
+
+Каждый emoji-флоатер рендерит **Lottie**-анимацию из `frontend/public/reactions-lottie/<codepoint>.json`. Источник ассетов — [Google Noto Animated Emoji](https://googlefonts.github.io/noto-emoji-animation/) (Apache 2.0): векторные, с настоящим alpha-каналом, поэтому на тёмной теме нет белой подложки вокруг эмоджи (как было у предыдущей MP4-реализации).
+
+Маппинг живёт в `REACTION_EMOJI_LOTTIE` рядом со списком эмоджи. Если для эмоджи нет файла (peer на старой сборке прислал не-маппленную реакцию), флоатер fallback'ится на текстовый глиф — UX мягко деградирует. Time-values никогда не идут через Lottie — это лейблы-пилюли.
+
+#### Реализация
+
+- `lottie-react` подгружается через `React.lazy()` — основной бандл остаётся ~83 KB gz, lottie-web (~82 KB gz) идёт отдельным chunk'ом и грузится только когда в комнате прилетит первая reaction.
+- JSON-файл фетчится один раз на эмоджи и кэшируется в module-level `lottieCache` (Map'е): второй и последующие флоатеры того же эмоджи рендерятся мгновенно. Browser HTTP cache страхует на refresh.
+- Размер контейнера 72×72 px зарезервирован до подгрузки JSON, чтобы лента флоатеров не дёргалась при первом запуске.
+
+Overlay над карточкой остаётся текстовым эмоджи — он маленький и эфемерный, Lottie там было бы избыточно.
 
 ### Lane allocation для floater'ов
 
@@ -351,7 +369,7 @@ Floater живёт `REACTION_FLOATER_MS = 3500ms`, overlay над карточк
 
 ### Throttle
 
-На клиенте не больше **1 reaction в секунду** (`REACTION_THROTTLE_MS = 1000`). Лишние клики молча игнорируются — никаких баннеров/ошибок.
+На клиенте не больше **1 реакции каждые 600 мс** (`REACTION_THROTTLE_MS = 600`). Лишние клики молча игнорируются — никаких баннеров/ошибок. Окно подобрано так, чтобы дать пользователю быстро «накидать» эмодзи в обсуждении, но не превратить экран в спам-парад.
 
 ### Mobile
 
