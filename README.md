@@ -27,6 +27,7 @@ Real-time инструмент для оценки задач agile-команд
 - Countdown перед reveal
 - Авто-реконнект через 30s grace-период; `player_id` сохраняется в `localStorage`
 - Передача роли фасилитатора, если он покинул комнату — или (issue #19) опциональное закрытие комнаты для всех вместо handoff'а через настройку «Close room when facilitator leaves»
+- Дружелюбные full-screen overlay'и для всех «room is no longer available» сценариев: истёкший таймер (⌛), закрытие фасилитатором (🚪, issue #19), кик участника (👋, issue #37), неверный URL (🔗) — везде кнопка «Back to home»
 - Авто-закрытие комнаты через 24h (timer expiration), full-screen уведомление для участников
 
 ## Запуск локально
@@ -129,7 +130,7 @@ frontend/src/
 | `joined` | После успешного подключения. `{ player_id }` |
 | `room_state` | После любой успешной операции, broadcast всем. `{ state, stats? }` (stats только после reveal/revote) |
 | `countdown` | Релей для анимации перед reveal |
-| `kicked` | Прилетает кикнутому игроку перед закрытием соединения |
+| `kicked` | Прилетает кикнутому игроку перед закрытием соединения. Фронт показывает overlay «You were removed from this room» (issue #37). |
 | `room_closed` | Комната закрыта фасилитатором — явно (`close_room`) или из-за `close_on_facilitator_leave` (issue #19). `{ reason: "creator_left" }`. |
 | `room_expired` | Истёк таймер комнаты, шлётся уже подключённым. `{ reason: "timer" }`. |
 | `room_inactive` | На свежий WS-connect: комната отсутствует или истекла. `{ reason: "not_found" \| "expired" }`. |

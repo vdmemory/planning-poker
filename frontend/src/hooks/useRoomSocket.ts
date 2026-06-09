@@ -20,12 +20,18 @@ interface UseRoomSocketResult {
   send: (msg: object) => void;
   error: string | null;
   countdown: number | null;
-  roomClosed: boolean;
   // Set when the room timer expired, the URL points at a stale/missing
-  // room, OR (issue #19) the facilitator closed/left a room configured
-  // with `close_on_facilitator_leave`. UI shows a "no longer active"
-  // overlay and does NOT reconnect.
-  roomInactive: "expired" | "not_found" | "closed" | null;
+  // room, (issue #19) the facilitator closed/left a room configured with
+  // `close_on_facilitator_leave`, OR (issue #37) the facilitator kicked
+  // this specific player. UI shows a "no longer active" overlay tuned to
+  // each reason and does NOT reconnect.
+  //
+  // Historical note: a `roomClosed` boolean used to live here that
+  // navigated home on `kicked` / `room_closed`. Both flows now route
+  // through `roomInactive` so the user always sees a "why" overlay
+  // first — issues #19 (closed) and #37 (kicked) collapsed both consumers
+  // into this single union.
+  roomInactive: "expired" | "not_found" | "closed" | "kicked" | null;
 }
 
 export function useRoomSocket({
@@ -41,8 +47,7 @@ export function useRoomSocket({
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
-  const [roomClosed, setRoomClosed] = useState(false);
-  const [roomInactive, setRoomInactive] = useState<"expired" | "not_found" | "closed" | null>(null);
+  const [roomInactive, setRoomInactive] = useState<"expired" | "not_found" | "closed" | "kicked" | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const onDrawMessageRef = useRef(onDrawMessage);
   useEffect(() => { onDrawMessageRef.current = onDrawMessage; });
@@ -105,9 +110,15 @@ export function useRoomSocket({
           }
         }, 1000);
       } else if (msg.type === "kicked") {
-        // Kicked players still navigate straight home — they don't need to
-        // see the "room closed" overlay.
-        setRoomClosed(true);
+        // Issue #37 — kicked players land on a dedicated overlay
+        // ("You were removed from this room") instead of silently bouncing
+        // home. Disabling reconnect here is critical: in production
+        // Cloudflare strips the 4003 close code to 1005, so without the
+        // typed `kicked` data frame the hook would auto-reconnect and the
+        // server's auto-join would happily re-add the player as a brand-new
+        // entry — defeating the kick.
+        shouldReconnectRef.current = false;
+        setRoomInactive("kicked");
       } else if (msg.type === "room_closed") {
         // Issue #19 — facilitator closed the room (explicit "close room" OR
         // creator-left auto-close). Show the inactive overlay so the user
@@ -157,8 +168,13 @@ export function useRoomSocket({
         return;
       }
       if (event.code === 4003) {
-        // Kicked by facilitator — navigate home, don't reconnect
-        setRoomClosed(true);
+        // Kicked by facilitator — issue #37 shows the "You were removed"
+        // overlay. The typed `kicked` data frame above usually fires
+        // first; this branch is a belt-and-braces fallback for the
+        // (local) TestClient case where the message handler hasn't run
+        // by the time the socket closes.
+        shouldReconnectRef.current = false;
+        setRoomInactive("kicked");
         return;
       }
       if (shouldReconnectRef.current) {
@@ -187,5 +203,5 @@ export function useRoomSocket({
     }
   }, []);
 
-  return { state, stats, myPlayerId, connected, send, error, countdown, roomClosed, roomInactive };
+  return { state, stats, myPlayerId, connected, send, error, countdown, roomInactive };
 }
