@@ -15,32 +15,38 @@ import { useState, useRef } from "react";
  * is silently dropped — kept tight so the float-up animation stays lively
  * without spamming peers.
  *
- * Emoji list is pinned to the animated MP4 assets in `public/reactions/` —
- * see `REACTION_EMOJI_VIDEO` below. Adding a new emoji means dropping an
- * MP4 in there AND adding a row to that map.
+ * Emoji list is pinned to the animated Lottie assets in
+ * `public/reactions-lottie/` — see `REACTION_EMOJI_LOTTIE` below. Adding a
+ * new emoji means dropping a `<codepoint>.json` (from Google Noto Animated
+ * Emoji) in there AND adding a row to that map.
  */
 
-// Codepoint hex (matches the MP4 filenames in public/reactions/) → emoji.
-// Kept in this order so the panel reads positive → neutral → negative.
-export const REACTION_EMOJIS = ["💖", "👍", "👏", "😂", "😮", "🤔", "😢", "👎"];
+// Codepoint hex (matches the JSON filenames in public/reactions-lottie/) → emoji.
+// Kept in this order so the panel reads positive → neutral → negative:
+//   love/approval → celebration/hype → laughter/surprise/think → sad/dislike
+export const REACTION_EMOJIS = ["💖", "👍", "👏", "🎉", "🔥", "😂", "😮", "🤔", "😢", "👎"];
 
-// Each emoji has a matching MP4 in `public/reactions/`. The mapping is
-// codepoint-based so a designer can swap assets without touching JSX.
-export const REACTION_EMOJI_VIDEO: Record<string, string> = {
-  "💖": "/reactions/1f496.mp4",
-  "👍": "/reactions/1f44d.mp4",
-  "👏": "/reactions/1f44f.mp4",
-  "😂": "/reactions/1f602.mp4",
-  "😮": "/reactions/1f62e.mp4",
-  "🤔": "/reactions/1f914.mp4",
-  "😢": "/reactions/1f622.mp4",
-  "👎": "/reactions/1f44e.mp4",
+// Each emoji has a matching Lottie JSON in `public/reactions-lottie/`,
+// sourced from Google's Noto Animated Emoji (Apache 2.0). Lottie was
+// chosen over MP4 because it ships with a real alpha channel, so the
+// floaters drop onto the dark theme without a white square around them.
+export const REACTION_EMOJI_LOTTIE: Record<string, string> = {
+  "💖": "/reactions-lottie/1f496.json",
+  "👍": "/reactions-lottie/1f44d.json",
+  "👏": "/reactions-lottie/1f44f.json",
+  "🎉": "/reactions-lottie/1f389.json",
+  "🔥": "/reactions-lottie/1f525.json",
+  "😂": "/reactions-lottie/1f602.json",
+  "😮": "/reactions-lottie/1f62e.json",
+  "🤔": "/reactions-lottie/1f914.json",
+  "😢": "/reactions-lottie/1f622.json",
+  "👎": "/reactions-lottie/1f44e.json",
 };
 
 // Time-value chips for the "capacity gut-check" mode. The list is the user's
-// chosen ladder — not strictly monotonic (1d sits before 12h on purpose, so
-// the most common "a day" chip is one tap away).
-export const REACTION_NUMBERS = ["1h", "2h", "3h", "5h", "1d", "12h", "2d", "3d"];
+// chosen ladder — not strictly monotonic past `6h`: `1d` sits before `12h`
+// on purpose, so the most common "a day" chip is one tap away.
+export const REACTION_NUMBERS = ["1h", "2h", "3h", "4h", "5h", "6h", "1d", "12h", "2d", "3d"];
 
 export type ReactionKind = "emoji" | "number";
 
