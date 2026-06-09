@@ -1,12 +1,13 @@
 name: Back-merge main → dev
 
-# After every push to `main` we merge `main` back into `dev`. Two reasons
-# in the new "feature → main directly" model:
-#   1. release-please bumps `package.json` + regenerates `CHANGELOG.md`
-#      directly on `main`. Without a back-merge `dev` keeps the old
-#      version forever and you get spurious diffs.
-#   2. Hotfixes that land directly on `main` (rare but possible) need to
-#      make it back into the staging mirror so dev preview reflects prod.
+# After every push to `main` we merge `main` back into `dev`. In the
+# "feature → main directly" model this catches the rare case of a direct
+# commit on main — manual hotfix, fixup, etc. — and makes sure it lands
+# in the staging mirror too.
+#
+# Most pushes to main come from feature PRs that were also already
+# mirrored into dev by sync-to-dev.yml; for those, back-merge is a no-op
+# because dev already contains the changes.
 #
 # The merge commit message starts with "Merge branch 'main'", which our
 # other workflows skip on. Clean loop, no recursion.
