@@ -1,14 +1,15 @@
 name: Back-merge main → dev
 
-# After every push to `main` (release PR merged, hotfix landed) we merge
-# `main` back into `dev`. Why? Branch protection on `main` requires the
-# source branch (`dev`) to be up to date — without this back-merge, the next
-# `dev → main` promote PR is blocked with `mergeable_state: behind`.
+# After every push to `main` we merge `main` back into `dev`. Two reasons
+# in the new "feature → main directly" model:
+#   1. release-please bumps `package.json` + regenerates `CHANGELOG.md`
+#      directly on `main`. Without a back-merge `dev` keeps the old
+#      version forever and you get spurious diffs.
+#   2. Hotfixes that land directly on `main` (rare but possible) need to
+#      make it back into the staging mirror so dev preview reflects prod.
 #
-# Push to dev happens with a merge-commit message that starts with
-# "Merge branch 'main'", which is exactly what `.github/workflows/auto-promote.yml`
-# checks for to skip on — so back-merges do NOT trigger a redundant auto-promote
-# PR. Clean loop.
+# The merge commit message starts with "Merge branch 'main'", which our
+# other workflows skip on. Clean loop, no recursion.
 on:
   push:
     branches: [main]

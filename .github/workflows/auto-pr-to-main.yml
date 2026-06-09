@@ -1,0 +1,95 @@
+name: Auto-open PR from feature branch → main
+
+# Every time a `feat/`/`fix/`/`chore/`/`refactor/`/`docs/` branch is pushed,
+# make sure there is an open PR from that branch into `main`. Replaces the
+# old "PR `dev` → `main`" model: the dev branch is now a staging mirror, not
+# a release accumulator, so features go straight into `main` one at a time.
+#
+# The PR title is the conventional-commit-ready branch name with the prefix
+# already in place (`feat: …` / `fix: …`). The developer is expected to edit
+# the title before merging if they want a different summary — release-please
+# uses the squash-merge commit message verbatim, and we use squash for
+# feature → main (see docs/RULES.md).
+on:
+  push:
+    branches:
+      - 'feat/**'
+      - 'fix/**'
+      - 'chore/**'
+      - 'refactor/**'
+      - 'docs/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+# One job per branch — multiple pushes to the same branch just no-op after
+# the first run (the PR is already open).
+concurrency:
+  group: auto-pr-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  open-pr:
+    if: github.event.deleted == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+
+      - name: Ensure PR ${{ github.ref_name }} → main exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          existing=$(gh pr list --head "$BRANCH" --base main --state open \
+                       --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            echo "PR #$existing already open for $BRANCH → main"
+            exit 0
+          fi
+
+          # Derive a conventional-commit-ready title from the branch prefix.
+          # Examples:
+          #   feat/issue-32-animated-reactions → "feat: issue-32-animated-reactions"
+          #   fix/login-redirect              → "fix: login-redirect"
+          # The author should edit the title for a clean changelog line, but
+          # this default is at least valid.
+          prefix="${BRANCH%%/*}"
+          rest="${BRANCH#*/}"
+          title="${prefix}: ${rest}"
+
+          # First-pass body: a checklist + auto-discovered linked issues.
+          # The developer can rewrite it freely; this just keeps the PR
+          # from showing the GitHub default "compare these branches" prompt.
+          body=$(cat <<'EOF'
+          Auto-created by the `auto-pr-to-main` workflow. Edit title/body before merging.
+
+          ## Summary
+
+          _Replace with a short user-facing description._
+
+          ## Test plan
+
+          - [ ] Backend pytest green
+          - [ ] Frontend build + Playwright e2e green
+          - [ ] Live smoke on dev URL (rule 0.7)
+
+          ## Notes for release-please
+
+          PR title becomes the squash-merge commit message — make sure it is a clean conventional-commit line (`feat: …`, `fix: …`, etc.) before merging into `main`.
+          EOF
+          )
+
+          gh pr create \
+            --repo "$REPO" \
+            --base main \
+            --head "$BRANCH" \
+            --title "$title" \
+            --body "$body"
