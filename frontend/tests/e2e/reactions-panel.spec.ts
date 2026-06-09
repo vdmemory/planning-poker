@@ -85,7 +85,7 @@ test("toggle to number mode shows time buttons (1h..3d)", async ({ page }) => {
   await expect(panel.locator("[data-reaction-value='👍']")).toHaveCount(0);
 });
 
-test("throttle: second click within 1s is dropped", async ({ page }) => {
+test("throttle: second click within 600ms is dropped", async ({ page }) => {
   await createRoom(page, "Throttle test", "Alice");
   const myCard = page.locator(
     "[data-testid='player-card']:visible[data-player-nickname='Alice']"
@@ -96,8 +96,55 @@ test("throttle: second click within 1s is dropped", async ({ page }) => {
   await expect(myCard.getByTestId("reaction-overlay")).toBeVisible({ timeout: 3000 });
 
   // Quickly click a different emoji — should be throttled, overlay stays 👍.
-  await panel.locator("[data-reaction-value='❤'], [data-reaction-value='💖']").first().click();
-  // Give the WS a beat to do nothing.
+  // The 200ms wait stays well inside the new 600ms throttle window, so the
+  // second click is still expected to be dropped.
+  await panel.locator("[data-reaction-value='💖']").first().click();
   await page.waitForTimeout(200);
   await expect(myCard.getByTestId("reaction-overlay")).toHaveAttribute("data-reaction-value", "👍");
+});
+
+test("emoji floater renders the animated MP4 from public/reactions/", async ({ page }) => {
+  // The follow-up to #32: floaters in the lower-left use an animated MP4
+  // sourced from `public/reactions/<codepoint>.mp4`. This test asserts the
+  // <video> element is in the DOM and pointing at the right file — content
+  // playback we trust to the browser, but the wiring (mapping codepoint →
+  // src) is exactly what we want to guard against accidental regressions.
+  await createRoom(page, "Animated floater", "Alice");
+  await page.getByTestId("reactions-panel").locator("[data-reaction-value='👍']").click();
+
+  const video = page.getByTestId("reaction-floater-video").first();
+  await expect(video).toBeVisible({ timeout: 3000 });
+  await expect(video).toHaveAttribute("src", "/reactions/1f44d.mp4");
+});
+
+test("number-mode floater stays as a chip (no video)", async ({ page }) => {
+  // Time-value reactions don't have an MP4 — they render as a labelled pill,
+  // both in the panel and in the floater. This guard makes sure we don't
+  // accidentally route them through REACTION_EMOJI_VIDEO down the line.
+  await createRoom(page, "Number floater", "Alice");
+  await page.getByTestId("reactions-mode-number").click();
+  await page.getByTestId("reactions-panel").locator("[data-reaction-value='1h']").click();
+
+  const floater = page.getByTestId("reaction-floater").first();
+  await expect(floater).toBeVisible({ timeout: 3000 });
+  await expect(floater).toHaveAttribute("data-reaction-kind", "number");
+  // No <video> inside.
+  await expect(floater.getByTestId("reaction-floater-video")).toHaveCount(0);
+});
+
+test("new time-value ladder shows 12h and replaces 4h/8h/16h", async ({ page }) => {
+  // The ladder changed from [1h 2h 4h 8h 16h 1d 2d 3d] to
+  // [1h 2h 3h 5h 1d 12h 2d 3d] — guards copy + ordering so a future
+  // refactor doesn't silently lose 12h or bring back the old ladder.
+  await createRoom(page, "Number ladder", "Alice");
+  const panel = page.getByTestId("reactions-panel");
+  await page.getByTestId("reactions-mode-number").click();
+
+  for (const v of ["1h", "2h", "3h", "5h", "1d", "12h", "2d", "3d"]) {
+    await expect(panel.locator(`[data-reaction-value='${v}']`)).toBeVisible();
+  }
+  // The retired values are gone.
+  for (const v of ["4h", "8h", "16h"]) {
+    await expect(panel.locator(`[data-reaction-value='${v}']`)).toHaveCount(0);
+  }
 });

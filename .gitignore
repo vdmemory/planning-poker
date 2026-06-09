@@ -49,3 +49,7 @@ tokens.env
 frontend/test-results/
 frontend/playwright-report/
 frontend/.playwright/
+
+# Workspace folder for raw reaction MP4 source files — not the repo's
+# copies (those live in frontend/public/reactions/).
+icons/
