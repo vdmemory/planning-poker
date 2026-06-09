@@ -2,8 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ─── Theme variables ──────────────────────────────────────────────────────── */
+/* ─── Theme variables (issue #42) ──────────────────────────────────────────────
 
+   Two orthogonal axes:
+     1. Mode  — light | dark | system. Drives neutrals.
+     2. Accent — 7 palettes (blue/green/red/purple/yellow/orange/teal).
+        Drives brand-coloured surfaces (primary buttons, focus rings,
+        on-card highlights). Independent of mode.
+
+   Both axes are persisted to localStorage and applied to <html> via the
+   `useTheme` / `useAccent` hooks. Mode toggles the `light` class; accent
+   sets `data-accent="…"`. A missing accent attribute defaults to blue.
+
+   Variable inventory:
+     --c-bg, --c-panel, --c-panel2, --c-border, --c-border-hi  → neutrals
+     --c-text, --c-muted, --c-dim                              → text tiers
+     --c-accent                 → primary brand colour (button bg)
+     --c-accent-hover           → hover/lighten variant
+     --c-accent-text            → accent colour as text on neutral bg
+     --c-accent-soft            → ~10–15% alpha bg for outline buttons
+     --c-accent-soft-hi         → ~25–40% alpha for borders/rings
+     --c-accent-fg              → text on accent bg — usually #fff, but
+                                  yellow drops to slate-900 for WCAG AA
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* ── Dark mode neutrals + Blue accent (defaults) ────────────────────────── */
 :root {
   --c-bg: #1a2332;
   --c-panel: #243447;
@@ -13,8 +36,74 @@
   --c-text: #ffffff;
   --c-muted: #94a3b8;
   --c-dim: #64748b;
+
+  /* Blue — dark */
+  --c-accent: #3b82f6;
+  --c-accent-hover: #60a5fa;
+  --c-accent-text: #60a5fa;
+  --c-accent-soft: rgba(59, 130, 246, 0.12);
+  --c-accent-soft-hi: rgba(59, 130, 246, 0.35);
+  --c-accent-fg: #ffffff;
 }
 
+/* Each accent overrides only the accent vars; neutrals stay from above.
+   The .light block re-asserts both neutrals AND accent overrides. */
+
+:root[data-accent="green"] {
+  --c-accent: #22c55e;
+  --c-accent-hover: #4ade80;
+  --c-accent-text: #4ade80;
+  --c-accent-soft: rgba(34, 197, 94, 0.13);
+  --c-accent-soft-hi: rgba(34, 197, 94, 0.35);
+  --c-accent-fg: #ffffff;
+}
+
+:root[data-accent="red"] {
+  --c-accent: #ef4444;
+  --c-accent-hover: #f87171;
+  --c-accent-text: #f87171;
+  --c-accent-soft: rgba(239, 68, 68, 0.13);
+  --c-accent-soft-hi: rgba(239, 68, 68, 0.35);
+  --c-accent-fg: #ffffff;
+}
+
+:root[data-accent="purple"] {
+  --c-accent: #8b5cf6;
+  --c-accent-hover: #a78bfa;
+  --c-accent-text: #a78bfa;
+  --c-accent-soft: rgba(139, 92, 246, 0.14);
+  --c-accent-soft-hi: rgba(139, 92, 246, 0.35);
+  --c-accent-fg: #ffffff;
+}
+
+:root[data-accent="yellow"] {
+  --c-accent: #eab308;
+  --c-accent-hover: #facc15;
+  --c-accent-text: #facc15;          /* readable on dark neutrals */
+  --c-accent-soft: rgba(234, 179, 8, 0.15);
+  --c-accent-soft-hi: rgba(234, 179, 8, 0.4);
+  --c-accent-fg: #0f172a;            /* white on yellow ~2:1 → use slate-900 */
+}
+
+:root[data-accent="orange"] {
+  --c-accent: #f97316;
+  --c-accent-hover: #fb923c;
+  --c-accent-text: #fb923c;
+  --c-accent-soft: rgba(249, 115, 22, 0.13);
+  --c-accent-soft-hi: rgba(249, 115, 22, 0.35);
+  --c-accent-fg: #ffffff;
+}
+
+:root[data-accent="teal"] {
+  --c-accent: #14b8a6;
+  --c-accent-hover: #2dd4bf;
+  --c-accent-text: #2dd4bf;
+  --c-accent-soft: rgba(20, 184, 166, 0.13);
+  --c-accent-soft-hi: rgba(20, 184, 166, 0.35);
+  --c-accent-fg: #ffffff;
+}
+
+/* ── Light mode neutrals + Blue accent (defaults under .light) ─────────── */
 html.light {
   --c-bg: #f0f4f8;
   --c-panel: #ffffff;
@@ -24,7 +113,71 @@ html.light {
   --c-text: #1e293b;
   --c-muted: #64748b;
   --c-dim: #94a3b8;
+
+  /* Blue — light (deeper for white-bg contrast) */
+  --c-accent: #2563eb;
+  --c-accent-hover: #1d4ed8;
+  --c-accent-text: #2563eb;
+  --c-accent-soft: rgba(37, 99, 235, 0.1);
+  --c-accent-soft-hi: rgba(37, 99, 235, 0.3);
+  --c-accent-fg: #ffffff;
 }
+
+html.light[data-accent="green"] {
+  --c-accent: #16a34a;
+  --c-accent-hover: #15803d;
+  --c-accent-text: #16a34a;
+  --c-accent-soft: rgba(22, 163, 74, 0.1);
+  --c-accent-soft-hi: rgba(22, 163, 74, 0.3);
+  --c-accent-fg: #ffffff;
+}
+
+html.light[data-accent="red"] {
+  --c-accent: #dc2626;
+  --c-accent-hover: #b91c1c;
+  --c-accent-text: #dc2626;
+  --c-accent-soft: rgba(220, 38, 38, 0.1);
+  --c-accent-soft-hi: rgba(220, 38, 38, 0.3);
+  --c-accent-fg: #ffffff;
+}
+
+html.light[data-accent="purple"] {
+  --c-accent: #7c3aed;
+  --c-accent-hover: #6d28d9;
+  --c-accent-text: #7c3aed;
+  --c-accent-soft: rgba(124, 58, 237, 0.1);
+  --c-accent-soft-hi: rgba(124, 58, 237, 0.3);
+  --c-accent-fg: #ffffff;
+}
+
+html.light[data-accent="yellow"] {
+  --c-accent: #ca8a04;                /* deeper yellow on white for contrast */
+  --c-accent-hover: #a16207;
+  --c-accent-text: #b45309;           /* readable on white (yellow-700) */
+  --c-accent-soft: rgba(234, 179, 8, 0.12);
+  --c-accent-soft-hi: rgba(234, 179, 8, 0.35);
+  --c-accent-fg: #ffffff;             /* white on #ca8a04 ≈ 4.5:1 — OK for bold */
+}
+
+html.light[data-accent="orange"] {
+  --c-accent: #ea580c;
+  --c-accent-hover: #c2410c;
+  --c-accent-text: #c2410c;
+  --c-accent-soft: rgba(234, 88, 12, 0.1);
+  --c-accent-soft-hi: rgba(234, 88, 12, 0.3);
+  --c-accent-fg: #ffffff;
+}
+
+html.light[data-accent="teal"] {
+  --c-accent: #0d9488;
+  --c-accent-hover: #0f766e;
+  --c-accent-text: #0d9488;
+  --c-accent-soft: rgba(13, 148, 136, 0.1);
+  --c-accent-soft-hi: rgba(13, 148, 136, 0.3);
+  --c-accent-fg: #ffffff;
+}
+
+/* ─── Base body styles ─────────────────────────────────────────────────────── */
 
 body {
   background-color: var(--c-bg);
@@ -33,27 +186,18 @@ body {
   transition: background-color 0.2s, color 0.2s;
 }
 
-/* ─── Light theme overrides ────────────────────────────────────────────────── */
+/* ─── Light-mode neutral text overrides ────────────────────────────────────
 
-/* White text → dark text in light mode */
-html.light .text-white {
-  color: var(--c-text);
-}
+   Tailwind's slate utilities aren't theme-aware; in light mode the
+   "subtle text" tiers need to flip from pale → muted slate so they stay
+   readable on white. Accent-related overrides are gone — accents now
+   read from `--c-accent-*` and just work in both modes.
+   ──────────────────────────────────────────────────────────────────────── */
 
-/* Preserve white text on colored action buttons */
-html.light .bg-blue-600 .text-white,
-html.light .bg-blue-600.text-white,
-html.light .bg-blue-500 .text-white,
-html.light .bg-blue-500.text-white,
-html.light .bg-blue-700 .text-white,
-html.light .bg-blue-700.text-white {
-  color: #ffffff;
-}
+html.light .text-white { color: var(--c-text); }
 
-/* Preserve white text on poker felt */
-html.light .poker-felt .text-white {
-  color: #ffffff;
-}
+/* Preserve white text on the poker felt — semantically a coloured surface. */
+html.light .poker-felt .text-white { color: #ffffff; }
 
 /* Slate text — darken for readability on white backgrounds */
 html.light .text-slate-200 { color: #334155; }
@@ -61,47 +205,29 @@ html.light .text-slate-300 { color: #475569; }
 html.light .text-slate-400 { color: #64748b; }
 html.light .text-slate-500 { color: #94a3b8; }
 
-/* Blue accents — darken for contrast on white */
-html.light .text-blue-400   { color: #2563eb; }
-html.light .text-blue-300   { color: #3b82f6; }
-html.light .hover\:text-blue-300:hover { color: #1d4ed8; }
-
-/* Subtle blue tints */
-html.light .bg-blue-600\/20         { background-color: rgba(37,99,235,0.1); }
-html.light .bg-blue-500\/10         { background-color: rgba(37,99,235,0.07); }
-html.light .hover\:bg-blue-500\/10:hover { background-color: rgba(37,99,235,0.12); }
-html.light .border-blue-600\/40     { border-color: rgba(37,99,235,0.35); }
-html.light .border-blue-500\/40     { border-color: rgba(37,99,235,0.35); }
-
-/* Semi-transparent text */
-html.light .text-white\/40          { color: rgba(30,41,59,0.35); }
+/* Semi-transparent white text → dark equivalent */
+html.light .text-white\/40 { color: rgba(30, 41, 59, 0.35); }
 
 /* Hover text */
-html.light .hover\:text-white:hover     { color: #0f172a; }
+html.light .hover\:text-white:hover { color: #0f172a; }
 html.light .hover\:text-slate-200:hover { color: #1e293b; }
 html.light .hover\:text-slate-300:hover { color: #334155; }
 
 /* Placeholder text */
 html.light .placeholder-slate-600::-moz-placeholder { color: #94a3b8; }
-html.light .placeholder-slate-600::placeholder       { color: #94a3b8; }
+html.light .placeholder-slate-600::placeholder { color: #94a3b8; }
 html.light .placeholder-slate-500::-moz-placeholder { color: #94a3b8; }
-html.light .placeholder-slate-500::placeholder       { color: #94a3b8; }
+html.light .placeholder-slate-500::placeholder { color: #94a3b8; }
 
-/* Input / select text color in light mode */
+/* Input / select text colour in light mode */
 html.light input,
 html.light select,
 html.light textarea {
   color: var(--c-text);
 }
 
-/* Divider lines */
-html.light .bg-blue-400\/70 { color: rgba(37,99,235,0.8); }
+/* ─── Reaction animations (issue #32) ──────────────────────────────────── */
 
-
-/* Issue #32 — Google Meet-style rising reaction animation. The floater is
-   anchored at bottom:0; the keyframes lift it up the screen and fade it out.
-   Component handles the per-instance lane position via inline style; this
-   class only controls the rise + fade timing. */
 @keyframes reaction-float-up {
   0%   { transform: translateY(0)      scale(0.85); opacity: 0; }
   10%  { transform: translateY(-20px)  scale(1.05); opacity: 1; }
@@ -111,7 +237,6 @@ html.light .bg-blue-400\/70 { color: rgba(37,99,235,0.8); }
   animation: reaction-float-up 3.5s ease-out forwards;
 }
 
-/* Card overlay — slight pop-in scale + small float. */
 @keyframes reaction-overlay-pop {
   0%   { transform: scale(0.5); opacity: 0; }
   20%  { transform: scale(1.1); opacity: 1; }
@@ -120,4 +245,3 @@ html.light .bg-blue-400\/70 { color: rgba(37,99,235,0.8); }
 .reactions-overlay-pop {
   animation: reaction-overlay-pop 280ms ease-out forwards;
 }
-

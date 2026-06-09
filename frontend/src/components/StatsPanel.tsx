@@ -31,7 +31,7 @@ export function StatsPanel({ stats }: Props) {
               <span className="font-mono w-8 font-semibold">{value}</span>
               <div className="flex-1 bg-slate-100 rounded-full h-5 relative overflow-hidden">
                 <div
-                  className="bg-blue-500 h-full rounded-full"
+                  className="bg-accent h-full rounded-full"
                   style={{ width: `${(count / total) * 100}%` }}
                 />
               </div>

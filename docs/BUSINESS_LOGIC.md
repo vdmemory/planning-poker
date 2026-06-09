@@ -410,3 +410,53 @@ Floater живёт `REACTION_FLOATER_MS = 3500ms`, overlay над карточк
 ```
 
 `stats` приходит отдельным полем рядом с `state` только в `room_state` после `reveal`/`revote`.
+
+## Темы и акценты (issue #42)
+
+Два независимых axis, оба фронтовые, оба персональные (никогда не шарятся через WS):
+
+| Axis | Значения | Что меняет | Куда пишется |
+|---|---|---|---|
+| **Mode** | `light` \| `dark` \| `system` | Нейтральные цвета: `--c-bg`, `--c-panel`, `--c-panel2`, `--c-border`, `--c-text`, `--c-muted` | `localStorage["pp:theme"]` + class `light` на `<html>` |
+| **Accent** | `blue` (default) \| `green` \| `red` \| `purple` \| `yellow` \| `orange` \| `teal` | Брендовые цвета: `--c-accent`, `--c-accent-hover`, `--c-accent-text`, `--c-accent-soft`, `--c-accent-soft-hi`, `--c-accent-fg` | `localStorage["pp:accent"]` + `data-accent="..."` на `<html>` |
+
+Под капотом — всё через CSS переменные. Mode переключает класс, accent — атрибут. Сменa любого из них **не вызывает React re-render** ничего, кроме самого ProfileMenu — каскад делает всё бесплатно.
+
+### Применение до первого рендера
+
+`main.tsx` читает оба значения из localStorage и проставляет class/attribute на `<html>` **до** монтирования React tree, чтобы избежать «flash of default theme». Невалидное значение (например подделанный localStorage) игнорируется — fallback к дефолту, не ломаемся.
+
+```ts
+// main.tsx (упрощённо)
+if (localStorage.getItem("pp:theme") === "light") html.classList.add("light");
+
+const accent = localStorage.getItem("pp:accent");
+if (accent && ALLOWED.has(accent)) html.setAttribute("data-accent", accent);
+// default "blue" leaves attribute off so `:root` selectors win
+```
+
+### Палитра по комбинациям
+
+Все 14 комбинаций (`light` × 7 + `dark` × 7) подобраны вручную в `frontend/src/index.css`:
+
+- На **dark** mode большинство акцентов берут палитру Tailwind ~`500` для primary и `400` для hover/text — лучше читаются на тёмном фоне.
+- На **light** mode те же палитры опускаются до `600/700` — для контраста с белыми панелями.
+- **Yellow** — спецслучай: white-on-yellow даёт контраст ~2:1 (fail WCAG AA). На **dark yellow** `--c-accent-fg` = `#0f172a` (slate-900) — кнопки получают тёмный текст. На **light yellow** primary опускается до `#ca8a04` (yellow-700), белый текст на нём ≈ 4.5:1 — bold ОК.
+- **Orange dark** — белый текст на `#f97316` ≈ 3:1, borderline для крупных кнопок. На light переходим к `#ea580c` где контраст лучше.
+
+### Маппинг переменных на компоненты
+
+| Переменная | Где используется |
+|---|---|
+| `--c-accent` (`bg-accent`, `border-accent`) | Primary кнопки (Create game, Save, Continue, Reveal), активные tab'ы, selected state карт голосования, focus border у inputs |
+| `--c-accent-hover` (`hover:bg-accent-hover`) | Hover на primary кнопках |
+| `--c-accent-text` (`text-accent`) | Brand-coloured text на neutral bg: «host» badge у фасилитатора, ссылки, мелкие checkmark-иконки, hover на edit-name кнопках |
+| `--c-accent-soft` (`bg-accent-soft`) | ~10–15% alpha — outline кнопки (Invite players), badge'и активного issue |
+| `--c-accent-soft-hi` (`bg-accent-soft-hi`) | ~25–40% alpha — borders, ring у focus, shadow voting card'а при выборе |
+| `--c-accent-fg` (`text-accent-fg`) | Текст НА accent bg — обычно белый, для yellow tema переключается на slate-900 |
+
+### Что НЕ accent
+
+- Семантические цвета (kick = red, success = green, warning = yellow, drawing цвета) остаются Tailwind-классами `red-500`, `yellow-500` и т.д. — они не меняются при смене акцента, потому что означают **смысл**, а не **бренд**.
+- Avatar colors игрока (8 вариантов) — независимы, выбираются в ProfileMenu отдельной полоской.
+- Poker felt (зелёный) — semantic, всегда зелёный.
