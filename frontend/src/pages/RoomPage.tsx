@@ -1174,7 +1174,10 @@ function PlayerCard({
                 className={`reactions-overlay-pop ${
                   reaction.kind === "emoji"
                     ? "inline-flex items-center justify-center w-10 h-10 text-3xl leading-none"
-                    : "text-xs font-bold bg-accent text-accent-fg rounded-full px-2.5 py-0.5 shadow-md ring-1 ring-white/30 whitespace-nowrap"
+                    // Square box + rounded-full = perfect circle, even
+                    // for the widest chip (`12h`). text-[11px] keeps the
+                    // label inside the 40px circle without truncation.
+                    : "inline-flex items-center justify-center w-10 h-10 rounded-full bg-accent text-accent-fg text-[11px] font-bold shadow-md ring-1 ring-white/30"
                 }`}
               >
                 {reaction.value}
