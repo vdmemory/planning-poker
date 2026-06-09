@@ -1163,14 +1163,14 @@ function PlayerCard({
               data-testid="reaction-overlay"
               data-reaction-value={reaction.value}
               data-reaction-kind={reaction.kind}
-              // Both kinds share the same -top-7 anchor right at the card
-              // edge — user preference to keep the position consistent
-              // regardless of reaction kind. Number pill uses the current
-              // accent so it reads as part of the palette (#42).
-              className={`absolute -top-7 left-1/2 -translate-x-1/2 pointer-events-none reactions-overlay-pop ${
+              // Emoji glyph stays centred over the card; number pill
+              // hugs the right edge so it doesn't sit on top of the
+              // centred name pill above the card. Both keep -top-7 so
+              // the vertical anchor reads the same.
+              className={`absolute -top-7 pointer-events-none reactions-overlay-pop ${
                 reaction.kind === "emoji"
-                  ? "text-3xl"
-                  : "text-xs font-bold bg-accent text-accent-fg rounded-full px-2.5 py-0.5 shadow-md ring-1 ring-white/30 whitespace-nowrap"
+                  ? "left-1/2 -translate-x-1/2 text-3xl"
+                  : "-right-8 text-xs font-bold bg-accent text-accent-fg rounded-full px-2.5 py-0.5 shadow-md ring-1 ring-white/30 whitespace-nowrap"
               }`}
             >
               {reaction.value}
