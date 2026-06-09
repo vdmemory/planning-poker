@@ -168,7 +168,7 @@ function Room({
   // manager. Used for the on-card overlay AND the rising floaters.
   const { cardReactions, floaters, handleReactionMessage } = useReactionAnimations();
 
-  const { state, stats, myPlayerId, connected, send, error, countdown, roomClosed, roomInactive } = useRoomSocket({
+  const { state, stats, myPlayerId, connected, send, error, countdown, roomInactive } = useRoomSocket({
     roomId,
     playerId: storedPlayerId,
     nickname,
@@ -213,11 +213,6 @@ function Room({
       navigate("/");
     }
   }
-
-  // Navigate everyone home when room is closed
-  useEffect(() => {
-    if (roomClosed) navigate("/");
-  }, [roomClosed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ESC exits drawing mode
   useEffect(() => {
@@ -318,10 +313,10 @@ function Room({
     return <RoomErrorScreen error={error} />;
   }
 
-  // Room expired (timer), never existed at this URL, OR (issue #19) was
-  // closed by the facilitator while we were connected. useRoomSocket has
-  // already disabled reconnect for all three, so we just render the dead
-  // end with a way back home.
+  // Room expired (timer), never existed at this URL, was closed by the
+  // facilitator (#19), OR (issue #37) the facilitator kicked this specific
+  // player. useRoomSocket has already disabled reconnect for all four, so
+  // we just render the dead end with a way back home.
   if (roomInactive) {
     const copy = (() => {
       if (roomInactive === "expired") {
@@ -336,6 +331,15 @@ function Room({
           icon: "🚪",
           title: "The room was closed by the creator",
           body: "The facilitator ended the session, so the room is no longer available. Start a new one to keep planning.",
+        };
+      }
+      if (roomInactive === "kicked") {
+        // Issue #37 — distinct copy from "closed": the room is still alive
+        // for everyone else, but it's no longer available to *this* user.
+        return {
+          icon: "👋",
+          title: "You were removed from this room",
+          body: "The facilitator removed you from this session. You can start a new game to keep planning.",
         };
       }
       return {
