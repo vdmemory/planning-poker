@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { preloadAllReactionLottie } from "./reaction-lottie-cache";
 
 /**
  * Issue #32 — Google Meet-style quick reactions panel.
@@ -60,6 +61,17 @@ export function ReactionsPanel({ onReact }: Props) {
   const [mode, setMode] = useState<ReactionKind>("emoji");
   const [mobileOpen, setMobileOpen] = useState(false);
   const lastReactAtRef = useRef(0);
+
+  // Issue #43 — warm both the lottie-react chunk and every Lottie JSON
+  // file the moment the panel mounts (i.e. the user enters a room).
+  // First-click latency drops to ~0: by the time someone clicks an emoji
+  // both the player code and its animation data are already in memory.
+  // Done once per mount; the cache + chunk are module-level so re-mounting
+  // (e.g. when navigating between rooms) is a no-op.
+  useEffect(() => {
+    void import("lottie-react");
+    void preloadAllReactionLottie();
+  }, []);
 
   const fire = (value: string) => {
     const now = Date.now();

@@ -103,6 +103,28 @@ test("throttle: second click within 600ms is dropped", async ({ page }) => {
   await expect(myCard.getByTestId("reaction-overlay")).toHaveAttribute("data-reaction-value", "👍");
 });
 
+test("Lottie JSON is preloaded when the reactions panel mounts (issue #43)", async ({ page }) => {
+  // The panel kicks off `preloadAllReactionLottie()` from a useEffect on
+  // mount, so by the time the user can click a reaction every JSON file
+  // is already in flight. We assert this by listening for network requests
+  // matching the /reactions-lottie/ path BEFORE any click — if the old
+  // lazy-on-click behaviour came back, the count would stay at zero.
+  const lottieRequests: string[] = [];
+  page.on("request", (req) => {
+    const url = req.url();
+    if (url.includes("/reactions-lottie/")) lottieRequests.push(url);
+  });
+
+  await createRoom(page, "Lottie preload", "Alice");
+  await expect(page.getByTestId("reactions-panel")).toBeVisible();
+  // Let the network settle so every preload fetch lands before we count.
+  await page.waitForLoadState("networkidle", { timeout: 5_000 });
+
+  // All 10 JSON files should have been requested without any reaction click.
+  const unique = new Set(lottieRequests.map((u) => u.split("?")[0]));
+  expect(unique.size).toBeGreaterThanOrEqual(10);
+});
+
 test("emoji floater renders the Lottie animation from public/reactions-lottie/", async ({ page }) => {
   // Follow-up to #32: floaters in the lower-left now use a Lottie animation
   // sourced from `public/reactions-lottie/<codepoint>.json` (Google Noto
