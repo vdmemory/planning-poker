@@ -1,0 +1,112 @@
+name: Mirror feature branch → dev
+
+# After every push to a `feat/`/`fix/`/`chore/`/`refactor/`/`docs/`
+# branch, fast-forward (or merge) the branch into `dev`. `dev` is now a
+# staging mirror — anything you push to a feature branch is immediately
+# deployed via the dev backend on Render and the `git-dev` Vercel alias,
+# so you get a preview without needing a separate PR into dev.
+#
+# The companion `auto-pr-to-main.yml` workflow ensures a PR into `main`
+# is open for every feature branch.
+#
+# Conflict policy: if the merge can't proceed cleanly, the workflow fails.
+# The expected fix is for the developer to rebase their branch on top of a
+# fresh `dev`, push again, and let the workflow retry. We don't auto-resolve
+# because both -X ours and -X theirs are equally wrong half the time.
+on:
+  push:
+    branches:
+      - 'feat/**'
+      - 'fix/**'
+      - 'chore/**'
+      - 'refactor/**'
+      - 'docs/**'
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+# Serialize per-branch so two quick pushes don't race each other into `dev`.
+concurrency:
+  group: sync-to-dev-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    # Skip when the branch is being deleted (push event has `deleted=true`).
+    if: github.event.deleted == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch feature branch
+        run: git fetch origin "${{ github.ref_name }}"
+
+      - name: Merge feature into dev
+        id: merge
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          # No-op if dev already contains the feature branch's HEAD —
+          # that happens when the same SHA was pushed twice (e.g. after a
+          # `--force-with-lease` retag) or when the developer landed the
+          # branch via PR before us. Avoids creating empty merge commits.
+          if git merge-base --is-ancestor "origin/${BRANCH}" HEAD; then
+            echo "dev already contains ${BRANCH} — nothing to do"
+            echo "result=noop" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # --no-ff so the staging mirror shows an explicit merge commit
+          # per feature push (helps when scanning `git log dev` to see
+          # what's in staging vs. what's already on main).
+          if git merge --no-ff "origin/${BRANCH}" \
+              -m "Mirror ${BRANCH} → dev (staging)"; then
+            git push origin dev
+            echo "✓ Mirrored ${BRANCH} → dev"
+            echo "result=ok" >> "$GITHUB_OUTPUT"
+          else
+            git merge --abort
+            echo "✗ Conflict merging ${BRANCH} into dev"
+            echo "result=conflict" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+      - name: Comment on the PR if the mirror conflicted
+        if: failure() && steps.merge.outputs.result == 'conflict'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          PR=$(gh pr list --head "$BRANCH" --base main --state open \
+                 --json number --jq '.[0].number // empty')
+          if [ -z "$PR" ]; then
+            echo "No open PR yet — auto-pr-to-main.yml will create one shortly"
+            exit 0
+          fi
+          gh pr comment "$PR" --body "$(cat <<EOF
+          ⚠️ **Mirror to \`dev\` failed — conflict.**
+
+          The Sync-to-dev workflow couldn't fast-forward / merge \`$BRANCH\` into \`dev\`. \`dev\` carries another feature that touches the same code. To unblock the staging preview:
+
+          \`\`\`bash
+          git fetch origin
+          git rebase origin/dev   # or merge, whichever fits
+          # resolve conflicts, run tests
+          git push --force-with-lease
+          \`\`\`
+
+          The workflow retries automatically on the next push to this branch.
+          EOF
+          )" || true

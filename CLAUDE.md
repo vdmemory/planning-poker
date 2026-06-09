@@ -56,14 +56,19 @@ CI runs both layers on every push to `main`/`dev` and on PRs — `.github/workfl
 
 ## Releases
 
-Three-layer automation:
-1. **Auto-promote** (`.github/workflows/auto-promote.yml`) — on every push to `dev`, ensures a PR `dev → main` is open. The PR auto-updates as more features land. Never need to manually open the "promote" PR.
-2. **Release-please** (`.github/workflows/release-please.yml`) — on every push to `main`, opens a release PR with `CHANGELOG.md` regenerated from Conventional Commits and the version bumped in `frontend/package.json`. Merging that PR tags `v0.X.Y` and creates a GitHub Release.
-3. **Back-merge** (`.github/workflows/back-merge.yml`) — on every push to `main`, merges `main` back into `dev` so the next `dev → main` PR isn't blocked by `mergeable_state: behind` (branch protection on main is `strict: true`).
+The flow is "feature branch goes straight to `main`; `dev` is a staging mirror":
 
-Merge methods: **feature → dev = squash**, **dev → main = merge commit** (preserves individual `feat:`/`fix:` for release-please). See `docs/RELEASES.md` for the full flow and `docs/RULES.md` rule 2 for the merge-method rationale.
+1. Developer pushes a `feat/…` / `fix/…` / `chore/…` / `refactor/…` / `docs/…` branch.
+2. **Sync-to-dev** (`.github/workflows/sync-to-dev.yml`) merges the branch into `dev` so the dev backend on Render + the `git-dev` Vercel alias auto-deploy a preview.
+3. **Auto-PR-to-main** (`.github/workflows/auto-pr-to-main.yml`) opens (or reuses) a PR from that same branch into `main`. Title defaults to `<prefix>: <rest-of-branch>` — edit it to a clean Conventional Commit line before merging because release-please reads the squash-merge message.
+4. **Release-please** (`.github/workflows/release-please.yml`) — on every push to `main`, opens a release PR with `CHANGELOG.md` regenerated from Conventional Commits and the version bumped in `frontend/package.json`. Merging that PR tags `v0.X.Y` and creates a GitHub Release.
+5. **Back-merge** (`.github/workflows/back-merge.yml`) — on every push to `main`, merges `main` back into `dev` so the version bump + CHANGELOG land in the staging mirror too. Hotfixes that land directly on `main` also propagate this way.
 
-Branch protection: both `main` and `dev` have `allow_deletions: false` and `allow_force_pushes: false`. `main` additionally requires the two CI jobs to be green and the source branch to be up to date. `dev` is intentionally softer — no required checks — so the back-merge bot push isn't blocked. See `docs/RULES.md` rule 20 for the full setting list.
+Merge method: **feature → main = squash** (the PR title becomes the single Conventional Commit on `main`). `dev` only accumulates merge commits from the sync workflow — never merge anything into `dev` manually. There is no `dev → main` PR anymore (the old auto-promote workflow is removed).
+
+Branch protection: both `main` and `dev` have `allow_deletions: false` and `allow_force_pushes: false`. `main` additionally requires the two CI jobs to be green; the "branch up to date" requirement is **off** because feature branches deliberately fan out from various base points and we want squash-merge to handle the reconciliation. `dev` is intentionally softer — no required checks — so the sync-to-dev and back-merge bot pushes aren't blocked. See `docs/RULES.md` rule 20 for the full setting list.
+
+See `docs/RELEASES.md` for the full flow and `docs/RULES.md` rule 2 for the merge-method rationale.
 
 ## Architecture
 
