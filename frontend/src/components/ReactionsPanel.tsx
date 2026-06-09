@@ -142,7 +142,7 @@ function ModeToggle({ mode, setMode, centered = false }: {
         data-testid="reactions-mode-emoji"
         onClick={() => setMode("emoji")}
         className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${
-          mode === "emoji" ? "bg-accent text-accent-fg" : "text-slate-300 hover:text-accent-fg"
+          mode === "emoji" ? "bg-accent text-accent-fg" : "text-[var(--c-muted)] hover:text-[var(--c-text)]"
         }`}
       >
         😀
@@ -177,7 +177,14 @@ function ReactionButton({
       title={label}
       onClick={onClick}
       className={`${size} flex items-center justify-center rounded-full transition-transform hover:scale-110 active:scale-95 ${
-        isEmoji ? "" : "text-slate-100 text-sm font-semibold bg-[var(--c-panel)]"
+        isEmoji
+          ? ""
+          // Number chips need an explicit fg + border because the parent
+          // container is `bg-[var(--c-panel2)]` and on light theme that
+          // matches `bg-[var(--c-panel)]` (white-on-white otherwise).
+          // hover:bg-accent-soft tints the chip on hover with the user's
+          // current accent so the picker feels live.
+          : "text-sm font-semibold bg-[var(--c-panel)] text-[var(--c-text)] border border-[var(--c-border)] hover:border-accent hover:bg-accent-soft"
       }`}
     >
       {value}
