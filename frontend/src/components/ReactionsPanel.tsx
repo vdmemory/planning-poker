@@ -11,16 +11,40 @@ import { useState, useRef } from "react";
  * The panel lives in the room header on desktop (visible inline). On mobile
  * it collapses into a single button that opens a bottom-sheet drawer.
  *
- * Throttling: at most one reaction per second per client. Anything faster is
- * silently dropped — kept simple to avoid UI annoyance.
+ * Throttling: at most one reaction every 600 ms per client. Anything faster
+ * is silently dropped — kept tight so the float-up animation stays lively
+ * without spamming peers.
+ *
+ * Emoji list is pinned to the animated MP4 assets in `public/reactions/` —
+ * see `REACTION_EMOJI_VIDEO` below. Adding a new emoji means dropping an
+ * MP4 in there AND adding a row to that map.
  */
 
-export const REACTION_EMOJIS = ["💖", "👍", "🎉", "👏", "😂", "😮", "😢", "🤔", "👎"];
-export const REACTION_NUMBERS = ["1h", "2h", "4h", "8h", "16h", "1d", "2d", "3d"];
+// Codepoint hex (matches the MP4 filenames in public/reactions/) → emoji.
+// Kept in this order so the panel reads positive → neutral → negative.
+export const REACTION_EMOJIS = ["💖", "👍", "👏", "😂", "😮", "🤔", "😢", "👎"];
+
+// Each emoji has a matching MP4 in `public/reactions/`. The mapping is
+// codepoint-based so a designer can swap assets without touching JSX.
+export const REACTION_EMOJI_VIDEO: Record<string, string> = {
+  "💖": "/reactions/1f496.mp4",
+  "👍": "/reactions/1f44d.mp4",
+  "👏": "/reactions/1f44f.mp4",
+  "😂": "/reactions/1f602.mp4",
+  "😮": "/reactions/1f62e.mp4",
+  "🤔": "/reactions/1f914.mp4",
+  "😢": "/reactions/1f622.mp4",
+  "👎": "/reactions/1f44e.mp4",
+};
+
+// Time-value chips for the "capacity gut-check" mode. The list is the user's
+// chosen ladder — not strictly monotonic (1d sits before 12h on purpose, so
+// the most common "a day" chip is one tap away).
+export const REACTION_NUMBERS = ["1h", "2h", "3h", "5h", "1d", "12h", "2d", "3d"];
 
 export type ReactionKind = "emoji" | "number";
 
-const THROTTLE_MS = 1000;
+const THROTTLE_MS = 600;
 
 interface Props {
   onReact: (kind: ReactionKind, value: string) => void;

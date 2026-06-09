@@ -22,7 +22,7 @@ Real-time инструмент для оценки задач agile-команд
 - Кастомные цвета аватара и рубашка карты
 - Kick игрока фасилитатором, закрытие комнаты
 - Drawing: рисование на экране и live-курсоры; штрихи автоматически исчезают через 5s (Slack-style)
-- Quick reactions: эмодзи + time-values (1h-3d) с pop-overlay над карточкой и Google Meet-style анимацией подъёма
+- Quick reactions: 8 анимированных эмодзи (MP4-флоатеры) + time-values (1h..3d с 12h) с pop-overlay над карточкой и Google Meet-style анимацией подъёма; throttle 600ms
 - ConfirmModal для деструктивных действий (delete issue, close room, kick player) с ESC и backdrop-cancel
 - Countdown перед reveal
 - Авто-реконнект через 30s grace-период; `player_id` сохраняется в `localStorage`
