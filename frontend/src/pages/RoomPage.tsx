@@ -1163,14 +1163,14 @@ function PlayerCard({
               data-testid="reaction-overlay"
               data-reaction-value={reaction.value}
               data-reaction-kind={reaction.kind}
-              // Emoji glyph stays centred over the card; number pill
-              // hugs the right edge so it doesn't sit on top of the
-              // centred name pill above the card. Both keep -top-7 so
-              // the vertical anchor reads the same.
-              className={`absolute -top-7 pointer-events-none reactions-overlay-pop ${
+              // Emoji glyph stays centred above the card; number pill
+              // sits to the right of the card, vertically centred against
+              // the card itself (not the name pill above) — keeps it
+              // away from the centred name pill entirely.
+              className={`absolute pointer-events-none reactions-overlay-pop ${
                 reaction.kind === "emoji"
-                  ? "left-1/2 -translate-x-1/2 text-3xl"
-                  : "-right-8 text-xs font-bold bg-accent text-accent-fg rounded-full px-2.5 py-0.5 shadow-md ring-1 ring-white/30 whitespace-nowrap"
+                  ? "-top-7 left-1/2 -translate-x-1/2 text-3xl"
+                  : "top-1/2 -translate-y-1/2 left-full ml-1 text-xs font-bold bg-accent text-accent-fg rounded-full px-2.5 py-0.5 shadow-md ring-1 ring-white/30 whitespace-nowrap"
               }`}
             >
               {reaction.value}
