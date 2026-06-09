@@ -25,10 +25,10 @@
    - `frontend/.env.example` / любые конфиги — если изменилось поведение env vars
 5. Тесты — это тоже документация: новое бизнес-правило → e2e/pytest в том же PR (правило 13).
 6. Эта проверка применяется **к каждому** PR, даже к самым маленьким. Никакого «потом задокументирую».
-7. **После merge feature PR в `dev` — обязательно открыть dev-URL и проверить что фича работает в живую.** Зелёные локальные тесты не гарантируют что фича выживет в проде: разница между dev-окружением и production-стеком есть всегда. Пример из практики: PR #25 (room expiration) проходил все 106 pytest + 7 Playwright локально, но в проде упирался в Cloudflare Render'а — strip'ал custom WS close-коды (4004/4005 → 1005), пользователь видел «Connecting…» вместо overlay. Bug всплыл когда пользователь зашёл по живой ссылке, а не я после merge'а. Контракт:
-   - feature → dev merged → жди ~3-5 мин (Render rebuild + Vercel rebuild)
+7. **После push feature ветки (sync-to-dev отработал) — обязательно открыть dev-URL и проверить что фича работает в живую перед мерджем PR в `main`.** Зелёные локальные тесты не гарантируют что фича выживет в проде: разница между dev-окружением и production-стеком есть всегда. Пример из практики: PR #25 (room expiration) проходил все 106 pytest + 7 Playwright локально, но в проде упирался в Cloudflare Render'а — strip'ал custom WS close-коды (4004/4005 → 1005), пользователь видел «Connecting…» вместо overlay. Bug всплыл когда пользователь зашёл по живой ссылке, а не я после merge'а. Контракт:
+   - push feature ветки → жди ~3-5 мин (Render dev-бэк rebuild + Vercel git-dev alias rebuild — это `sync-to-dev` отрабатывает мгновенно, дальше уже сами платформы)
    - Открой `https://frontend-git-dev-vadims-projects-2f476800.vercel.app/...` и пройди главный happy-path фичи
-   - Если что-то ломается в проде но работает локально — высока вероятность отличия инфры (CDN, proxy, env vars, cold start). Открыть follow-up issue, починить fix-PR'ом перед промоушеном в main.
+   - Если что-то ломается в проде но работает локально — высока вероятность отличия инфры (CDN, proxy, env vars, cold start). Открыть follow-up issue, починить fix-PR'ом ДО мерджа feature → main.
 
 **Если откладываешь doc-update или live smoke-test — это считается неполной задачей**, и нужно сразу создать follow-up issue с label `docs-debt`.
 
@@ -38,14 +38,15 @@
    - Допустимо: создать ветку → запушить → открыть PR → дождаться review.
    - Недопустимо: `git push origin main` без отдельного согласования в этой сессии.
 
-2. **Базовая ветка для новой работы — `dev`. Двухступенчатый flow.**
-   - Новые фичи / правки ответвлять от `dev`: `git checkout -b feat/<short-name> dev`.
-   - Merge: feature → `dev` → ревью → `dev` → `main` (с разрешения).
-   - **PR `dev → main` создаётся автоматически** workflow'ом `.github/workflows/auto-promote.yml` после каждого push в `dev`. Если PR уже открыт — он сам подтянет новые коммиты. Если закрыт — workflow откроет новый.
-   - **Merge methods (важно):**
-     - `feature → dev`: **Squash and merge**. Один PR = один conventional-commit в истории `dev` (`feat: ...`, `fix: ...`). Title squash-коммита = title PR (поэтому title PR — это и есть твой conventional commit).
-     - `dev → main`: **Create a merge commit** (НЕ squash). Squash здесь сольёт все 5 feat: коммитов в один title PR — и release-please увидит только title (если он не conventional — пропустит всё). Merge commit сохраняет индивидуальные `feat:` коммиты, release-please их корректно разнесёт по секциям CHANGELOG.
+2. **Feature ветка идёт напрямую в `main`. `dev` — staging-зеркало, не отдельная стадия PR.**
+   - Новые фичи / правки ответвлять от `main` (или `dev` — оба валидны, sync workflow всё равно подровняет): `git checkout -b feat/<short-name> main`.
+   - **Push ветки → автоматически случаются ДВЕ вещи:**
+     - `.github/workflows/sync-to-dev.yml` мерджит ветку в `dev` → срабатывают деплои dev-бэка на Render + `git-dev` Vercel-алиаса. Это твой preview.
+     - `.github/workflows/auto-pr-to-main.yml` открывает PR `feat/<...>  → main` (или no-op'ит если уже открыт). Title по дефолту `<prefix>: <rest>`, отредактируй до чистого conventional-commit'а перед мерджем.
+   - **Merge method**: `feature → main` всегда **Squash and merge**. Title PR становится единым conventional-коммитом на `main` — release-please его читает напрямую. Никогда не мерджить feature ветку в `dev` вручную — sync workflow это уже сделал.
+   - PR `dev → main` больше **нет** в флоу (старый `auto-promote.yml` удалён). Не открывай его руками.
    - Feature ветки авто-удаляются после merge (`delete_branch_on_merge=true`).
+   - Если ветка отстала и `sync-to-dev` упал на конфликте — `git fetch && git rebase origin/dev && git push --force-with-lease` (на feature ветке force-with-lease допустим, на `dev`/`main` — нет).
 
 3. **Коммиты — на английском, по [Conventional Commits](https://www.conventionalcommits.org/).**
     Это требование от release-please (`docs/RELEASES.md`).
@@ -141,13 +142,13 @@
 
     **`main` (strict gate перед prod):**
     - **Required status checks**: `Backend pytest` + `Frontend Playwright e2e` — оба должны быть зелёными.
-    - **Strict** (require branches to be up to date): нельзя мержить, если source отстаёт от `main`.
+    - **Strict** (require branches to be up to date): **выключено**. В новом флоу feature ветки расходятся с `main` независимо (sync-to-dev мерджит их в `dev` параллельно), и заставлять каждую делать rebase на свежий `main` сломает поток. Squash-merge сам справится с reconciliation.
     - No force pushes, no deletion.
     - `enforce_admins=false` — ты как админ можешь обойти в экстренной ситуации (исключение, не правило).
 
     **`dev` (softer floor — protect against the catastrophic):**
-    - No force pushes, no deletion. Это главное: без него `delete_branch_on_merge=true` снесёт ветку после dev→main merge (так и случилось в первой итерации — пришлось пересоздавать dev из main).
-    - **НЕ требуем** status checks и PR на push — back-merge workflow пушит напрямую от `github-actions[bot]`, мы не хотим его блокировать. Дисциплина feature → dev через PR держится самостоятельно.
+    - No force pushes, no deletion. Это главное: без него force-push какого-нибудь sync workflow'а может снести историю.
+    - **НЕ требуем** status checks и PR на push — `sync-to-dev` и `back-merge` пушат напрямую от `github-actions[bot]`, мы не хотим их блокировать. Дисциплина «feature → main только через PR» держится branch protection'ом самого `main`.
 
     Изменить — через PUT `/repos/vdmemory/planning-poker/branches/{main|dev}/protection` или в `Settings → Branches` в UI.
 
@@ -161,10 +162,17 @@
 
 22. **Back-merge main → dev после релиза.** Workflow `.github/workflows/back-merge.yml` стартует на каждый push в `main`:
     - Если `dev` уже содержит `main`'s HEAD — exit (nothing to do).
-    - Иначе делает `git merge --no-ff origin/main` с сообщением `Merge branch 'main' into dev (back-merge after release)` (этот префикс auto-promote.yml skips, чтобы не создавать дублирующий promote PR).
-    - Если merge clean → push в `dev`. Следующий `dev → main` PR разблокирован.
+    - Иначе делает `git merge --no-ff origin/main` с сообщением `Merge branch 'main' into dev (back-merge after release)`.
+    - Если merge clean → push в `dev`. Версия `package.json` + CHANGELOG.md из release-please bump'а попадают в staging-зеркало.
     - Если конфликт → открывает issue с label `tech-debt` и рецептом ручного резолва.
-    - Без этого workflow следующий `dev → main` PR блокировался бы на `mergeable_state: behind` из-за `strict: true` в branch protection.
+    - В новом флоу (с issue #X, sync-to-dev) роль back-merge сузилась: больше не разблокирует «dev → main» PR (его нет), а только держит `dev`'s версию и CHANGELOG в синке с `main` после release-please / hotfix'ов.
+
+23. **Sync-to-dev на каждый push feature ветки.** Workflow `.github/workflows/sync-to-dev.yml` слушает push в `feat/**`, `fix/**`, `chore/**`, `refactor/**`, `docs/**`:
+    - Если `dev` уже содержит ветку → no-op.
+    - Иначе `git merge --no-ff origin/<branch>` с сообщением `Mirror <branch> → dev (staging)` → push в `dev`.
+    - Если конфликт → fail + comment в открытом PR с recipe-кой `git rebase origin/dev`.
+    - Параллельно `auto-pr-to-main.yml` открывает PR `<branch> → main` (если ещё не открыт). Title по дефолту `<prefix>: <rest>` — отредактируй до чистого conventional commit'а перед мерджем (release-please его прочитает дословно).
+    - Не открывай PR feature → dev руками. Sync workflow это уже делает.
 
 14. **`CLAUDE.md` — для агента.**
     - Туда идут инструкции по работе с кодом и деплоем для Claude Code.
