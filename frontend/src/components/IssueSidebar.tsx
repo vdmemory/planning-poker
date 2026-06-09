@@ -175,7 +175,7 @@ export function IssueSidebar({ state, canManageIssues, myPlayerId, send, onClose
           {adding ? (
             <>
               <input
-                className="w-full bg-[var(--c-bg)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 mb-2 focus:outline-none focus:border-blue-500"
+                className="w-full bg-[var(--c-bg)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 mb-2 focus:outline-none focus:border-accent"
                 value={addTitle}
                 onChange={(e) => setAddTitle(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && addIssue()}
@@ -192,7 +192,7 @@ export function IssueSidebar({ state, canManageIssues, myPlayerId, send, onClose
                 <button
                   onClick={addIssue}
                   disabled={!addTitle.trim()}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white py-2 rounded-lg text-sm font-medium transition-colors"
+                  className="flex-1 bg-accent hover:bg-accent-hover disabled:opacity-40 text-accent-fg py-2 rounded-lg text-sm font-medium transition-colors"
                 >
                   Save
                 </button>
@@ -354,7 +354,7 @@ function IssueCard({
         <div className="flex gap-2 px-3 pb-3">
           <button
             onClick={onSelect}
-            className="flex-1 text-xs bg-blue-600/20 text-blue-400 border border-blue-600/40 px-2 py-1.5 rounded-lg hover:bg-blue-600/30 transition-colors"
+            className="flex-1 text-xs bg-accent-soft text-accent border border-accent-soft-hi px-2 py-1.5 rounded-lg hover:bg-accent-soft-hi transition-colors"
           >
             Vote this issue
           </button>
@@ -439,7 +439,7 @@ function IssueEditModal({
           <div>
             <label className="text-xs text-slate-400 block mb-1">Title</label>
             <input
-              className="w-full bg-[var(--c-bg)] border border-[var(--c-border-hi)] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500"
+              className="w-full bg-[var(--c-bg)] border border-[var(--c-border-hi)] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               onBlur={save}
@@ -451,7 +451,7 @@ function IssueEditModal({
           <div>
             <label className="text-xs text-slate-400 block mb-1">Link</label>
             <input
-              className="w-full bg-[var(--c-bg)] border border-[var(--c-border-hi)] rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
+              className="w-full bg-[var(--c-bg)] border border-[var(--c-border-hi)] rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-accent"
               value={link}
               onChange={(e) => setLink(e.target.value)}
               onBlur={save}
@@ -464,7 +464,7 @@ function IssueEditModal({
           <div>
             <label className="text-xs text-slate-400 block mb-1">Description</label>
             <textarea
-              className="w-full bg-[var(--c-bg)] border border-[var(--c-border-hi)] rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 resize-none"
+              className="w-full bg-[var(--c-bg)] border border-[var(--c-border-hi)] rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-accent resize-none"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               onBlur={save}
@@ -480,7 +480,7 @@ function IssueEditModal({
           <div className="flex items-center gap-2 px-6 py-4 border-t border-[var(--c-border)]">
             <button
               onClick={onVote}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors"
+              className="flex-1 bg-accent hover:bg-accent-hover text-accent-fg font-semibold py-2.5 rounded-xl text-sm transition-colors"
             >
               Vote this issue
             </button>
@@ -500,8 +500,8 @@ function IssueEditModal({
                         onClick={() => { onSetEstimate(v); setShowEstPicker(false); }}
                         className={`w-10 h-14 rounded-lg border font-bold text-sm transition-all ${
                           issue.final_estimate === v
-                            ? "bg-blue-600 border-blue-400 text-white"
-                            : "bg-[var(--c-bg)] border-[var(--c-border)] text-slate-300 hover:border-blue-500"
+                            ? "bg-accent border-accent text-accent-fg"
+                            : "bg-[var(--c-bg)] border-[var(--c-border)] text-slate-300 hover:border-accent"
                         }`}
                       >
                         {v}
@@ -651,8 +651,8 @@ function EstimatePicker({
                 onClick={() => { onSelect(v); }}
                 className={`w-10 h-14 rounded-lg border font-bold text-sm transition-all ${
                   value === v
-                    ? "bg-blue-600 border-blue-400 text-white"
-                    : "bg-[var(--c-bg)] border-[var(--c-border)] text-slate-300 hover:border-blue-500"
+                    ? "bg-accent border-accent text-accent-fg"
+                    : "bg-[var(--c-bg)] border-[var(--c-border)] text-slate-300 hover:border-accent"
                 }`}
               >
                 {v}

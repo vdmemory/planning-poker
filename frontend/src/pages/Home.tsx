@@ -42,7 +42,7 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col bg-[var(--c-bg)]">
       <header className="flex items-center gap-3 px-6 py-4">
-        <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-lg">🚀</div>
+        <div className="w-8 h-8 bg-accent rounded-full flex items-center justify-center text-lg">🚀</div>
         <span className="font-bold text-white text-lg">Create game</span>
       </header>
 
@@ -54,7 +54,7 @@ export default function Home() {
               Game's name
             </label>
             <input
-              className="w-full bg-transparent border border-[var(--c-border-hi)] rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
+              className="w-full bg-transparent border border-[var(--c-border-hi)] rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-accent"
               value={gameName}
               onChange={(e) => setGameName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && createRoom()}
@@ -74,7 +74,7 @@ export default function Home() {
           <button
             onClick={createRoom}
             disabled={loading}
-            className="w-full bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white font-semibold py-3 rounded-xl text-lg transition-colors"
+            className="w-full bg-accent hover:bg-accent disabled:opacity-50 text-accent-fg font-semibold py-3 rounded-xl text-lg transition-colors"
           >
             {loading ? "Creating…" : "Create game"}
           </button>

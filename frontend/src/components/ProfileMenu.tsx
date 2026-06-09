@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import type { Theme } from "../hooks/useTheme";
+import type { Accent } from "../hooks/useAccent";
+import { AccentPicker } from "./AccentPicker";
 
 const AVATAR_COLORS = [
   "#3b82f6", "#8b5cf6", "#ec4899", "#ef4444",
@@ -10,11 +12,14 @@ interface Props {
   nickname: string;
   avatarColor: string;
   theme: Theme;
+  // Issue #42 — accent palette, independent of theme.
+  accent: Accent;
   isSpectator: boolean;
   isFacilitator: boolean;
   onNicknameChange: (name: string) => void;
   onAvatarColorChange: (color: string) => void;
   onThemeChange: (t: Theme) => void;
+  onAccentChange: (a: Accent) => void;
   onSpectatorToggle: () => void;
   onLeaveRoom: () => void;
   onClose: () => void;
@@ -24,11 +29,13 @@ export function ProfileMenu({
   nickname,
   avatarColor,
   theme,
+  accent,
   isSpectator,
   isFacilitator,
   onNicknameChange,
   onAvatarColorChange,
   onThemeChange,
+  onAccentChange,
   onSpectatorToggle,
   onLeaveRoom,
   onClose,
@@ -88,7 +95,7 @@ export function ProfileMenu({
             <div className="flex items-center gap-2">
               <input
                 autoFocus
-                className="bg-[var(--c-bg)] border border-[var(--c-border-hi)] rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-blue-500"
+                className="bg-[var(--c-bg)] border border-[var(--c-border-hi)] rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-accent"
                 value={nameInput}
                 onChange={(e) => setNameInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -96,14 +103,14 @@ export function ProfileMenu({
                   if (e.key === "Escape") setEditingName(false);
                 }}
               />
-              <button onClick={confirmName} className="text-blue-400 text-sm font-medium hover:text-blue-300">
+              <button onClick={confirmName} className="text-accent text-sm font-medium hover:text-accent-hover">
                 Save
               </button>
             </div>
           ) : (
             <button
               onClick={() => setEditingName(true)}
-              className="flex items-center gap-1.5 text-white font-semibold text-base hover:text-blue-300 transition-colors"
+              className="flex items-center gap-1.5 text-white font-semibold text-base hover:text-accent transition-colors"
             >
               {nickname}
               <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" className="text-slate-400">
@@ -132,7 +139,7 @@ export function ProfileMenu({
               <span className="text-base">{t === "system" ? "⚙️" : t === "light" ? "☀️" : "🌙"}</span>
               <span className="capitalize flex-1 text-left">{t}</span>
               {theme === t && (
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" className="text-blue-400">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" className="text-accent">
                   <path d="M2 7l4 4 6-6" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" />
                 </svg>
               )}
@@ -140,9 +147,17 @@ export function ProfileMenu({
           ))}
         </div>
 
+        {/* Issue #42 — accent palette row, sits under the theme rows so the
+            user sees mode (light/dark/system) and accent (colour) as two
+            sibling controls in the Appearance group. */}
+        <div className="pt-2 pb-1">
+          <div className="text-[11px] text-slate-400 mb-2">Accent colour</div>
+          <AccentPicker value={accent} onChange={onAccentChange} />
+        </div>
+
         {/* Spectator toggle */}
         {!isFacilitator && (
-          <div className="flex items-center justify-between px-1 py-1">
+          <div className="flex items-center justify-between px-1 py-1 mt-2">
             <div>
               <div className="text-sm text-white font-medium">Spectator mode</div>
               <div className="text-xs text-slate-400">Watch without voting</div>
@@ -150,7 +165,7 @@ export function ProfileMenu({
             <button
               onClick={onSpectatorToggle}
               className={`relative shrink-0 w-11 h-6 rounded-full transition-colors ${
-                isSpectator ? "bg-blue-600" : "bg-[var(--c-border)]"
+                isSpectator ? "bg-accent" : "bg-[var(--c-border)]"
               }`}
             >
               <span

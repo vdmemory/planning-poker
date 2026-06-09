@@ -5,12 +5,22 @@ import Home from "./pages/Home";
 import RoomPage from "./pages/RoomPage";
 import "./index.css";
 
-// Apply saved theme before first render to avoid flash
+// Apply saved theme + accent before first render to avoid flash.
+// Mode (light/dark/system) drives neutrals; accent (issue #42) drives the
+// brand colour. Both are persisted in localStorage and applied to <html>
+// via the corresponding hook.
 const _theme = localStorage.getItem("pp:theme") || "dark";
 if (_theme === "light") {
   document.documentElement.classList.add("light");
 } else if (_theme === "system" && !window.matchMedia("(prefers-color-scheme: dark)").matches) {
   document.documentElement.classList.add("light");
+}
+const _accent = localStorage.getItem("pp:accent");
+const _ACCENT_ALLOWED = new Set(["green", "red", "purple", "yellow", "orange", "teal"]);
+if (_accent && _ACCENT_ALLOWED.has(_accent)) {
+  // Default "blue" leaves the attribute off so `:root` selectors win
+  // without specificity tricks — only set the attribute for non-defaults.
+  document.documentElement.setAttribute("data-accent", _accent);
 }
 
 // StrictMode double-mounts effects in dev, which makes useRoomSocket open the

@@ -80,7 +80,7 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
           <div>
             <label className="text-xs text-slate-400 block mb-1">Game facilitator</label>
             <div className="flex items-center gap-2 bg-[var(--c-bg)] rounded-lg px-3 py-2.5">
-              <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-xs font-bold text-white">
+              <div className="w-6 h-6 bg-accent rounded-full flex items-center justify-center text-xs font-bold text-accent-fg">
                 {facilitatorName[0]?.toUpperCase() ?? "?"}
               </div>
               <span className="text-sm text-slate-300">{facilitatorName}</span>
@@ -92,7 +92,7 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
             <label className="text-xs text-slate-400 block mb-1">Game's name</label>
             <div className="flex gap-2">
               <input
-                className="flex-1 bg-[var(--c-bg)] border border-[var(--c-border-hi)] rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
+                className="flex-1 bg-[var(--c-bg)] border border-[var(--c-border-hi)] rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-accent"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 disabled={!isFacilitator}
@@ -182,7 +182,7 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
         <div className="px-6 py-4 border-t border-[var(--c-border)]">
           <button
             onClick={save}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-colors"
+            className="w-full bg-accent hover:bg-accent-hover text-accent-fg font-semibold py-3 rounded-xl transition-colors"
           >
             Save
           </button>
@@ -222,7 +222,7 @@ function CustomSelect({
         disabled={disabled}
         onClick={() => !disabled && setOpen((v) => !v)}
         className={`w-full flex items-center justify-between bg-[var(--c-bg)] border rounded-lg px-3 py-2.5 text-sm text-white transition-colors text-left ${
-          open ? "border-blue-500" : "border-[var(--c-border-hi)]"
+          open ? "border-accent" : "border-[var(--c-border-hi)]"
         } ${disabled ? "opacity-60 cursor-not-allowed" : "hover:border-[var(--c-border-hi)] cursor-pointer"}`}
       >
         <span className="truncate">{selected?.label ?? value}</span>
@@ -241,12 +241,12 @@ function CustomSelect({
               type="button"
               onClick={() => { onChange(opt.value); setOpen(false); }}
               className={`w-full flex items-center justify-between px-4 py-2.5 text-sm text-left transition-colors hover:bg-[var(--c-panel2)] ${
-                opt.value === value ? "text-blue-400" : "text-slate-200"
+                opt.value === value ? "text-accent" : "text-slate-200"
               }`}
             >
               <span>{opt.label}</span>
               {opt.value === value && (
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" className="text-blue-400 shrink-0">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" className="text-accent shrink-0">
                   <path d="M2 7l4 4 6-6" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round"/>
                 </svg>
               )}
@@ -317,7 +317,7 @@ function CardBackPicker({ value, onChange }: { value: string; onChange: (v: stri
             onClick={() => onChange(back.id)}
             className={`flex flex-col items-center gap-1.5 p-2 rounded-xl border-2 transition-all ${
               selected
-                ? "border-blue-500 bg-blue-500/10"
+                ? "border-accent bg-accent-soft"
                 : "border-[var(--c-border)] hover:border-[var(--c-border-hi)]"
             }`}
           >
@@ -325,7 +325,7 @@ function CardBackPicker({ value, onChange }: { value: string; onChange: (v: stri
               className="w-10 h-14 rounded-lg shadow-md"
               style={back.style}
             />
-            <span className={`text-xs font-medium ${selected ? "text-blue-400" : "text-slate-400"}`}>
+            <span className={`text-xs font-medium ${selected ? "text-accent" : "text-slate-400"}`}>
               {back.label}
             </span>
           </button>
@@ -355,7 +355,7 @@ function ToggleRow({
       <button
         onClick={onChange}
         className={`relative shrink-0 w-11 h-6 rounded-full transition-colors mt-0.5 ${
-          checked ? "bg-blue-600" : "bg-[var(--c-border)]"
+          checked ? "bg-accent" : "bg-[var(--c-border)]"
         }`}
       >
         <span

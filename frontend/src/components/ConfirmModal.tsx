@@ -61,7 +61,7 @@ export function ConfirmModal({
 
   const confirmClasses =
     variant === "primary"
-      ? "bg-blue-500 hover:bg-blue-400 text-white"
+      ? "bg-accent hover:bg-accent-hover text-accent-fg"
       : "bg-red-600 hover:bg-red-700 text-white";
 
   return (

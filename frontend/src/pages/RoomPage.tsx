@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useRoomSocket } from "../hooks/useRoomSocket";
 import { useTheme } from "../hooks/useTheme";
+import { useAccent } from "../hooks/useAccent";
 import { useSettings } from "../hooks/useSettings";
 import { IssueSidebar } from "../components/IssueSidebar";
 import { GameSettingsModal, CARD_BACKS } from "../components/GameSettingsModal";
@@ -102,7 +103,7 @@ function JoinModal({
             Your display name
           </label>
           <input
-            className="w-full bg-transparent border border-[var(--c-border-hi)] rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
+            className="w-full bg-transparent border border-[var(--c-border-hi)] rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-accent"
             value={nick}
             onChange={(e) => setNick(e.target.value)}
             onKeyDown={(e) => {
@@ -122,7 +123,7 @@ function JoinModal({
               onChange={(e) => setSpectator(e.target.checked)}
             />
             <div
-              className={`w-11 h-6 rounded-full transition-colors ${spectator ? "bg-blue-600" : "bg-[var(--c-border)]"}`}
+              className={`w-11 h-6 rounded-full transition-colors ${spectator ? "bg-accent" : "bg-[var(--c-border)]"}`}
             >
               <div
                 className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
@@ -140,7 +141,7 @@ function JoinModal({
         <button
           disabled={!nick.trim()}
           onClick={() => onJoin(nick.trim(), spectator)}
-          className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white py-3 rounded-xl font-semibold transition-colors"
+          className="w-full bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-fg py-3 rounded-xl font-semibold transition-colors"
         >
           Continue to game
         </button>
@@ -176,6 +177,7 @@ function Room({
     onReactionMessage: handleReactionMessage,
   });
   const { theme, setTheme } = useTheme();
+  const { accent, setAccent } = useAccent();
   const { settings, setSettings } = useSettings();
 
   const [localVote, setLocalVote] = useState<string | null>(null);
@@ -360,7 +362,7 @@ function Room({
           <p className="text-slate-300">{copy.body}</p>
           <button
             onClick={() => navigate("/")}
-            className="inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-blue-500 hover:bg-blue-400 text-white font-semibold shadow"
+            className="inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-accent hover:bg-accent-hover text-accent-fg font-semibold shadow"
           >
             Back to home
           </button>
@@ -401,13 +403,13 @@ function Room({
       {/* Header */}
       <header className="flex items-center justify-between px-3 sm:px-6 py-3 border-b border-[var(--c-panel2)] shrink-0 gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <div className="w-7 h-7 sm:w-8 sm:h-8 bg-blue-600 rounded-full flex items-center justify-center text-sm shrink-0">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 bg-accent rounded-full flex items-center justify-center text-sm shrink-0">
             🃏
           </div>
           {isFacilitator ? (
             <button
               onClick={() => setShowGameSettings(true)}
-              className="font-semibold text-white hover:text-blue-300 transition-colors truncate max-w-[120px] sm:max-w-none text-sm sm:text-base"
+              className="font-semibold text-white hover:text-accent transition-colors truncate max-w-[120px] sm:max-w-none text-sm sm:text-base"
               title="Game settings"
             >
               {state.name}
@@ -446,6 +448,8 @@ function Room({
                 onNicknameChange={handleNicknameChange}
                 onAvatarColorChange={handleAvatarColorChange}
                 onThemeChange={setTheme}
+                accent={accent}
+                onAccentChange={setAccent}
                 onSpectatorToggle={() => send({ type: "toggle_spectator" })}
                 onLeaveRoom={handleLeaveRoom}
                 onClose={() => setShowProfileMenu(false)}
@@ -455,14 +459,14 @@ function Room({
 
           <button
             onClick={() => setShowInvite(true)}
-            className="hidden sm:flex items-center gap-2 border border-blue-500 text-blue-400 px-4 py-1.5 rounded-lg hover:bg-blue-500/10 text-sm font-medium transition-colors"
+            className="hidden sm:flex items-center gap-2 border border-accent text-accent px-4 py-1.5 rounded-lg hover:bg-accent-soft text-sm font-medium transition-colors"
           >
             👥 Invite players
           </button>
           {/* Mobile invite — icon only */}
           <button
             onClick={() => setShowInvite(true)}
-            className="sm:hidden p-2 rounded-lg border border-blue-500 text-blue-400 hover:bg-blue-500/10 transition-colors"
+            className="sm:hidden p-2 rounded-lg border border-accent text-accent hover:bg-accent-soft transition-colors"
             title="Invite players"
           >
             👥
@@ -531,7 +535,7 @@ function Room({
             title="Toggle issues sidebar"
             className={`p-2 rounded-lg border transition-colors ${
               sidebarOpen
-                ? "border-blue-500 text-blue-400 bg-blue-500/10"
+                ? "border-accent text-accent bg-accent-soft"
                 : "border-[var(--c-border)] text-slate-400 hover:bg-[var(--c-panel2)]"
             }`}
           >
@@ -549,7 +553,7 @@ function Room({
           {onlyMe && (
             <p className="text-slate-400 text-sm">
               Feeling lonely? 🤙{" "}
-              <button onClick={() => setShowInvite(true)} className="text-blue-400 hover:underline">
+              <button onClick={() => setShowInvite(true)} className="text-accent hover:underline">
                 Invite players
               </button>
             </p>
@@ -563,7 +567,7 @@ function Room({
               </span>
               <span className="text-sm text-slate-200 truncate">{currentIssue.title}</span>
               {currentIssue.final_estimate && (
-                <span className="ml-auto shrink-0 bg-blue-600/20 border border-blue-500/40 text-blue-300 text-xs font-bold px-2 py-0.5 rounded-lg">
+                <span className="ml-auto shrink-0 bg-accent-soft border border-accent-soft-hi text-accent text-xs font-bold px-2 py-0.5 rounded-lg">
                   {currentIssue.final_estimate}
                 </span>
               )}
@@ -1049,7 +1053,7 @@ function ActionBox({
         <p className="text-slate-400">
           All voted!{" "}
           {canReveal && (
-            <button onClick={onReveal} className="text-blue-400 hover:underline font-semibold text-lg">
+            <button onClick={onReveal} className="text-accent hover:underline font-semibold text-lg">
               Reveal cards
             </button>
           )}
@@ -1064,7 +1068,7 @@ function ActionBox({
         <button
           onClick={onReveal}
           disabled={state.voted_player_ids.length === 0}
-          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white px-10 py-4 rounded-xl font-semibold text-xl transition-colors"
+          className="bg-accent hover:bg-accent-hover disabled:opacity-40 text-accent-fg px-10 py-4 rounded-xl font-semibold text-xl transition-colors"
         >
           Reveal cards
         </button>
@@ -1141,8 +1145,8 @@ function PlayerCard({
             !voted
               ? "bg-[var(--c-panel)] border-[var(--c-border)]"
               : revealed
-              ? "bg-[var(--c-panel)] border-blue-400 text-white"
-              : "border-blue-400"
+              ? "bg-[var(--c-panel)] border-accent text-white"
+              : "border-accent"
           }`}
           style={cardBackStyle}
         >
@@ -1174,7 +1178,7 @@ function PlayerCard({
         {canEdit && (
           <button
             onClick={() => setShowPicker(true)}
-            className="absolute -top-2 -left-2 w-6 h-6 bg-blue-500 hover:bg-blue-400 rounded-full flex items-center justify-center shadow-lg transition-colors"
+            className="absolute -top-2 -left-2 w-6 h-6 bg-accent hover:bg-accent-hover rounded-full flex items-center justify-center shadow-lg transition-colors"
             title="Change your vote"
           >
             <svg width="11" height="11" viewBox="0 0 12 12" fill="white">
@@ -1199,7 +1203,7 @@ function PlayerCard({
 
       {/* Status badges under the card. The duplicate name caption was removed —
           the name now lives in the pill above the card (see issue #7). */}
-      {isFacilitator && <span className="text-xs text-blue-400/70">host</span>}
+      {isFacilitator && <span className="text-xs text-accent/70">host</span>}
       {player.is_spectator && <span className="text-xs text-slate-500">spectator</span>}
       {!player.connected && <span className="text-xs text-slate-500">offline</span>}
 
@@ -1254,8 +1258,8 @@ function RevotePicker({
               onClick={() => onSelect(v)}
               className={`w-14 h-20 rounded-xl border-2 font-bold text-lg transition-all ${
                 v === current
-                  ? "bg-blue-600 border-blue-400 text-white scale-105"
-                  : "bg-[var(--c-panel2)] border-[var(--c-border)] text-slate-300 hover:border-blue-400 hover:scale-105"
+                  ? "bg-accent border-accent text-accent-fg scale-105"
+                  : "bg-[var(--c-panel2)] border-[var(--c-border)] text-slate-300 hover:border-accent hover:scale-105"
               }`}
             >
               {v}
@@ -1287,7 +1291,7 @@ function RoomErrorScreen({ error }: { error: string }) {
         </p>
         <button
           onClick={() => navigate("/")}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-colors"
+          className="w-full bg-accent hover:bg-accent-hover text-accent-fg font-semibold py-3 rounded-xl transition-colors"
         >
           Create a new game
         </button>
@@ -1312,8 +1316,8 @@ function VotingCard({
       onClick={onClick}
       className={`w-14 h-20 rounded-xl border-2 font-bold text-lg transition-all shrink-0 ${
         selected
-          ? "bg-blue-600 border-blue-400 text-white -translate-y-3 shadow-lg shadow-blue-900/50"
-          : "bg-[var(--c-panel)] border-[var(--c-border)] text-slate-300 hover:border-blue-500 hover:-translate-y-1"
+          ? "bg-accent border-accent text-accent-fg -translate-y-3 shadow-lg shadow-accent/40"
+          : "bg-[var(--c-panel)] border-[var(--c-border)] text-slate-300 hover:border-accent hover:-translate-y-1"
       }`}
     >
       {value}
@@ -1367,7 +1371,7 @@ function InviteModal({ onClose }: { onClose: () => void }) {
 
         <button
           onClick={copy}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-colors mb-3"
+          className="w-full bg-accent hover:bg-accent-hover text-accent-fg font-semibold py-3 rounded-xl transition-colors mb-3"
         >
           {copied ? "✓ Copied!" : "Copy invitation link"}
         </button>

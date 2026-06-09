@@ -142,7 +142,7 @@ function ModeToggle({ mode, setMode, centered = false }: {
         data-testid="reactions-mode-emoji"
         onClick={() => setMode("emoji")}
         className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${
-          mode === "emoji" ? "bg-blue-500 text-white" : "text-slate-300 hover:text-white"
+          mode === "emoji" ? "bg-accent text-accent-fg" : "text-slate-300 hover:text-accent-fg"
         }`}
       >
         😀
@@ -154,7 +154,7 @@ function ModeToggle({ mode, setMode, centered = false }: {
         data-testid="reactions-mode-number"
         onClick={() => setMode("number")}
         className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${
-          mode === "number" ? "bg-blue-500 text-white" : "text-slate-300 hover:text-white"
+          mode === "number" ? "bg-accent text-accent-fg" : "text-slate-300 hover:text-accent-fg"
         }`}
       >
         ⏱
