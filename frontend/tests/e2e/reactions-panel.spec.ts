@@ -103,24 +103,27 @@ test("throttle: second click within 600ms is dropped", async ({ page }) => {
   await expect(myCard.getByTestId("reaction-overlay")).toHaveAttribute("data-reaction-value", "👍");
 });
 
-test("emoji floater renders the animated MP4 from public/reactions/", async ({ page }) => {
-  // The follow-up to #32: floaters in the lower-left use an animated MP4
-  // sourced from `public/reactions/<codepoint>.mp4`. This test asserts the
-  // <video> element is in the DOM and pointing at the right file — content
-  // playback we trust to the browser, but the wiring (mapping codepoint →
-  // src) is exactly what we want to guard against accidental regressions.
+test("emoji floater renders the Lottie animation from public/reactions-lottie/", async ({ page }) => {
+  // Follow-up to #32: floaters in the lower-left now use a Lottie animation
+  // sourced from `public/reactions-lottie/<codepoint>.json` (Google Noto
+  // Animated Emoji). Lottie's transparent background fixes the white-square
+  // problem the previous MP4 implementation had on the dark theme.
+  // We assert the wrapper is in the DOM and points at the right JSON URL —
+  // playback rendering we trust to lottie-web, but the codepoint mapping
+  // is exactly what we want to guard against accidental regressions.
   await createRoom(page, "Animated floater", "Alice");
   await page.getByTestId("reactions-panel").locator("[data-reaction-value='👍']").click();
 
-  const video = page.getByTestId("reaction-floater-video").first();
-  await expect(video).toBeVisible({ timeout: 3000 });
-  await expect(video).toHaveAttribute("src", "/reactions/1f44d.mp4");
+  const lottie = page.getByTestId("reaction-floater-lottie").first();
+  await expect(lottie).toBeVisible({ timeout: 3000 });
+  await expect(lottie).toHaveAttribute("data-lottie-url", "/reactions-lottie/1f44d.json");
 });
 
-test("number-mode floater stays as a chip (no video)", async ({ page }) => {
-  // Time-value reactions don't have an MP4 — they render as a labelled pill,
-  // both in the panel and in the floater. This guard makes sure we don't
-  // accidentally route them through REACTION_EMOJI_VIDEO down the line.
+test("number-mode floater stays as a chip (no Lottie)", async ({ page }) => {
+  // Time-value reactions don't have a Lottie animation — they render as a
+  // labelled pill, both in the panel and in the floater. This guard makes
+  // sure we don't accidentally route them through REACTION_EMOJI_LOTTIE
+  // down the line.
   await createRoom(page, "Number floater", "Alice");
   await page.getByTestId("reactions-mode-number").click();
   await page.getByTestId("reactions-panel").locator("[data-reaction-value='1h']").click();
@@ -128,8 +131,8 @@ test("number-mode floater stays as a chip (no video)", async ({ page }) => {
   const floater = page.getByTestId("reaction-floater").first();
   await expect(floater).toBeVisible({ timeout: 3000 });
   await expect(floater).toHaveAttribute("data-reaction-kind", "number");
-  // No <video> inside.
-  await expect(floater.getByTestId("reaction-floater-video")).toHaveCount(0);
+  // No Lottie wrapper inside.
+  await expect(floater.getByTestId("reaction-floater-lottie")).toHaveCount(0);
 });
 
 test("time-value ladder covers 1h..6h hourly + 12h/1d/2d/3d", async ({ page }) => {
@@ -149,21 +152,21 @@ test("time-value ladder covers 1h..6h hourly + 12h/1d/2d/3d", async ({ page }) =
   }
 });
 
-test("party popper and fire reactions render their MP4 floaters", async ({ page }) => {
-  // Sanity-check the two new emojis are both wired to their MP4 assets,
-  // not falling through to the text-glyph fallback.
+test("party popper and fire reactions render their Lottie floaters", async ({ page }) => {
+  // Sanity-check the two newest emojis are both wired to their Lottie
+  // assets, not falling through to the text-glyph fallback.
   await createRoom(page, "New emojis", "Alice");
   const panel = page.getByTestId("reactions-panel");
 
   await panel.locator("[data-reaction-value='🎉']").click();
-  let video = page.getByTestId("reaction-floater-video").first();
-  await expect(video).toBeVisible({ timeout: 3000 });
-  await expect(video).toHaveAttribute("src", "/reactions/1f389.mp4");
+  let lottie = page.getByTestId("reaction-floater-lottie").first();
+  await expect(lottie).toBeVisible({ timeout: 3000 });
+  await expect(lottie).toHaveAttribute("data-lottie-url", "/reactions-lottie/1f389.json");
 
   // Wait past the throttle so the second click registers.
   await page.waitForTimeout(700);
   await panel.locator("[data-reaction-value='🔥']").click();
   // The newest floater appears at the end of the list.
-  video = page.getByTestId("reaction-floater-video").last();
-  await expect(video).toHaveAttribute("src", "/reactions/1f525.mp4");
+  lottie = page.getByTestId("reaction-floater-lottie").last();
+  await expect(lottie).toHaveAttribute("data-lottie-url", "/reactions-lottie/1f525.json");
 });

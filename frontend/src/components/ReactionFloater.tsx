@@ -1,4 +1,10 @@
-import { REACTION_EMOJI_VIDEO } from "./ReactionsPanel";
+import { Suspense, lazy, useEffect, useState } from "react";
+import { REACTION_EMOJI_LOTTIE } from "./ReactionsPanel";
+
+// Lazy-load lottie-react so the ~85 KB gz of lottie-web only ships when
+// the room actually fires a reaction. Initial Home + Room paint stays
+// lean — Lottie loads in the background after the first click.
+const Lottie = lazy(() => import("lottie-react"));
 
 /**
  * Issue #32 — Google Meet-style rising reaction animation in the lower-left
@@ -8,11 +14,17 @@ import { REACTION_EMOJI_VIDEO } from "./ReactionsPanel";
  * Lane allocation lives in `useReactionAnimations` — by the time we render
  * the floater here, the `xLane` is fixed for its whole lifetime.
  *
- * Issue #32 follow-up: emoji floaters render an animated MP4 from
- * `public/reactions/` when one is available for the emoji's codepoint. The
- * text glyph stays as the fallback if a mapping is missing (e.g. a peer on
- * an older client sends an emoji we don't have an asset for). Time-value
- * chips never use a video — they're rendered as a labelled pill.
+ * Follow-up to the initial MP4 implementation: emoji floaters render a
+ * Lottie animation from `public/reactions-lottie/` (Google Noto Animated
+ * Emoji, Apache 2.0). Lottie has a real alpha channel — no more white
+ * square on the dark theme. Text glyph stays as the fallback if a peer
+ * sends an emoji we don't have an asset for. Time-value chips never use
+ * an animation — they're rendered as a labelled pill.
+ *
+ * JSON fetching: we hit the public URL on mount, but the browser caches it
+ * after the first request so subsequent floaters of the same emoji render
+ * instantly. The blob is in the ~30–140 KB range per emoji and they sit on
+ * the same origin, so this is fast in practice.
  */
 interface Props {
   kind: "emoji" | "number";
@@ -24,11 +36,15 @@ interface Props {
 
 const LANE_WIDTH_PX = 72;
 const LANE_LEFT_OFFSET_PX = 24;
-const VIDEO_SIZE_PX = 64;
+const LOTTIE_SIZE_PX = 72;
+
+// Module-level cache so the same emoji isn't re-fetched and re-parsed for
+// every floater. Keyed by URL → parsed Lottie animation data.
+const lottieCache: Record<string, object> = {};
 
 export function ReactionFloater({ kind, value, nickname, color, xLane }: Props) {
   const left = LANE_LEFT_OFFSET_PX + xLane * LANE_WIDTH_PX;
-  const videoSrc = kind === "emoji" ? REACTION_EMOJI_VIDEO[value] : undefined;
+  const lottieUrl = kind === "emoji" ? REACTION_EMOJI_LOTTIE[value] : undefined;
 
   return (
     <div
@@ -42,26 +58,8 @@ export function ReactionFloater({ kind, value, nickname, color, xLane }: Props) 
       }}
     >
       <div className="flex flex-col items-center gap-1">
-        {videoSrc ? (
-          // Animated MP4 — autoplay+muted is required for autoplay without a
-          // user gesture; playsInline keeps it from going full-screen on
-          // iOS. `loop` matters here because REACTION_FLOATER_MS (3.5s) is
-          // longer than the source clips (~1-2s).
-          <video
-            data-testid="reaction-floater-video"
-            src={videoSrc}
-            width={VIDEO_SIZE_PX}
-            height={VIDEO_SIZE_PX}
-            autoPlay
-            muted
-            loop
-            playsInline
-            // `preload=auto` so the first reaction doesn't lag while the
-            // file streams in — these clips are ~15-25 KB each, cheap.
-            preload="auto"
-            className="leading-none"
-            style={{ width: VIDEO_SIZE_PX, height: VIDEO_SIZE_PX }}
-          />
+        {lottieUrl ? (
+          <LottieEmoji url={lottieUrl} />
         ) : (
           <div className={kind === "emoji" ? "text-5xl leading-none" : "text-2xl font-bold text-white bg-slate-800/80 rounded-xl px-3 py-1 leading-none"}>
             {value}
@@ -74,6 +72,53 @@ export function ReactionFloater({ kind, value, nickname, color, xLane }: Props) 
           {nickname}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Inner component that owns the Lottie fetch + render. Split out so the
+ * outer floater stays simple and the cached-fetch logic is co-located with
+ * its only consumer.
+ */
+function LottieEmoji({ url }: { url: string }) {
+  const [data, setData] = useState<object | null>(() => lottieCache[url] ?? null);
+
+  useEffect(() => {
+    if (lottieCache[url]) {
+      setData(lottieCache[url]);
+      return;
+    }
+    let cancelled = false;
+    fetch(url)
+      .then((r) => r.json())
+      .then((json) => {
+        lottieCache[url] = json;
+        if (!cancelled) setData(json);
+      })
+      .catch(() => { /* If the fetch fails, the parent floater is still
+                        visible with the nickname pill — better than nothing. */ });
+    return () => { cancelled = true; };
+  }, [url]);
+
+  // Reserve the box size even before the JSON loads, so the floater's
+  // overall position doesn't jump once the animation arrives.
+  return (
+    <div
+      data-testid="reaction-floater-lottie"
+      data-lottie-url={url}
+      style={{ width: LOTTIE_SIZE_PX, height: LOTTIE_SIZE_PX }}
+    >
+      {data && (
+        <Suspense fallback={null}>
+          <Lottie
+            animationData={data}
+            loop
+            autoplay
+            style={{ width: LOTTIE_SIZE_PX, height: LOTTIE_SIZE_PX }}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }
