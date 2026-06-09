@@ -1157,23 +1157,28 @@ function PlayerCard({
               <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2"/>
             </svg>
           )}
-          {/* Issue #32 — reaction overlay above the card (centered, pop-in). */}
+          {/* Issue #32 — reaction overlay straddles the card's right
+              edge, vertically centred. Outer div handles positioning
+              (translate-1/2 each axis to centre on the anchor point);
+              inner div carries the pop-in animation. They can't share
+              one element because the keyframe sets `transform: scale(...)`
+              which would overwrite the centring translate. */}
           {reaction && (
             <div
               data-testid="reaction-overlay"
               data-reaction-value={reaction.value}
               data-reaction-kind={reaction.kind}
-              // Both kinds straddle the card's right edge, vertically
-              // centred against the card itself — emoji glyph and time
-              // pill sit half inside / half outside on the right side,
-              // well clear of the centred name pill above the card.
-              className={`absolute top-1/2 left-full -translate-x-1/2 -translate-y-1/2 pointer-events-none reactions-overlay-pop ${
-                reaction.kind === "emoji"
-                  ? "text-3xl"
-                  : "text-xs font-bold bg-accent text-accent-fg rounded-full px-2.5 py-0.5 shadow-md ring-1 ring-white/30 whitespace-nowrap"
-              }`}
+              className="absolute top-1/2 left-full -translate-x-1/2 -translate-y-1/2 pointer-events-none"
             >
-              {reaction.value}
+              <div
+                className={`reactions-overlay-pop ${
+                  reaction.kind === "emoji"
+                    ? "inline-flex items-center justify-center w-10 h-10 text-3xl leading-none"
+                    : "text-xs font-bold bg-accent text-accent-fg rounded-full px-2.5 py-0.5 shadow-md ring-1 ring-white/30 whitespace-nowrap"
+                }`}
+              >
+                {reaction.value}
+              </div>
             </div>
           )}
         </div>
