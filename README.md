@@ -229,23 +229,14 @@ frontend/src/
 
 ## Релизы
 
-Двухслойная автоматизация для пути feature → production:
-
-| Workflow | Триггер | Что делает |
-|---|---|---|
-| `auto-promote` | push в `dev` | держит открытым PR `dev → main` (твоя очередь на следующий релиз) |
-| `release-please` | push в `main` | открывает release PR с регенерированным `CHANGELOG.md` и поднятой версией |
+Формальных релизов нет: push в `main` → автодеплой на Render+Vercel, и это весь «релиз». Никаких тегов, версий, CHANGELOG'ов автоматизация не генерит.
 
 Цикл одной фичи:
-1. PR `feature → dev` (squash merge) — title PR это твой conventional commit
-2. AUTO: workflow открывает или дополняет PR `dev → main`
-3. Ты ревьюишь PR `dev → main` → **Create a merge commit** (не squash)
-4. AUTO: release-please открывает release PR с `v0.X.Y`
-5. Ты ревьюишь CHANGELOG → squash merge → tag и GitHub Release создаются автоматически
+1. Push feature ветки → `sync-to-dev` зеркалит её в `dev` (preview-деплой)
+2. AUTO: `auto-pr-to-main` открывает PR `<branch> → main`
+3. Ты ревьюишь → **Squash and merge** → автодеплой на production
 
-Conventional Commits обязательны для попадания в CHANGELOG. Полный flow, типы коммитов и FAQ — в [docs/RELEASES.md](docs/RELEASES.md).
-
-Текущая версия: см. [`CHANGELOG.md`](CHANGELOG.md) или `frontend/package.json`.
+Подробности и обоснование «почему без release-please» — в [docs/RELEASES.md](docs/RELEASES.md).
 
 ## Тесты
 

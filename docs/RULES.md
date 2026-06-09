@@ -43,28 +43,27 @@
    - **Push ветки → автоматически случаются ДВЕ вещи:**
      - `.github/workflows/sync-to-dev.yml` мерджит ветку в `dev` → срабатывают деплои dev-бэка на Render + `git-dev` Vercel-алиаса. Это твой preview.
      - `.github/workflows/auto-pr-to-main.yml` открывает PR `feat/<...>  → main` (или no-op'ит если уже открыт). Title по дефолту `<prefix>: <rest>`, отредактируй до чистого conventional-commit'а перед мерджем.
-   - **Merge method**: `feature → main` всегда **Squash and merge**. Title PR становится единым conventional-коммитом на `main` — release-please его читает напрямую. Никогда не мерджить feature ветку в `dev` вручную — sync workflow это уже сделал.
+   - **Merge method**: `feature → main` всегда **Squash and merge**. Title PR становится единым conventional-коммитом на `main` — title PR станет финальным сообщением коммита на `main`. Никогда не мерджить feature ветку в `dev` вручную — sync workflow это уже сделал.
    - PR `dev → main` больше **нет** в флоу (старый `auto-promote.yml` удалён). Не открывай его руками.
    - Feature ветки авто-удаляются после merge (`delete_branch_on_merge=true`).
    - Если ветка отстала и `sync-to-dev` упал на конфликте — `git fetch && git rebase origin/dev && git push --force-with-lease` (на feature ветке force-with-lease допустим, на `dev`/`main` — нет).
 
 3. **Коммиты — на английском, по [Conventional Commits](https://www.conventionalcommits.org/).**
-    Это требование от release-please (`docs/RELEASES.md`).
-    Шапка: `<type>: <короткое описание>`, до 70 символов, без эмодзи.
-    Допустимые типы:
-    - `feat:` новая фича (bumps minor)
-    - `fix:` баг (bumps patch)
-    - `perf:`, `refactor:` (bumps patch)
-    - `docs:`, `ci:`, `test:` (в changelog, без bump)
-    - `chore:`, `build:`, `style:` (скрыты в changelog, без bump)
-    - `feat!:` / `fix!:` или `BREAKING CHANGE:` в теле → major bump
+    Соглашение, не требование инструментов — release-please был снят (см. `docs/RELEASES.md`). Шапка: `<type>: <короткое описание>`, до 70 символов, без эмодзи.
+    Типичные префиксы:
+    - `feat:` новая фича
+    - `fix:` баг
+    - `perf:`, `refactor:` улучшения без user-facing-изменений
+    - `docs:`, `ci:`, `test:` — служебные категории
+    - `chore:`, `build:`, `style:` — мелочи
+    - `feat!:` / `fix!:` или `BREAKING CHANGE:` в теле — несовместимые изменения
     Примеры:
     ```
     feat: telegram login widget on home page
     fix: revote button hidden when who_can_reveal=everyone
     docs: explain disconnect grace period in BUSINESS_LOGIC.md
     ```
-    Старые коммиты (без префикса) релиз-плиз просто проигнорит — не будет на них ругаться.
+    Старые коммиты (без префикса) — нормально, никто не ругается.
 
 4. **Не пушить секреты.** `.env`, `*.key`, `credentials.json` не коммитятся. `.gitignore` уже их закрывает.
 
@@ -163,15 +162,15 @@
 22. **Back-merge main → dev после релиза.** Workflow `.github/workflows/back-merge.yml` стартует на каждый push в `main`:
     - Если `dev` уже содержит `main`'s HEAD — exit (nothing to do).
     - Иначе делает `git merge --no-ff origin/main` с сообщением `Merge branch 'main' into dev (back-merge after release)`.
-    - Если merge clean → push в `dev`. Версия `package.json` + CHANGELOG.md из release-please bump'а попадают в staging-зеркало.
+    - Если merge clean → push в `dev`. Любые точечные правки на main (включая hotfix'ы) появляются в staging.
     - Если конфликт → открывает issue с label `tech-debt` и рецептом ручного резолва.
-    - В новом флоу (с issue #X, sync-to-dev) роль back-merge сузилась: больше не разблокирует «dev → main» PR (его нет), а только держит `dev`'s версию и CHANGELOG в синке с `main` после release-please / hotfix'ов.
+    - В текущем флоу back-merge нужен только для редкого случая «правка на main мимо sync-to-dev» — fixup-коммит, ручной hotfix или что-то подобное.
 
 23. **Sync-to-dev на каждый push feature ветки.** Workflow `.github/workflows/sync-to-dev.yml` слушает push в `feat/**`, `fix/**`, `chore/**`, `refactor/**`, `docs/**`:
     - Если `dev` уже содержит ветку → no-op.
     - Иначе `git merge --no-ff origin/<branch>` с сообщением `Mirror <branch> → dev (staging)` → push в `dev`.
     - Если конфликт → fail + comment в открытом PR с recipe-кой `git rebase origin/dev`.
-    - Параллельно `auto-pr-to-main.yml` открывает PR `<branch> → main` (если ещё не открыт). Title по дефолту `<prefix>: <rest>` — отредактируй до чистого conventional commit'а перед мерджем (release-please его прочитает дословно).
+    - Параллельно `auto-pr-to-main.yml` открывает PR `<branch> → main` (если ещё не открыт). Title по дефолту `<prefix>: <rest>` — отредактируй до читаемого вида перед мерджем.
     - Не открывай PR feature → dev руками. Sync workflow это уже делает.
 
 14. **`CLAUDE.md` — для агента.**

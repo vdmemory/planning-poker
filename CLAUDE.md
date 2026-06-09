@@ -60,9 +60,10 @@ The flow is "feature branch goes straight to `main`; `dev` is a staging mirror":
 
 1. Developer pushes a `feat/…` / `fix/…` / `chore/…` / `refactor/…` / `docs/…` branch.
 2. **Sync-to-dev** (`.github/workflows/sync-to-dev.yml`) merges the branch into `dev` so the dev backend on Render + the `git-dev` Vercel alias auto-deploy a preview.
-3. **Auto-PR-to-main** (`.github/workflows/auto-pr-to-main.yml`) opens (or reuses) a PR from that same branch into `main`. Title defaults to `<prefix>: <rest-of-branch>` — edit it to a clean Conventional Commit line before merging because release-please reads the squash-merge message.
-4. **Release-please** (`.github/workflows/release-please.yml`) — on every push to `main`, opens a release PR with `CHANGELOG.md` regenerated from Conventional Commits and the version bumped in `frontend/package.json`. Merging that PR tags `v0.X.Y` and creates a GitHub Release.
-5. **Back-merge** (`.github/workflows/back-merge.yml`) — on every push to `main`, merges `main` back into `dev` so the version bump + CHANGELOG land in the staging mirror too. Hotfixes that land directly on `main` also propagate this way.
+3. **Auto-PR-to-main** (`.github/workflows/auto-pr-to-main.yml`) opens (or reuses) a PR from that same branch into `main`. Title defaults to `<prefix>: <rest-of-branch>` — edit it to a clean message before merging since it becomes the squash-commit on `main`.
+4. **Back-merge** (`.github/workflows/back-merge.yml`) — on every push to `main`, merges `main` back into `dev` so any direct-to-main fixup or hotfix lands in the staging mirror too.
+
+There is no separate release step. Push to `main` deploys to production (Render + Vercel) — that's the entire release. No version tagging, no CHANGELOG generation, no GitHub Releases. Conventional Commit prefixes (`feat:`, `fix:`, etc.) are a soft convention, not a tool requirement.
 
 Merge method: **feature → main = squash** (the PR title becomes the single Conventional Commit on `main`). `dev` only accumulates merge commits from the sync workflow — never merge anything into `dev` manually. There is no `dev → main` PR anymore (the old auto-promote workflow is removed).
 
