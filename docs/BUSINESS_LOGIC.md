@@ -192,9 +192,10 @@ WebSocket `/ws/{room_id}?player_id=...&nickname=...`.
 ### kick_player
 
 Фасилитатор удаляет игрока. Эффекты:
-1. Кикнутому игроку шлётся `{type: "kicked"}`, его WS закрывается с кодом 4003 (фронт показывает экран «вас удалили из комнаты» и не пытается реконнектиться).
-2. Игрок и его голос удаляются из комнаты.
-3. Себя кикнуть нельзя.
+1. Кикнутому игроку шлётся `{type: "kicked"}`, его WS закрывается с кодом 4003.
+2. Фронт ловит типизированное сообщение и показывает overlay `roomInactive="kicked"` с копией «You were removed from this room» (issue #37). Реконнект отключается, чтобы Cloudflare-сценарий (где close-код приходит как 1005) не открыл WS заново и не вошёл по auto-join как новый игрок с тем же ником.
+3. Игрок и его голос удаляются из комнаты.
+4. Себя кикнуть нельзя.
 
 ### close_room
 
@@ -233,7 +234,7 @@ WebSocket `/ws/{room_id}?player_id=...&nickname=...`.
 
 ### UX на фронте
 
-`useRoomSocket` выставляет `roomInactive: "expired" | "not_found" | "closed" | null`. Главный сигнал — **типизированное WS-сообщение**, не close-код:
+`useRoomSocket` выставляет `roomInactive: "expired" | "not_found" | "closed" | "kicked" | null`. Главный сигнал — **типизированное WS-сообщение**, не close-код:
 
 | Источник | Значение |
 |---|---|
@@ -241,19 +242,22 @@ WebSocket `/ws/{room_id}?player_id=...&nickname=...`.
 | WS-сообщение `{type: "room_inactive", reason: "expired"}` (на connect) | `"expired"` |
 | WS-сообщение `{type: "room_inactive", reason: "not_found"}` (на connect) | `"not_found"` |
 | WS-сообщение `{type: "room_closed", reason: "creator_left"}` (issue #19) | `"closed"` |
+| WS-сообщение `{type: "kicked"}` (issue #37) | `"kicked"` |
 | WS close код 4005 (TestClient / локалка без Cloudflare) | `"expired"` |
 | WS close код 4004 (TestClient / локалка без Cloudflare) | `"not_found"` |
+| WS close код 4003 (TestClient / локалка без Cloudflare) | `"kicked"` (fallback, обычно типизированное сообщение приходит раньше) |
 | Иначе | `null` |
 
-При `roomInactive !== null` хук **выставляет `shouldReconnectRef.current = false`** — никаких повторных попыток. `RoomPage` рендерит full-screen overlay с одной из трёх копий:
+При `roomInactive !== null` хук **выставляет `shouldReconnectRef.current = false`** — никаких повторных попыток. `RoomPage` рендерит full-screen overlay с одной из четырёх копий:
 
 | `roomInactive` | Иконка | Заголовок | Когда показывается |
 |---|---|---|---|
 | `"expired"` | ⌛ | This room is no longer active | Истёк 24h-таймер |
 | `"closed"` | 🚪 | The room was closed by the creator | Фасилитатор закрыл комнату (явно или через issue #19) |
+| `"kicked"` | 👋 | You were removed from this room | Фасилитатор кикнул конкретно этого игрока (issue #37). Комната живёт дальше — overlay видит только кикнутый. |
 | `"not_found"` | 🔗 | Room not found | Чужой/опечатанный URL |
 
-Кикнутые игроки (`{type: "kicked"}`) **не** идут через overlay — у них короткий путь сразу на главную (`roomClosed=true` → `navigate("/")`), потому что им незачем читать пояснение «комната закрыта» — их персонально удалили.
+Почему `kicked` отдельный, а не `closed`? Закрытие комнаты — общее событие для всех; кик — персональное. Для всех остальных в комнате после кика всё работает как раньше, поэтому копия «room is no longer available» была бы неточной. Под капотом — общий механизм (тот же `roomInactive` union, та же overlay, тот же reconnect-block), только заголовок/иконка отличаются.
 
 ### Дизайн-решения
 
