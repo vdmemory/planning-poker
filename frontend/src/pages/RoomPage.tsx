@@ -1163,10 +1163,15 @@ function PlayerCard({
               data-testid="reaction-overlay"
               data-reaction-value={reaction.value}
               data-reaction-kind={reaction.kind}
-              className={`absolute -top-7 left-1/2 -translate-x-1/2 pointer-events-none reactions-overlay-pop ${
+              // Emoji glyphs hug the card edge (-top-7); number pills sit
+              // higher (-top-14) so they don't crash into the name pill
+              // that lives directly above the card. Number pill uses the
+              // current accent so it reads as part of the palette rather
+              // than a stray dark slate slab on light themes (#42).
+              className={`absolute left-1/2 -translate-x-1/2 pointer-events-none reactions-overlay-pop ${
                 reaction.kind === "emoji"
-                  ? "text-3xl"
-                  : "text-xs font-bold text-white bg-slate-800/90 rounded-full px-2 py-0.5 shadow"
+                  ? "-top-7 text-3xl"
+                  : "-top-14 text-xs font-bold bg-accent text-accent-fg rounded-full px-2.5 py-0.5 shadow-md ring-1 ring-white/30 whitespace-nowrap"
               }`}
             >
               {reaction.value}

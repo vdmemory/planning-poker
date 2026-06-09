@@ -60,7 +60,18 @@ export function ReactionFloater({ kind, value, nickname, color, xLane }: Props) 
         {lottieUrl ? (
           <LottieEmoji url={lottieUrl} />
         ) : (
-          <div className={kind === "emoji" ? "text-5xl leading-none" : "text-2xl font-bold text-white bg-slate-800/80 rounded-xl px-3 py-1 leading-none"}>
+          <div
+            className={
+              kind === "emoji"
+                ? "text-5xl leading-none"
+                // Time-value pill picks up the user's current accent so it
+                // reads as part of the room's palette rather than a stray
+                // dark slate slab on light themes. The `text-accent-fg`
+                // pair auto-flips to dark text on the yellow accent so
+                // contrast stays AA across all 7 palettes.
+                : "text-2xl font-bold bg-accent text-accent-fg rounded-xl px-3 py-1 leading-none shadow-lg ring-2 ring-white/20"
+            }
+          >
             {value}
           </div>
         )}
