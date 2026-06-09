@@ -5,11 +5,10 @@ name: Auto-open PR from feature branch → main
 # old "PR `dev` → `main`" model: the dev branch is now a staging mirror, not
 # a release accumulator, so features go straight into `main` one at a time.
 #
-# The PR title is the conventional-commit-ready branch name with the prefix
-# already in place (`feat: …` / `fix: …`). The developer is expected to edit
-# the title before merging if they want a different summary — release-please
-# uses the squash-merge commit message verbatim, and we use squash for
-# feature → main (see docs/RULES.md).
+# The PR title is the branch name with its prefix already in place
+# (`feat: …` / `fix: …`). The developer is expected to edit the title
+# before merging since it becomes the single squash-commit on `main`
+# (see docs/RULES.md).
 on:
   push:
     branches:
@@ -81,9 +80,9 @@ jobs:
           - [ ] Frontend build + Playwright e2e green
           - [ ] Live smoke on dev URL (rule 0.7)
 
-          ## Notes for release-please
+          ## Commit message
 
-          PR title becomes the squash-merge commit message — make sure it is a clean conventional-commit line (`feat: …`, `fix: …`, etc.) before merging into `main`.
+          PR title becomes the squash-merge commit message on `main`. Edit it to a clean one-liner (Conventional Commit style preferred, e.g. `feat: …`, `fix: …`) before merging.
           EOF
           )
 

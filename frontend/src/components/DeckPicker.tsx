@@ -49,14 +49,14 @@ export function DeckPicker({ value, onChange, disabled = false }: Props) {
               disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
             } ${
               selected
-                ? "border-blue-500 bg-blue-500/10"
+                ? "border-accent bg-accent-soft"
                 : "border-[var(--c-border)] hover:border-[var(--c-border-hi)] bg-[var(--c-panel2)]"
             }`}
           >
             <div className="flex items-center justify-between gap-3">
               {/* Deck name + cards preview */}
               <div className="flex-1 min-w-0">
-                <div className={`text-sm font-medium mb-2 ${selected ? "text-blue-400" : "text-slate-300"}`}>
+                <div className={`text-sm font-medium mb-2 ${selected ? "text-accent" : "text-slate-300"}`}>
                   {deck.name}
                 </div>
                 <div className="flex items-center gap-1 flex-wrap">
@@ -65,7 +65,7 @@ export function DeckPicker({ value, onChange, disabled = false }: Props) {
                       key={card}
                       className={`inline-flex items-center justify-center rounded-md border font-bold text-xs w-7 h-9 shrink-0 transition-colors ${
                         selected
-                          ? "border-blue-500/50 bg-blue-600/20 text-blue-300"
+                          ? "border-accent/50 bg-accent-soft text-accent"
                           : "border-[var(--c-border)] bg-[var(--c-panel)] text-slate-300"
                       }`}
                     >
@@ -80,7 +80,7 @@ export function DeckPicker({ value, onChange, disabled = false }: Props) {
 
               {/* Selected checkmark */}
               {selected && (
-                <svg width="18" height="18" viewBox="0 0 18 18" className="text-blue-400 shrink-0" fill="none">
+                <svg width="18" height="18" viewBox="0 0 18 18" className="text-accent shrink-0" fill="none">
                   <circle cx="9" cy="9" r="8.5" stroke="currentColor" strokeWidth="1.5"/>
                   <path d="M5 9l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>

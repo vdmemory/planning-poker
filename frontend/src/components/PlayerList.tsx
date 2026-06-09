@@ -52,7 +52,7 @@ function PlayerRow({ player, voted, cardValue, isFacilitator }: RowProps) {
       </span>
       {!player.is_spectator && (
         cardValue && cardValue !== "hidden" ? (
-          <span className="bg-blue-600 text-white font-bold rounded-md px-2 py-0.5 text-xs">
+          <span className="bg-accent text-accent-fg font-bold rounded-md px-2 py-0.5 text-xs">
             {cardValue}
           </span>
         ) : voted ? (
