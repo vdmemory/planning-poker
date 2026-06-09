@@ -21,8 +21,9 @@ import { useState, useRef } from "react";
  */
 
 // Codepoint hex (matches the MP4 filenames in public/reactions/) → emoji.
-// Kept in this order so the panel reads positive → neutral → negative.
-export const REACTION_EMOJIS = ["💖", "👍", "👏", "😂", "😮", "🤔", "😢", "👎"];
+// Kept in this order so the panel reads positive → neutral → negative:
+//   love/approval → celebration/hype → laughter/surprise/think → sad/dislike
+export const REACTION_EMOJIS = ["💖", "👍", "👏", "🎉", "🔥", "😂", "😮", "🤔", "😢", "👎"];
 
 // Each emoji has a matching MP4 in `public/reactions/`. The mapping is
 // codepoint-based so a designer can swap assets without touching JSX.
@@ -30,6 +31,8 @@ export const REACTION_EMOJI_VIDEO: Record<string, string> = {
   "💖": "/reactions/1f496.mp4",
   "👍": "/reactions/1f44d.mp4",
   "👏": "/reactions/1f44f.mp4",
+  "🎉": "/reactions/1f389.mp4",
+  "🔥": "/reactions/1f525.mp4",
   "😂": "/reactions/1f602.mp4",
   "😮": "/reactions/1f62e.mp4",
   "🤔": "/reactions/1f914.mp4",
@@ -38,9 +41,9 @@ export const REACTION_EMOJI_VIDEO: Record<string, string> = {
 };
 
 // Time-value chips for the "capacity gut-check" mode. The list is the user's
-// chosen ladder — not strictly monotonic (1d sits before 12h on purpose, so
-// the most common "a day" chip is one tap away).
-export const REACTION_NUMBERS = ["1h", "2h", "3h", "5h", "1d", "12h", "2d", "3d"];
+// chosen ladder — not strictly monotonic past `6h`: `1d` sits before `12h`
+// on purpose, so the most common "a day" chip is one tap away.
+export const REACTION_NUMBERS = ["1h", "2h", "3h", "4h", "5h", "6h", "1d", "12h", "2d", "3d"];
 
 export type ReactionKind = "emoji" | "number";
 

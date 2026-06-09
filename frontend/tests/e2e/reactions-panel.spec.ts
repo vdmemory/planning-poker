@@ -132,19 +132,38 @@ test("number-mode floater stays as a chip (no video)", async ({ page }) => {
   await expect(floater.getByTestId("reaction-floater-video")).toHaveCount(0);
 });
 
-test("new time-value ladder shows 12h and replaces 4h/8h/16h", async ({ page }) => {
-  // The ladder changed from [1h 2h 4h 8h 16h 1d 2d 3d] to
-  // [1h 2h 3h 5h 1d 12h 2d 3d] — guards copy + ordering so a future
-  // refactor doesn't silently lose 12h or bring back the old ladder.
+test("time-value ladder covers 1h..6h hourly + 12h/1d/2d/3d", async ({ page }) => {
+  // The ladder is [1h 2h 3h 4h 5h 6h 1d 12h 2d 3d]. Guards copy and the
+  // hourly chunk so a future refactor doesn't silently drop 4h/6h or
+  // bring back the old [8h 16h] members that we retired.
   await createRoom(page, "Number ladder", "Alice");
   const panel = page.getByTestId("reactions-panel");
   await page.getByTestId("reactions-mode-number").click();
 
-  for (const v of ["1h", "2h", "3h", "5h", "1d", "12h", "2d", "3d"]) {
+  for (const v of ["1h", "2h", "3h", "4h", "5h", "6h", "1d", "12h", "2d", "3d"]) {
     await expect(panel.locator(`[data-reaction-value='${v}']`)).toBeVisible();
   }
-  // The retired values are gone.
-  for (const v of ["4h", "8h", "16h"]) {
+  // Retired values stay gone.
+  for (const v of ["8h", "16h"]) {
     await expect(panel.locator(`[data-reaction-value='${v}']`)).toHaveCount(0);
   }
+});
+
+test("party popper and fire reactions render their MP4 floaters", async ({ page }) => {
+  // Sanity-check the two new emojis are both wired to their MP4 assets,
+  // not falling through to the text-glyph fallback.
+  await createRoom(page, "New emojis", "Alice");
+  const panel = page.getByTestId("reactions-panel");
+
+  await panel.locator("[data-reaction-value='🎉']").click();
+  let video = page.getByTestId("reaction-floater-video").first();
+  await expect(video).toBeVisible({ timeout: 3000 });
+  await expect(video).toHaveAttribute("src", "/reactions/1f389.mp4");
+
+  // Wait past the throttle so the second click registers.
+  await page.waitForTimeout(700);
+  await panel.locator("[data-reaction-value='🔥']").click();
+  // The newest floater appears at the end of the list.
+  video = page.getByTestId("reaction-floater-video").last();
+  await expect(video).toHaveAttribute("src", "/reactions/1f525.mp4");
 });

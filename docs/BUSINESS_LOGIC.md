@@ -336,8 +336,8 @@ Google Meet-style quick reactions: участник кликает на эмод
 ### Наборы значений
 
 Конфигурируются в `frontend/src/components/ReactionsPanel.tsx`:
-- **Emoji**: `💖 👍 👏 😂 😮 🤔 😢 👎` (8 шт., positive → neutral → negative)
-- **Number** (time-values): `1h 2h 3h 5h 1d 12h 2d 3d` (8 шт.). Порядок не строго монотонный по продолжительности: `1d` стоит перед `12h`, потому что «день» — самая ходовая фишка в planning poker, и её удобнее иметь в один тап.
+- **Emoji**: `💖 👍 👏 🎉 🔥 😂 😮 🤔 😢 👎` (10 шт.). Порядок: love/approval → celebration/hype → laughter/surprise/think → sad/dislike.
+- **Number** (time-values): `1h 2h 3h 4h 5h 6h 1d 12h 2d 3d` (10 шт.). Часовая шкала идёт линейно до 6h; дальше `1d` стоит перед `12h`, потому что «день» — самая ходовая фишка в planning poker, и её удобнее иметь в один тап.
 
 Переключение режимов — toggle на самой панели, локальный state, не шарится.
 
