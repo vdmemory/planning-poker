@@ -70,3 +70,44 @@ test("a completed stroke disappears from the canvas after ~5 seconds", async ({ 
   // a little slack for the next animation frame to tick over.
   await expect(canvas).toHaveAttribute("data-stroke-count", "0", { timeout: 7000 });
 });
+
+/**
+ * Issue #50 — the pencil cursor SVG is rotated + offset so a specific vertex
+ * of its path (the (20,6) corner — the writing tip) lands exactly on the
+ * mouse position regardless of tilt angle (`transformOrigin` pinned to that
+ * same vertex). This asserts the tip vertex's rendered screen position
+ * still matches the mouse coordinates pixel-for-pixel, and that the
+ * "eraser" end (the (5,17)/(5,13) corners) renders up and to the left of
+ * it — i.e. a right-handed writing tilt, not the old straight-up-and-down
+ * orientation.
+ */
+test("pencil cursor tip stays pinned to the mouse position and tilts right", async ({ page }) => {
+  await createRoom(page, "Pencil tilt test", "Painter");
+  await page.getByTestId("drawing-toggle").click();
+  await page.mouse.move(400, 300);
+
+  const { tip, eraserD, eraserE } = await page.evaluate(() => {
+    const svg = document.querySelector("svg[width='22'][height='22']") as SVGSVGElement;
+    const point = (x: number, y: number) => {
+      const marker = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      marker.setAttribute("cx", String(x));
+      marker.setAttribute("cy", String(y));
+      marker.setAttribute("r", "0.1");
+      svg.appendChild(marker);
+      const rect = marker.getBoundingClientRect();
+      marker.remove();
+      return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+    };
+    return { tip: point(20, 6), eraserD: point(5, 17), eraserE: point(5, 13) };
+  });
+
+  // Tip vertex renders essentially exactly at the mouse position.
+  expect(Math.abs(tip.x - 400)).toBeLessThan(1);
+  expect(Math.abs(tip.y - 300)).toBeLessThan(1);
+
+  // Eraser end is up (smaller y) and to the left (smaller x) of the tip.
+  expect(eraserD.x).toBeLessThan(tip.x);
+  expect(eraserD.y).toBeLessThan(tip.y);
+  expect(eraserE.x).toBeLessThan(tip.x);
+  expect(eraserE.y).toBeLessThan(tip.y);
+});

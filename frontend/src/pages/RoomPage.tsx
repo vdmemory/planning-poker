@@ -712,10 +712,17 @@ function Room({
           className="fixed z-50 pointer-events-none select-none"
           style={{ left: cursorPos.x, top: cursorPos.y }}
         >
-          {/* Pencil icon — tip aligns with cursor position */}
+          {/* Pencil icon — issue #50: tilted right (~35° off vertical) for a
+              right-handed writing pose instead of standing straight up.
+              `transformOrigin` is pinned to the icon's own writing-tip vertex
+              (the (20,6) corner of the path below, in its local 22×22 box) so
+              rotating around that point never moves it — `left`/`top` just
+              place that same point at the cursor's (0,0) once, and any tilt
+              angle keeps it there instead of needing hand-tuned offsets per
+              angle. */}
           <svg
             width="22" height="22" viewBox="0 0 22 22" fill="none"
-            style={{ position: "absolute", left: -2, top: -20, transform: "rotate(-45deg)" }}
+            style={{ position: "absolute", left: -20, top: -6, transform: "rotate(100deg)", transformOrigin: "20px 6px" }}
           >
             <path d="M16 2l4 4-11 11H5v-4L16 2z" fill={drawColor} stroke="white" strokeWidth="1" strokeLinejoin="round"/>
             <path d="M13 5l4 4" stroke="white" strokeWidth="0.8" strokeLinecap="round"/>
