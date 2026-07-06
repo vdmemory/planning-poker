@@ -41,17 +41,17 @@ test("opening AccentPicker via ProfileMenu and switching to green updates html +
 });
 
 test("each accent paints the Create button with a distinct primary colour", async ({ page }) => {
-  // The Home page's "Create game" button is `bg-accent` — `--c-accent` should
-  // resolve to a distinct hex per accent. Sampling the rendered background
-  // proves the CSS-variable chain works end-to-end without us hard-coding
-  // colour values on the JSX side.
+  // The room-creation page's (issue #22: moved from `/` to `/new`) "Create
+  // game" button is `bg-accent` — `--c-accent` should resolve to a distinct
+  // hex per accent. Sampling the rendered background proves the CSS-variable
+  // chain works end-to-end without us hard-coding colour values on the JSX side.
   const SEEN: string[] = [];
   for (const accent of ["blue", "green", "red", "purple", "yellow", "orange", "teal"]) {
     await page.addInitScript((a) => {
       localStorage.setItem("pp:theme", "dark");
       localStorage.setItem("pp:accent", a as string);
     }, accent);
-    await page.goto("/");
+    await page.goto("/new");
     const bg = await page
       .getByRole("button", { name: /create game/i })
       .evaluate((el) => getComputedStyle(el).backgroundColor);

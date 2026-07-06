@@ -8,7 +8,7 @@
 | Уровень | Где | Технология | Скорость |
 |---|---|---|---|
 | Backend service + WS | `backend/tests/` | pytest + FastAPI TestClient | 125 тестов, <0.1s |
-| Frontend e2e | `frontend/tests/e2e/` | Playwright + Chromium | 45 тестов, ~1 мин |
+| Frontend e2e | `frontend/tests/e2e/` | Playwright + Chromium | 50 тестов, ~1 мин |
 
 ## Backend (pytest)
 
@@ -86,7 +86,9 @@ Bob, потом ws закрылся, потом второй WS пришёл с 
 
 | Файл | Флоу |
 |---|---|
-| `home.spec.ts` | Главная рендерится; create-game с пустым именем показывает ошибку, не навигирует |
+| `home.spec.ts` | Issue #22 — форма создания комнаты (`/new`) рендерится; create-game с пустым именем показывает ошибку, не навигирует |
+| `landing.spec.ts` | Issue #22 — лендинг на `/`: hero/«как это работает»/«фичи» рендерятся; CTA-кнопка ведёт на `/new`; nav-ссылки header'а (FAQ, Create a room) ведут на `/faq` и `/new` |
+| `faq.spec.ts` | Issue #22 — `/faq` рендерится, все 6 вопросов на месте; `<details>` разворачивается по клику на `<summary>` |
 | `create-and-vote.spec.ts` | Фасилитатор создаёт комнату → голосует → «Reveal cards» появляется |
 | `reveal-and-stats.spec.ts` | Голосует → Reveal → «Average» + «New round»; New round сбрасывает |
 | `two-players.spec.ts` | Два контекста (две сессии) в одной комнате → видят друг друга → оба голосуют → reveal на одном → обе видят stats |
@@ -97,7 +99,7 @@ Bob, потом ws закрылся, потом второй WS пришёл с 
 
 ### Helpers (`tests/e2e/helpers.ts`)
 
-- `createRoom(page, gameName?, facilitatorNick?)` — Home → создать → ввести ник → ждать WS.
+- `createRoom(page, gameName?, facilitatorNick?)` — `/new` → создать → ввести ник → ждать WS. (Issue #22 переместил форму создания комнаты с `/` на `/new` — `/` теперь лендинг.)
 - `joinRoom(page, url, nickname, asSpectator?)` — открыть URL комнаты как другой пользователь.
 - `voteCard(page, card, confirmRegex?)` — кликает карту с повторами, пока на странице не появится подтверждение (по умолчанию «All voted!»). Polling нужен потому что в коротком окне между HTTP-навигацией и WS-handshake первый клик может улететь в no-op (`send()` дропает сообщения, если ws.readyState !== OPEN).
 

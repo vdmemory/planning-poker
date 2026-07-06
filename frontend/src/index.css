@@ -300,3 +300,10 @@ html.light textarea {
 .stats-slide-in {
   animation: stats-slide-in 0.3s ease-out;
 }
+
+/* ─── Landing page screenshot (issue #22) ──────────────────────────────── */
+/* Swaps on the app's own theme class, not `prefers-color-scheme` — see the
+   comment in LandingPage.tsx for why. Dark shows by default (matches the
+   app's own default theme); `.light` flips which one is visible. */
+html.light .landing-shot-dark { display: none; }
+html.light .landing-shot-light { display: block; }

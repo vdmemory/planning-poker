@@ -32,6 +32,7 @@ Real-time инструмент для оценки задач agile-команд
 - Передача роли фасилитатора, если он покинул комнату — или (issue #19) опциональное закрытие комнаты для всех вместо handoff'а через настройку «Close room when facilitator leaves»
 - Дружелюбные full-screen overlay'и для всех «room is no longer available» сценариев: истёкший таймер (⌛), закрытие фасилитатором (🚪, issue #19), кик участника (👋, issue #37), неверный URL (🔗) — везде кнопка «Back to home»
 - Авто-закрытие комнаты через 24h (timer expiration), full-screen уведомление для участников
+- Маркетинговые страницы (issue #22): `/` — лендинг (hero, «как это работает», фичи, скриншот комнаты в обеих темах), `/faq`. Форма создания комнаты переехала на `/new`
 
 ## Запуск локально
 
@@ -68,9 +69,12 @@ backend/app/
 
 frontend/src/
 ├── pages/
-│   ├── Home.tsx          # создание комнаты
+│   ├── LandingPage.tsx   # маркетинговый лендинг на `/` (issue #22)
+│   ├── FAQPage.tsx       # `/faq`
+│   ├── Home.tsx          # создание комнаты, теперь на `/new`
 │   └── RoomPage.tsx      # игровой экран
 ├── components/
+│   ├── MarketingShell.tsx # общий header/footer для лендинга и FAQ
 │   ├── Card.tsx          # карта голосования
 │   ├── PlayerList.tsx    # список игроков с offline-индикатором
 │   ├── StatsPanel.tsx    # среднее/медиана/распределение/консенсус
@@ -245,7 +249,7 @@ frontend/src/
 | Слой | Где | Команда | Покрытие |
 |---|---|---|---|
 | Backend (pytest) | `backend/tests/` | `pytest` | 125 тестов — комнаты, голосование, issues, права, WS-интеграция |
-| Frontend e2e (Playwright) | `frontend/tests/e2e/` | `npm run test:e2e` | 45 тестов — главная, создание/голосование, reveal+stats, два игрока, мобильные флоу, throw-reaction, UI-анимации и др. |
+| Frontend e2e (Playwright) | `frontend/tests/e2e/` | `npm run test:e2e` | 50 тестов — лендинг/FAQ, создание/голосование, reveal+stats, два игрока, мобильные флоу, throw-reaction, UI-анимации и др. |
 
 CI: GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) гоняет оба слоя на каждый push в `main`/`dev` и на каждый PR. При падении e2e — артефакты (видео, скриншоты) аплоадятся.
 
