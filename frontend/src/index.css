@@ -245,3 +245,14 @@ html.light textarea {
 .reactions-overlay-pop {
   animation: reaction-overlay-pop 280ms ease-out forwards;
 }
+
+/* ─── Throw-reaction animations (issue #51) ────────────────────────────── */
+
+@keyframes throw-reaction-land {
+  0%   { transform: scale(1.35) rotate(12deg); }
+  50%  { transform: scale(0.9)  rotate(-6deg); }
+  100% { transform: scale(1)    rotate(0deg); }
+}
+.throw-reaction-land {
+  animation: throw-reaction-land 350ms ease-out forwards;
+}

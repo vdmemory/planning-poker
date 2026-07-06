@@ -3,7 +3,6 @@ import type { GameSettings } from "../types";
 
 const DEFAULTS: GameSettings = {
   autoReveal: false,
-  funFeatures: false,
 };
 
 export function useSettings() {

@@ -12,7 +12,10 @@ import { ProfileMenu } from "../components/ProfileMenu";
 import { ReactionsPanel } from "../components/ReactionsPanel";
 import { ReactionFloater } from "../components/ReactionFloater";
 import { ConfirmModal } from "../components/ConfirmModal";
+import { ThrowReactionBar } from "../components/ThrowReactionBar";
+import { ThrowFloater } from "../components/ThrowFloater";
 import { useReactionAnimations, type CardReaction } from "../hooks/useReactionAnimations";
+import { useThrowReactions } from "../hooks/useThrowReactions";
 import type { Player, RoomState, Stats, GameSettings } from "../types";
 import QRCode from "qrcode";
 
@@ -170,12 +173,17 @@ function Room({
   // manager. Used for the on-card overlay AND the rising floaters.
   const { cardReactions, floaters, handleReactionMessage } = useReactionAnimations();
 
+  // Issue #51 — `thrown_reaction` broadcasts (reactions aimed at a specific
+  // player's card) drive a separate set of flying-emoji floaters.
+  const { flights, handleThrowReactionMessage } = useThrowReactions();
+
   const { state, stats, myPlayerId, connected, send, error, countdown, roomInactive } = useRoomSocket({
     roomId,
     playerId: storedPlayerId,
     nickname,
     onDrawMessage: handleDrawMessage,
     onReactionMessage: handleReactionMessage,
+    onThrowReactionMessage: handleThrowReactionMessage,
   });
   const { theme, setTheme } = useTheme();
   const { accent, setAccent } = useAccent();
@@ -303,6 +311,7 @@ function Room({
       // Issue #19 — when changed in settings, the backend hands this back
       // in the next `room_state` so every client renders consistently.
       close_on_facilitator_leave?: boolean;
+      fun_features_enabled?: boolean;
     },
     settingsPatch: Partial<GameSettings>
   ) {
@@ -597,6 +606,9 @@ function Room({
               onReset={() => send({ type: "reset" })}
               onRevote={(card) => send({ type: "revote", card })}
               onKickPlayer={isFacilitator ? onKickPlayer : undefined}
+              onThrowReaction={(targetPlayerId, value) =>
+                send({ type: "throw_reaction", target_player_id: targetPlayerId, value })
+              }
               cardReactions={cardReactions}
             />
           </div>
@@ -663,6 +675,21 @@ function Room({
           nickname={f.nickname}
           color={f.color}
           xLane={f.xLane}
+        />
+      ))}
+
+      {/* Reactions thrown at a specific player's card (#51) — flies from the
+          thrower's card to the target's, distinct from the self-reaction
+          floaters above. */}
+      {flights.map((f) => (
+        <ThrowFloater
+          key={f.id}
+          id={f.id}
+          value={f.value}
+          fromRect={f.fromRect}
+          toRect={f.toRect}
+          landOffsetX={f.landOffsetX}
+          landOffsetY={f.landOffsetY}
         />
       ))}
 
@@ -760,6 +787,7 @@ function PokerTable({
   onReset,
   onRevote,
   onKickPlayer,
+  onThrowReaction,
   cardReactions,
 }: {
   state: RoomState;
@@ -775,6 +803,8 @@ function PokerTable({
   onReset: () => void;
   onRevote: (card: string) => void;
   onKickPlayer?: (id: string) => void;
+  // Issue #51 — throw an emoji at a specific player's card.
+  onThrowReaction: (targetPlayerId: string, value: string) => void;
   cardReactions: Record<string, CardReaction>;
 }) {
   const players = state.players;
@@ -873,6 +903,8 @@ function PokerTable({
               canKick={!!onKickPlayer && player.id !== myPlayerId}
               onKick={onKickPlayer ? () => onKickPlayer(player.id) : undefined}
               reaction={cardReactions[player.id]}
+              funFeaturesEnabled={state.fun_features_enabled}
+              onThrowReaction={(value) => onThrowReaction(player.id, value)}
             />
           </div>
         );
@@ -997,6 +1029,8 @@ function PlayerCard({
   canKick,
   onKick,
   reaction,
+  funFeaturesEnabled,
+  onThrowReaction,
 }: {
   player: Player;
   voted: boolean;
@@ -1014,6 +1048,10 @@ function PlayerCard({
   // pop-in overlay above the card for REACTION_OVERLAY_MS. Parent (RoomPage)
   // owns the timer.
   reaction?: CardReaction | null;
+  // Issue #51 — room-wide opt-in gating the emoji-throw part of the hover
+  // bar below. The kick button inside it stays available regardless.
+  funFeaturesEnabled?: boolean;
+  onThrowReaction?: (value: string) => void;
 }) {
   const [showPicker, setShowPicker] = useState(false);
   const editBtnRef = useRef<HTMLButtonElement>(null);
@@ -1027,6 +1065,7 @@ function PlayerCard({
     <div
       data-testid="player-card"
       data-player-nickname={player.nickname}
+      data-player-id={player.id}
       className={`flex flex-col items-center gap-1.5 group ${!player.connected ? "opacity-40" : ""}`}
     >
       {/* Name pill above the card. Replaces the previous letter-avatar circle:
@@ -1103,19 +1142,28 @@ function PlayerCard({
           </button>
         )}
 
-        {/* Kick button (facilitator only). Hover-reveal on devices with a
-            real pointer (mouse/trackpad); always visible on touchscreens,
-            which have no hover state to reveal it (issue #23). */}
-        {canKick && onKick && (
-          <button
-            onClick={onKick}
-            className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-400 rounded-full flex items-center justify-center shadow-lg transition-all opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
-            title="Remove from room"
+        {/* Throw-reaction bar (issue #51): default emoji + "+" for more,
+            plus — facilitator only — the kick action that used to be a
+            standalone corner "X" (issue #23). Hover-reveal on devices with a
+            real pointer; always visible on touchscreens, which have no
+            hover state to reveal it — same convention the old kick button
+            used, now applied to the whole bar. The emoji/"+" portion is
+            gated by funFeaturesEnabled; kick stays available regardless
+            (moderation shouldn't depend on the "fun" toggle). */}
+        {!isMe && (
+          <div
+            className="absolute -top-9 left-1/2 -translate-x-1/2 z-20 transition-opacity
+                       opacity-100 pointer-events-auto
+                       [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:pointer-events-none
+                       [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-hover:pointer-events-auto"
           >
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-              <path d="M2 2l6 6M8 2l-6 6" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-          </button>
+            <ThrowReactionBar
+              canThrow={!!funFeaturesEnabled && !!onThrowReaction}
+              canKick={!!canKick && !!onKick}
+              onThrow={(emoji) => onThrowReaction?.(emoji)}
+              onKick={() => onKick?.()}
+            />
+          </div>
         )}
       </div>
 

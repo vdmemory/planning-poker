@@ -163,6 +163,7 @@ async def handle_message(room_id: str, player_id: str, data: dict) -> None:
                 who_can_reveal=data.get("who_can_reveal"),
                 who_can_manage_issues=data.get("who_can_manage_issues"),
                 close_on_facilitator_leave=data.get("close_on_facilitator_leave"),
+                fun_features_enabled=data.get("fun_features_enabled"),
             )
         elif msg_type == "update_issue":
             service.update_issue(room_id, player_id, data["issue_id"],
@@ -218,6 +219,14 @@ async def handle_message(room_id: str, player_id: str, data: dict) -> None:
                 "kind": data.get("kind", "emoji"),
                 "value": data.get("value", ""),
             })
+            return
+        elif msg_type == "throw_reaction":
+            # Issue #51 — reaction thrown AT a specific player's card, distinct
+            # from the self-reaction `reaction` message above. Also pure relay,
+            # gated by `fun_features_enabled` inside the service call (raises
+            # RoomError, caught below, if the room hasn't opted in).
+            msg = service.throw_reaction(room_id, player_id, data["target_player_id"], data.get("value", ""))
+            await manager.broadcast(room_id, msg)
             return
         else:
             await manager.send_to(

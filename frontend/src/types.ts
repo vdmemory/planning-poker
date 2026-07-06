@@ -20,7 +20,6 @@ export interface Issue {
 
 export interface GameSettings {
   autoReveal: boolean;
-  funFeatures: boolean;
 }
 
 export interface RoomState {
@@ -35,6 +34,10 @@ export interface RoomState {
   // the role to the next player. Default false to keep existing rooms on
   // the legacy handoff behaviour.
   close_on_facilitator_leave: boolean;
+  // Issue #51 — gates the "throw a reaction at another player" hover/tap
+  // panel on PlayerCard. Off by default; facilitator opts the room in via
+  // Game Settings.
+  fun_features_enabled: boolean;
   deck: string[];
   facilitator_id: string | null;
   players: Player[];

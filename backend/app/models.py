@@ -58,6 +58,11 @@ class Room(BaseModel):
     # handing the role off. Default False to preserve existing behaviour for
     # rooms created before the setting existed.
     close_on_facilitator_leave: bool = False
+    # Issue #51 — gates the "throw a reaction at another player" feature
+    # (hover/tap a player's card to fling an emoji at them). Off by default;
+    # facilitator opts the whole room in via update_room, like the other
+    # room-wide policy toggles above.
+    fun_features_enabled: bool = False
     facilitator_id: Optional[str] = None
     players: dict[str, Player] = Field(default_factory=dict)
     issues: list[Issue] = Field(default_factory=list)
@@ -94,6 +99,7 @@ class Room(BaseModel):
             "who_can_reveal": self.who_can_reveal,
             "who_can_manage_issues": self.who_can_manage_issues,
             "close_on_facilitator_leave": self.close_on_facilitator_leave,
+            "fun_features_enabled": self.fun_features_enabled,
             "deck": self.deck(),
             "facilitator_id": self.facilitator_id,
             "players": [p.model_dump(mode="json") for p in self.players.values()],
