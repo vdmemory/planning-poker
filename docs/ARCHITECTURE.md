@@ -118,9 +118,12 @@ disconnected_at старше 30s? → remove_player
 ```
 frontend/src/
 ├── pages/
-│   ├── Home.tsx          форма создания комнаты, POST /api/rooms
+│   ├── LandingPage.tsx   маркетинговый лендинг на `/` (issue #22): hero, «как это работает», фичи, скриншот комнаты
+│   ├── FAQPage.tsx       `/faq`
+│   ├── Home.tsx          форма создания комнаты (`/new` — до issue #22 была на `/`), POST /api/rooms
 │   └── RoomPage.tsx      игровой экран; всё под одним WS-каналом
 ├── components/
+│   ├── MarketingShell.tsx общий header (лого + nav) / footer для лендинга и FAQ
 │   ├── Card.tsx          одна карта (на руке + на столе)
 │   ├── PlayerList.tsx    список игроков с offline-индикатором, аватарами
 │   ├── StatsPanel.tsx    avg / median / distribution / consensus
@@ -129,6 +132,17 @@ frontend/src/
 │   └── useRoomSocket.ts  WS с авто-реконнектом, persistent player_id
 └── types.ts              типы, синхронизированные с public_state()
 ```
+
+### Роуты фронта (`main.tsx`)
+
+| Path | Компонент | Что |
+|---|---|---|
+| `/` | `LandingPage` | Маркетинговый лендинг, гостевой вход (issue #22) |
+| `/faq` | `FAQPage` | FAQ |
+| `/new` | `Home` | Форма создания комнаты — POST `/api/rooms` |
+| `/room/:roomId` | `RoomPage` | Игровой экран |
+
+Лендинг и FAQ не трогают бэкенд и WS вообще — чисто фронтовый роутинг, общий `MarketingShell` для header/footer. Скриншот комнаты на лендинге переключается между `public/landing/room-dark.png` / `room-light.png` по классу `html.light` (тот же механизм, что и остальная тема приложения — см. `useTheme`), а не по `prefers-color-scheme`, потому что выбор темы в приложении — explicit user choice в `localStorage`, а не всегда совпадает с OS-preference.
 
 ### `useRoomSocket`
 
