@@ -177,7 +177,7 @@ WebSocket `/ws/{room_id}?player_id=...&nickname=...`.
 
 **Кто**: всегда только фасилитатор.
 
-Меняются: `name`, `deck_type`, `card_back`, `who_can_reveal`, `who_can_manage_issues`.
+Меняются: `name`, `deck_type`, `card_back`, `who_can_reveal`, `who_can_manage_issues`, `close_on_facilitator_leave`, `fun_features_enabled`.
 
 **Эффект смены `deck_type`**: голоса сбрасываются и `revealed = false` (старые карты могут быть невалидны в новой колоде).
 
@@ -385,6 +385,46 @@ Floater живёт `REACTION_FLOATER_MS = 3500ms`, overlay над карточк
 
 Каждая кнопка — `aria-label="React with {value}"`, toggle-кнопки режима — `role="tab"` с `aria-selected`. Скринридер прочитает «React with 👍», «React with 4h» и т.д.
 
+## Throw reactions (issue #51)
+
+Отдельная от Reactions (#32) фича: вместо реакции на **себя**, игрок кидает эмодзи в **конкретную чужую карточку** — hover (или тап на мобиле) по карточке другого игрока показывает панель, клик по эмодзи анимированно летит от карточки бросающего к карточке цели, у всех клиентов одновременно.
+
+Изначально был мёртвый переключатель «Enable fun features» в Game Settings с описанием-заглушкой («Allow players throw projectiles to each other in this game»), который ничего не делал (issue #51 сначала просил его вырезать). Вместо удаления — реализован по-настоящему.
+
+### Room-wide toggle, а не локальный pref
+
+`fun_features_enabled` — поле на `Room` (не `GameSettings`/`localStorage`, в отличие от `autoReveal`), меняется через `update_room` **только фасилитатором**, приходит всем в `room_state`. Так и должно быть: «разрешить кидаться эмодзи» — это политика комнаты («in this game»), а не персональная настройка одного браузера.
+
+По умолчанию `false` — существующие комнаты не меняют поведения.
+
+### WS-протокол
+
+| Сторона | Сообщение |
+|---|---|
+| Client → Server | `{ type: "throw_reaction", target_player_id, value }` |
+| Server → All clients (sender included) | `{ type: "thrown_reaction", from_player_id, from_nickname, from_avatar_color, target_player_id, value }` |
+
+Как и `reaction`/`draw_*`/`countdown` — pure relay, ничего не пишется в `Room`. `RoomService.throw_reaction` валидирует: `fun_features_enabled` включен (иначе `RoomError("Fun features are disabled in this room")`), отправитель и цель существуют в комнате, `value` не пустой.
+
+### Hover-бар на карточке (`ThrowReactionBar`)
+
+Заменил старый вечно-hover-appearing крестик (issue #23) на панель: 4 дефолтных эмодзи (`🎯 ✈️ 🧻 ❤️`) + кнопка `+` (открывает грид из 10 дополнительных: `🍅 🥚 💩 🔥 😂 👏 😱 🙌 👋 💯` — отдельная от «эмоций» палитры Reactions, тема «кидаться чем попало») + (только у фасилитатора) корзина для kick.
+
+Важно: **эмодзи-часть** бара гейтится `fun_features_enabled`, а **kick остаётся доступен всегда**, независимо от тумблера — модерация не должна зависеть от «весёлых фич». Если `fun_features_enabled=false`, у фасилитатора в баре — только корзина (по сути тот же старый крестик, просто в новой обёртке); у остальных при наведении на чужую карточку не показывается ничего.
+
+Видимость бара — тот же паттерн, что был у крестика: `opacity-100` по умолчанию (всегда видно на тачскрине, где нет hover), `[@media(hover:hover)]:opacity-0` + `group-hover:opacity-100` на устройствах с настоящим указателем. На своей собственной карточке бар не показывается (`!isMe`).
+
+### Анимация полёта (`useThrowReactions` + `ThrowFloater`)
+
+При получении `thrown_reaction`:
+1. Хук ищет DOM-узлы отправителя и цели через `document.querySelector('[data-player-id="..."]')` (атрибут добавлен на корневой `div` `PlayerCard`) и берёт их `getBoundingClientRect()` **один раз**, в момент броска.
+2. Если карточка цели не отрендерена у этого клиента — реакция тихо игнорируется (нечего анимировать).
+3. Если карточка отправителя не найдена (редкий кейс — отключился в момент полёта) — точка старта падает на нижний край экрана по центру, а не на всю анимацию целиком.
+
+`ThrowFloater` использует FLIP-технику: рендерится в стартовой точке, на следующий кадр (`requestAnimationFrame`) применяется `transform: translate(dx, dy) rotate(...)` с CSS-`transition` — браузер анимирует между двумя состояниями без JS per-frame и без сторонних библиотек. После приземления (по таймеру, не по `transitionend`, чтобы не зависеть от точного тайминга) — короткий bounce-keyframe (`throw-reaction-land` в `index.css`) на **внутреннем** `<span>` (у него свой `transform`, не конфликтует с translate/rotate внешнего `div`), после чего элемент угасает и хук снимает флайт по таймауту (`FLIGHT_LIFETIME_MS = 1500`).
+
+Небольшой случайный сдвиг точки приземления (`landOffsetX/Y`, ±15/±12px) считается локально на каждом клиенте отдельно — чисто декоративно, не нужно синхронизировать по сети, чтобы несколько одновременных бросков в одну карточку не легли пиксель-в-пиксель.
+
 ## Countdown
 
 Сообщение `{type: "countdown", seconds: 3}` релеется всем как есть — клиенты сами показывают анимацию обратного отсчёта перед `reveal`. Никакого серверного таймера или валидации.
@@ -396,7 +436,7 @@ Floater живёт `REACTION_FLOATER_MS = 3500ms`, overlay над карточк
 ```ts
 {
   id, name, deck_type, card_back,
-  who_can_reveal, who_can_manage_issues,
+  who_can_reveal, who_can_manage_issues, fun_features_enabled,
   deck: string[],                   // карты текущей колоды
   facilitator_id,
   players: Player[],

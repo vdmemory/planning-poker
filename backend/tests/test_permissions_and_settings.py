@@ -119,3 +119,50 @@ def test_kick_player_is_facilitator_only(service):
     carol = service.join(room.id, "carol")
     with pytest.raises(RoomError, match="Only facilitator"):
         service.kick_player(room.id, bob.id, carol.id)
+
+
+# ---------- Issue #51 — throw_reaction gated by fun_features_enabled ----------
+
+def test_throw_reaction_rejected_when_fun_features_disabled(service):
+    room, alice = service.create_room("X", DeckType.FIBONACCI, "alice")
+    bob = service.join(room.id, "bob")
+    assert service.get_room(room.id).fun_features_enabled is False
+    with pytest.raises(RoomError, match="Fun features are disabled"):
+        service.throw_reaction(room.id, alice.id, bob.id, "🎯")
+
+
+def test_throw_reaction_succeeds_once_enabled(service):
+    room, alice = service.create_room("X", DeckType.FIBONACCI, "alice")
+    bob = service.join(room.id, "bob")
+    service.update_room(room.id, alice.id, fun_features_enabled=True)
+    msg = service.throw_reaction(room.id, alice.id, bob.id, "🎯")
+    assert msg == {
+        "type": "thrown_reaction",
+        "from_player_id": alice.id,
+        "from_nickname": "alice",
+        "from_avatar_color": alice.avatar_color,
+        "target_player_id": bob.id,
+        "value": "🎯",
+    }
+
+
+def test_throw_reaction_rejects_unknown_target(service):
+    room, alice = service.create_room("X", DeckType.FIBONACCI, "alice")
+    service.update_room(room.id, alice.id, fun_features_enabled=True)
+    with pytest.raises(RoomError, match="Target player not in room"):
+        service.throw_reaction(room.id, alice.id, "ghost", "🎯")
+
+
+def test_throw_reaction_rejects_unknown_sender(service):
+    room, alice = service.create_room("X", DeckType.FIBONACCI, "alice")
+    service.update_room(room.id, alice.id, fun_features_enabled=True)
+    with pytest.raises(RoomError, match="Player not in room"):
+        service.throw_reaction(room.id, "ghost", alice.id, "🎯")
+
+
+def test_throw_reaction_rejects_missing_value(service):
+    room, alice = service.create_room("X", DeckType.FIBONACCI, "alice")
+    bob = service.join(room.id, "bob")
+    service.update_room(room.id, alice.id, fun_features_enabled=True)
+    with pytest.raises(RoomError, match="Missing reaction value"):
+        service.throw_reaction(room.id, alice.id, bob.id, "")

@@ -10,6 +10,9 @@ interface UseRoomSocketArgs {
   // sender's own click, so their on-card overlay + rising floater both appear).
   // Held in a ref so changing the handler doesn't tear down the WS.
   onReactionMessage?: (msg: object) => void;
+  // Issue #51 — fired on every `thrown_reaction` broadcast (a reaction aimed
+  // at a specific player's card, distinct from the self-reaction above).
+  onThrowReactionMessage?: (msg: object) => void;
 }
 
 interface UseRoomSocketResult {
@@ -40,6 +43,7 @@ export function useRoomSocket({
   nickname,
   onDrawMessage,
   onReactionMessage,
+  onThrowReactionMessage,
 }: UseRoomSocketArgs): UseRoomSocketResult {
   const [state, setState] = useState<RoomState | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -53,6 +57,8 @@ export function useRoomSocket({
   useEffect(() => { onDrawMessageRef.current = onDrawMessage; });
   const onReactionMessageRef = useRef(onReactionMessage);
   useEffect(() => { onReactionMessageRef.current = onReactionMessage; });
+  const onThrowReactionMessageRef = useRef(onThrowReactionMessage);
+  useEffect(() => { onThrowReactionMessageRef.current = onThrowReactionMessage; });
   const reconnectTimeoutRef = useRef<number | null>(null);
   const countdownTimerRef = useRef<number | null>(null);
   const shouldReconnectRef = useRef(true);
@@ -143,6 +149,8 @@ export function useRoomSocket({
         onDrawMessageRef.current?.(msg);
       } else if (msg.type === "reaction") {
         onReactionMessageRef.current?.(msg);
+      } else if (msg.type === "thrown_reaction") {
+        onThrowReactionMessageRef.current?.(msg);
       } else if (msg.type === "error") {
         setError(msg.message);
       }

@@ -223,6 +223,46 @@ def test_reaction_with_time_value_is_relayed(client):
         assert msg["value"] == "4h"
 
 
+def test_throw_reaction_relayed_to_all_once_enabled(client):
+    """Issue #51 — thrown reactions relay to everyone (sender included, so
+    their own screen also plays the fly-to-card animation), enriched with the
+    sender's nickname/avatar_color the same way `reaction` is. Gated by
+    `fun_features_enabled` — off by default, so update_room must flip it on
+    first or the throw is rejected."""
+    data = create_room_via_api(client)
+    with client.websocket_connect(_ws_url(data["room_id"], data["player_id"])) as ws_a, \
+         client.websocket_connect(_ws_url(data["room_id"], "x", "bob")) as ws_b:
+        for w in (ws_a, ws_b):
+            w.receive_json(); w.receive_json()
+        ws_a.receive_json()  # bob-joined broadcast
+
+        ws_a.send_json({"type": "update_room", "fun_features_enabled": True})
+        for w in (ws_a, ws_b):
+            w.receive_json()  # room_state after the setting change
+
+        room_state = client.get(f"/api/rooms/{data['room_id']}").json()["state"]
+        bob_id = next(p["id"] for p in room_state["players"] if p["nickname"] == "bob")
+
+        ws_a.send_json({"type": "throw_reaction", "target_player_id": bob_id, "value": "🎯"})
+        for ws in (ws_a, ws_b):
+            msg = ws.receive_json()
+            assert msg["type"] == "thrown_reaction"
+            assert msg["from_player_id"] == data["player_id"]
+            assert msg["from_nickname"] == "alice"
+            assert msg["target_player_id"] == bob_id
+            assert msg["value"] == "🎯"
+
+
+def test_throw_reaction_rejected_when_fun_features_disabled(client):
+    data = create_room_via_api(client)
+    with client.websocket_connect(_ws_url(data["room_id"], data["player_id"])) as ws:
+        ws.receive_json(); ws.receive_json()
+        ws.send_json({"type": "throw_reaction", "target_player_id": data["player_id"], "value": "🎯"})
+        msg = ws.receive_json()
+        assert msg["type"] == "error"
+        assert "Fun features are disabled" in msg["message"]
+
+
 def test_draw_stroke_is_relayed_to_everyone_except_sender(client):
     data = create_room_via_api(client)
     with client.websocket_connect(_ws_url(data["room_id"], data["player_id"])) as ws_a, \
