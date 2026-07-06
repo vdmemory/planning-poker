@@ -90,7 +90,7 @@ Bob, потом ws закрылся, потом второй WS пришёл с 
 | `create-and-vote.spec.ts` | Фасилитатор создаёт комнату → голосует → «Reveal cards» появляется |
 | `reveal-and-stats.spec.ts` | Голосует → Reveal → «Average» + «New round»; New round сбрасывает |
 | `two-players.spec.ts` | Два контекста (две сессии) в одной комнате → видят друг друга → оба голосуют → reveal на одном → обе видят stats |
-| `mobile-flows.spec.ts` | Issue #23 — те же 5 ключевых флоу на viewport 375×667 (iPhone SE) с `hasTouch: true`: создание комнаты + join по ссылке, голос+reveal, Game Settings (проверка что Save помещается в viewport), issues-drawer (добавить+выбрать issue), рисование пальцем через синтетические `TouchEvent` |
+| `mobile-flows.spec.ts` | Issue #23 — те же 5 ключевых флоу на viewport 375×667 (iPhone SE) с `hasTouch: true`: создание комнаты + join по ссылке, голос+reveal, Game Settings (проверка что Save помещается в viewport), issues-drawer (добавить+выбрать issue), рисование пальцем через синтетические `TouchEvent`; + два регрессионных теста, которые кликают конкретное значение в `EstimatePicker`/`RevotePicker` на мобиле и проверяют что оно **реально применилось** (не просто что модалка открылась) — см. `docs/BUSINESS_LOGIC.md` раздел «Баг: выбор в мобильной модалке не применялся» |
 
 ### Helpers (`tests/e2e/helpers.ts`)
 
@@ -100,7 +100,9 @@ Bob, потом ws закрылся, потом второй WS пришёл с 
 
 ### Мобильные тесты и ловушка с `.first()` (issue #23)
 
-`mobile-flows.spec.ts` не переиспользует `voteCard`/текстовые локаторы 1-в-1 из десктопных тестов, потому что ниже `md` в DOM одновременно присутствуют **обе** копии стола — `PokerTable` (`hidden md:flex`) и мобильный fallback (`md:hidden`) — CSS прячет только одну. Locator по тексту/роли матчит обе, и `.first()` берёт первую **в DOM-порядке**, а не первую видимую — на мобильном viewport'е это чаще всего скрытая desktop-копия, и `expect(...).toBeVisible()` зависает до таймаута. Паттерн, которым это обходится в `mobile-flows.spec.ts`:
+`PokerTable` теперь один и тот же компонент на всех брейкпоинтах (см. `docs/BUSINESS_LOGIC.md` → «Стол теперь один и тот же на всех размерах экрана») — раньше ниже `md` в DOM одновременно присутствовали **обе** копии стола (десктопный `PokerTable` + мобильный `ActionBox`-fallback, одна всегда `display:none`), и это было основным источником ловушки ниже. Та дублирующая пара исчезла, но тот же паттерн остался в `EstimatePicker` (`IssueSidebar.tsx`) и `RevotePicker` (`RoomPage.tsx`) — у обоих мобильная модалка и десктопный дропдаун смонтированы одновременно как два разных элемента, CSS прячет только один.
+
+`mobile-flows.spec.ts` поэтому не переиспользует `voteCard`/текстовые локаторы 1-в-1 из десктопных тестов там, где они матчат что-то внутри этих пикеров: Locator по тексту/роли матчит обе копии, и `.first()` берёт первую **в DOM-порядке**, а не первую видимую — на мобильном viewport'е это чаще всего скрытая desktop-копия, и `expect(...).toBeVisible()` зависает до таймаута. Паттерн, которым это обходится в `mobile-flows.spec.ts`:
 
 ```ts
 const visible = (l: Locator) => l.and(page.locator(":visible")).first();

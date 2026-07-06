@@ -18,11 +18,11 @@ test("facilitator creates a room and a second player joins via the invite link",
   const roomUrl = await createRoom(alice, "Mobile test");
   await joinRoom(bob, roomUrl, "Bob");
 
-  // Below md, the desktop poker-table layout is `hidden` and a separate
-  // mobile layout renders each player again — both copies exist in the DOM,
-  // so scope to the one CSS actually shows at this viewport instead of
-  // relying on DOM order (:visible; getByText().first() picks up the
-  // display:none desktop copy here).
+  // PokerTable renders once at every breakpoint (issue #23 follow-up — it
+  // used to have a separate mobile fallback with its own player list, which
+  // meant two name pills existed in the DOM for the same player and needed
+  // this same `:visible` filter to disambiguate). Kept here defensively;
+  // harmless now that there's only one match either way.
   await expect(alice.locator('[data-testid="player-name-pill"]:visible', { hasText: "Bob" })).toBeVisible({ timeout: 10_000 });
   await expect(bob.locator('[data-testid="player-name-pill"]:visible', { hasText: "Alice" })).toBeVisible({ timeout: 10_000 });
 
@@ -33,11 +33,9 @@ test("facilitator creates a room and a second player joins via the invite link",
 test("vote and reveal works on a narrow viewport", async ({ page }) => {
   await createRoom(page, "Mobile vote test");
 
-  // Below md the app renders both the desktop poker-table markup (display:
-  // none) and the mobile fallback for the same state, so any text/role
-  // query matching both copies must be narrowed to the one CSS actually
-  // shows here — otherwise `.first()` picks the hidden desktop copy in DOM
-  // order and every assertion below flakes out to "not visible".
+  // See the comment on the previous test — PokerTable is unified across
+  // breakpoints now, so this `:visible` narrowing is no longer load-bearing
+  // for text inside it, just kept as a defensive habit.
   const visible = (l: ReturnType<Page["getByText"]>) => l.and(page.locator(":visible")).first();
 
   const card5 = page.getByRole("button", { name: "5", exact: true });
@@ -100,6 +98,27 @@ test("issue sidebar opens as a full-screen drawer and doesn't squeeze the game s
   await expect(page.locator("main").getByText("Fix mobile layout").first()).toBeVisible();
 });
 
+test("estimate picker on mobile actually sets the estimate (regression: mousedown-outside-close bug)", async ({ page }) => {
+  await createRoom(page, "Mobile estimate test");
+  await page.getByTitle("Toggle issues sidebar").click();
+  await page.getByRole("button", { name: /add another issue/i }).click();
+  await page.getByPlaceholder("Enter a title for the issue").fill("Mobile estimate check");
+  await page.keyboard.press("Enter");
+
+  // Issue #23 follow-up regression — the mobile modal and desktop dropdown
+  // are separate DOM subtrees (only one `display`s at a time), and the
+  // outside-click-closes listener briefly only checked the desktop one.
+  // On mobile that misread every tap *inside* the modal as "outside" and
+  // closed the picker via `mousedown` a beat before the click's onSelect
+  // handler ran, so the estimate never actually changed. Scope to the
+  // trigger button's wrapper — the bottom voting deck also has a "13" card.
+  const wrapper = page.locator('button[title="Set estimate"]').locator("xpath=..");
+  await wrapper.locator('button[title="Set estimate"]').click();
+  await wrapper.getByRole("button", { name: "13", exact: true }).and(page.locator(":visible")).click();
+
+  await expect(page.locator('button[title="Set estimate"]:visible')).toHaveText("13");
+});
+
 async function touchDraw(page: Page, points: { x: number; y: number }[]) {
   await page.evaluate((pts) => {
     const canvas = document.querySelector('[data-testid="drawing-canvas"]') as HTMLElement;
@@ -119,6 +138,26 @@ async function touchDraw(page: Page, points: { x: number; y: number }[]) {
     fire("touchend", pts[pts.length - 1].x, pts[pts.length - 1].y);
   }, points);
 }
+
+test("revote picker on mobile actually changes the vote (regression: mousedown-outside-close bug)", async ({ page }) => {
+  await createRoom(page, "Mobile revote test");
+
+  const card5 = page.getByRole("button", { name: "5", exact: true }).and(page.locator(":visible")).first();
+  await card5.click();
+  const reveal = page.getByRole("button", { name: /reveal cards/i }).and(page.locator(":visible")).first();
+  await expect(reveal).toBeVisible({ timeout: 10_000 });
+  await reveal.click();
+  await expect(page.getByText("Average").and(page.locator(":visible")).first()).toBeVisible({ timeout: 5_000 });
+
+  // See the equivalent estimate-picker regression test above for the root
+  // cause — same bug, same fix, different picker (pencil → change your vote).
+  await page.locator('button[title="Change your vote"]:visible').click();
+  await page.getByRole("button", { name: "8", exact: true }).and(page.locator(":visible")).click();
+
+  // toContainText auto-retries until the WS round-trip lands; a plain
+  // .innerText() read races ahead of it and reads the stale "5".
+  await expect(page.locator('[data-testid="player-card"]:visible').first()).toContainText("8", { timeout: 5_000 });
+});
 
 test("drawing with a finger (touch events) puts a stroke on the canvas", async ({ page }) => {
   await createRoom(page, "Mobile drawing test", "Painter");

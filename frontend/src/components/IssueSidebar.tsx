@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, type CSSProperties } from "react";
 import type { RoomState, Issue } from "../types";
 import { ConfirmModal } from "./ConfirmModal";
 
@@ -580,11 +580,10 @@ function Dropdown({
   );
 }
 
-// Centered modal picker — mirrors the RevotePicker on the main player card
-// (RoomPage.tsx) instead of the old fixed-position dropdown, which measured
-// the trigger button's bounding rect in a useEffect *after* the first paint.
-// That measure-then-reposition dance made the picker visibly jump from its
-// unstyled initial spot to its calculated one on first open.
+// Issue #23 follow-up — mobile gets a centered modal (mirrors the RevotePicker
+// on the main player card, RoomPage.tsx): no measurement needed, so no jump.
+// Desktop keeps the original fixed-position dropdown anchored to the trigger
+// button, which has room to open without covering the whole screen.
 function EstimatePicker({
   value,
   deck,
@@ -600,9 +599,49 @@ function EstimatePicker({
   onClose: () => void;
   onSelect: (v: string) => void;
 }) {
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const mobileRef = useRef<HTMLDivElement>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const [style, setStyle] = useState<CSSProperties>({});
+
+  // Desktop only: calculate fixed dropdown position when opened.
+  useEffect(() => {
+    if (!open || !btnRef.current) return;
+    const rect = btnRef.current.getBoundingClientRect();
+    const PICKER_H = 212;
+    const PICKER_W = 188;
+    const spaceAbove = rect.top;
+    const top = spaceAbove > PICKER_H + 8 ? rect.top - PICKER_H - 8 : rect.bottom + 8;
+    const right = Math.max(8, window.innerWidth - rect.right);
+    setStyle({ position: "fixed", top, right, width: PICKER_W, zIndex: 999 });
+  }, [open]);
+
+  // Click outside the trigger button, the mobile modal's content box, or the
+  // desktop dropdown closes it. All three need checking — only one of the
+  // two pickers is visible at a time (the other is `display:none`), but
+  // both are always mounted, and this single document listener runs
+  // regardless of which one CSS is currently showing. Checking only the
+  // desktop ref meant a tap on any value button inside the *mobile* modal
+  // read as "outside" and fired onClose() on mousedown, a beat before the
+  // click's onSelect handler could run — the picker closed before the
+  // estimate change registered.
+  useEffect(() => {
+    if (!open) return;
+    function handler(e: MouseEvent) {
+      const target = e.target as Node;
+      const insideButton = btnRef.current?.contains(target);
+      const insideMobile = mobileRef.current?.contains(target);
+      const insideDesktop = pickerRef.current?.contains(target);
+      if (!insideButton && !insideMobile && !insideDesktop) onClose();
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open, onClose]);
+
   return (
     <div className="relative">
       <button
+        ref={btnRef}
         onClick={onToggle}
         className="text-xs bg-[var(--c-panel2)] text-slate-300 border border-[var(--c-border)] px-3 py-1.5 rounded-lg hover:bg-[var(--c-border)] transition-colors"
         title="Set estimate"
@@ -610,21 +649,51 @@ function EstimatePicker({
         {value ?? "—"}
       </button>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+        <>
+          {/* Mobile: centered modal */}
           <div
-            className="bg-[var(--c-panel)] border border-[var(--c-border)] rounded-2xl p-5 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
+            className="md:hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+            onClick={onClose}
           >
-            <p className="text-sm text-slate-400 mb-3 text-center">Set estimate</p>
-            <div className="grid grid-cols-4 gap-2">
+            <div
+              ref={mobileRef}
+              className="bg-[var(--c-panel)] border border-[var(--c-border)] rounded-2xl p-5 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p className="text-sm text-slate-400 mb-3 text-center">Set estimate</p>
+              <div className="grid grid-cols-4 gap-2">
+                {deck.map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => onSelect(v)}
+                    className={`w-12 h-16 sm:w-14 sm:h-20 rounded-xl border-2 font-bold text-base sm:text-lg transition-all ${
+                      v === value
+                        ? "bg-accent border-accent text-accent-fg scale-105"
+                        : "bg-[var(--c-panel2)] border-[var(--c-border)] text-slate-300 hover:border-accent hover:scale-105"
+                    }`}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Desktop: fixed-position dropdown anchored to the trigger button */}
+          <div
+            ref={pickerRef}
+            style={style}
+            className="hidden md:block bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl p-2 shadow-2xl"
+          >
+            <div className="flex flex-wrap gap-1.5 justify-center">
               {deck.map((v) => (
                 <button
                   key={v}
                   onClick={() => onSelect(v)}
-                  className={`w-12 h-16 sm:w-14 sm:h-20 rounded-xl border-2 font-bold text-base sm:text-lg transition-all ${
-                    v === value
-                      ? "bg-accent border-accent text-accent-fg scale-105"
-                      : "bg-[var(--c-panel2)] border-[var(--c-border)] text-slate-300 hover:border-accent hover:scale-105"
+                  className={`w-10 h-14 rounded-lg border font-bold text-sm transition-all ${
+                    value === v
+                      ? "bg-accent border-accent text-accent-fg"
+                      : "bg-[var(--c-bg)] border-[var(--c-border)] text-slate-300 hover:border-accent"
                   }`}
                 >
                   {v}
@@ -632,7 +701,7 @@ function EstimatePicker({
               ))}
             </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
