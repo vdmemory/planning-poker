@@ -600,6 +600,7 @@ function EstimatePicker({
   onSelect: (v: string) => void;
 }) {
   const btnRef = useRef<HTMLButtonElement>(null);
+  const mobileRef = useRef<HTMLDivElement>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
   const [style, setStyle] = useState<CSSProperties>({});
 
@@ -615,18 +616,23 @@ function EstimatePicker({
     setStyle({ position: "fixed", top, right, width: PICKER_W, zIndex: 999 });
   }, [open]);
 
-  // Desktop only: click outside the dropdown closes it. The mobile modal
-  // closes via its own backdrop onClick instead.
+  // Click outside the trigger button, the mobile modal's content box, or the
+  // desktop dropdown closes it. All three need checking — only one of the
+  // two pickers is visible at a time (the other is `display:none`), but
+  // both are always mounted, and this single document listener runs
+  // regardless of which one CSS is currently showing. Checking only the
+  // desktop ref meant a tap on any value button inside the *mobile* modal
+  // read as "outside" and fired onClose() on mousedown, a beat before the
+  // click's onSelect handler could run — the picker closed before the
+  // estimate change registered.
   useEffect(() => {
     if (!open) return;
     function handler(e: MouseEvent) {
       const target = e.target as Node;
-      if (
-        pickerRef.current && !pickerRef.current.contains(target) &&
-        btnRef.current && !btnRef.current.contains(target)
-      ) {
-        onClose();
-      }
+      const insideButton = btnRef.current?.contains(target);
+      const insideMobile = mobileRef.current?.contains(target);
+      const insideDesktop = pickerRef.current?.contains(target);
+      if (!insideButton && !insideMobile && !insideDesktop) onClose();
     }
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -650,6 +656,7 @@ function EstimatePicker({
             onClick={onClose}
           >
             <div
+              ref={mobileRef}
               className="bg-[var(--c-panel)] border border-[var(--c-border)] rounded-2xl p-5 shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >

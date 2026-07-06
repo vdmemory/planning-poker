@@ -90,7 +90,7 @@ Bob, потом ws закрылся, потом второй WS пришёл с 
 | `create-and-vote.spec.ts` | Фасилитатор создаёт комнату → голосует → «Reveal cards» появляется |
 | `reveal-and-stats.spec.ts` | Голосует → Reveal → «Average» + «New round»; New round сбрасывает |
 | `two-players.spec.ts` | Два контекста (две сессии) в одной комнате → видят друг друга → оба голосуют → reveal на одном → обе видят stats |
-| `mobile-flows.spec.ts` | Issue #23 — те же 5 ключевых флоу на viewport 375×667 (iPhone SE) с `hasTouch: true`: создание комнаты + join по ссылке, голос+reveal, Game Settings (проверка что Save помещается в viewport), issues-drawer (добавить+выбрать issue), рисование пальцем через синтетические `TouchEvent` |
+| `mobile-flows.spec.ts` | Issue #23 — те же 5 ключевых флоу на viewport 375×667 (iPhone SE) с `hasTouch: true`: создание комнаты + join по ссылке, голос+reveal, Game Settings (проверка что Save помещается в viewport), issues-drawer (добавить+выбрать issue), рисование пальцем через синтетические `TouchEvent`; + два регрессионных теста, которые кликают конкретное значение в `EstimatePicker`/`RevotePicker` на мобиле и проверяют что оно **реально применилось** (не просто что модалка открылась) — см. `docs/BUSINESS_LOGIC.md` раздел «Баг: выбор в мобильной модалке не применялся» |
 
 ### Helpers (`tests/e2e/helpers.ts`)
 
