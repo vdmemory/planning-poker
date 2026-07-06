@@ -490,7 +490,7 @@ if (accent && ALLOWED.has(accent)) html.setAttribute("data-accent", accent);
 |---|---|
 | `--c-accent` (`bg-accent`, `border-accent`) | Primary кнопки (Create game, Save, Continue, Reveal), активные tab'ы, selected state карт голосования, focus border у inputs |
 | `--c-accent-hover` (`hover:bg-accent-hover`) | Hover на primary кнопках |
-| `--c-accent-text` (`text-accent`) | Brand-coloured text на neutral bg: «host» badge у фасилитатора, ссылки, мелкие checkmark-иконки, hover на edit-name кнопках |
+| `--c-accent-text` (`text-accent`) | Brand-coloured text на neutral bg: ссылки, мелкие checkmark-иконки, hover на edit-name кнопках |
 | `--c-accent-soft` (`bg-accent-soft`) | ~10–15% alpha — outline кнопки (Invite players), badge'и активного issue |
 | `--c-accent-soft-hi` (`bg-accent-soft-hi`) | ~25–40% alpha — borders, ring у focus, shadow voting card'а при выборе |
 | `--c-accent-fg` (`text-accent-fg`) | Текст НА accent bg — обычно белый, для yellow tema переключается на slate-900 |

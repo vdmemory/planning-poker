@@ -818,9 +818,11 @@ function PokerTable({
   // every breakpoint instead.
   const isMobile = useIsMobile();
 
-  // Table oval dimensions (px)
-  const TW = isMobile ? 200 : 520;
-  const TH = isMobile ? 100 : 250;
+  // Table dimensions (px). Desktop keeps the wide oval (520×250); mobile is
+  // a true circle (equal width/height) instead of the squat rectangle a
+  // scaled-down oval produced — round table, round felt.
+  const TW = isMobile ? 180 : 520;
+  const TH = isMobile ? 180 : 250;
 
   // Player card area size (w × h, including avatar + card + name) — matches
   // PlayerCard's own responsive card size (w-12/h-16 below the `sm`
@@ -830,13 +832,12 @@ function PokerTable({
 
   // Gap from table edge to player card center. On desktop TW/TH dwarf PW/PH
   // (felt is 5-8x a card's size) so one shared GAP clears both axes with
-  // room to spare. Shrinking the felt down for mobile without shrinking the
-  // card by the same factor flips that ratio — a card at the top of the
-  // oval is now taller than the felt itself — so a single GAP small enough
-  // to keep the table narrow was letting cards overlap the felt vertically.
-  // Two GAPs, each sized to clear its own axis (>= half the card's size on
-  // that axis, plus a few px of breathing room):
-  const GAP_X = isMobile ? PW / 2 + 6 : 56;
+  // room to spare. On mobile the felt is much closer in size to a card, so
+  // GAP has to be sized off the card's own half-size (not an arbitrary
+  // constant) to keep cards from overlapping the felt — and since the felt
+  // is now a circle, both axes use the same (larger) requirement so the
+  // player orbit stays circular too, instead of stretching into an oval.
+  const GAP_X = isMobile ? PH / 2 + 6 : 56;
   const GAP_Y = isMobile ? PH / 2 + 6 : 56;
 
   // Orbit radii (center → player card center)
@@ -894,7 +895,6 @@ function PokerTable({
               voted={state.voted_player_ids.includes(player.id)}
               revealed={state.revealed}
               cardValue={state.revealed ? state.votes[player.id] : null}
-              isFacilitator={player.id === state.facilitator_id}
               avatarColor={player.id === myPlayerId ? avatarColor : player.avatar_color}
               isMe={player.id === myPlayerId}
               deck={state.deck}
@@ -1020,7 +1020,6 @@ function PlayerCard({
   voted,
   revealed,
   cardValue,
-  isFacilitator,
   avatarColor,
   isMe,
   deck,
@@ -1036,7 +1035,6 @@ function PlayerCard({
   voted: boolean;
   revealed: boolean;
   cardValue: string | null;
-  isFacilitator: boolean;
   avatarColor: string;
   isMe?: boolean;
   deck?: string[];
@@ -1068,18 +1066,6 @@ function PlayerCard({
       data-player-id={player.id}
       className={`flex flex-col items-center gap-1.5 group ${!player.connected ? "opacity-40" : ""}`}
     >
-      {/* Name pill above the card. Replaces the previous letter-avatar circle:
-          the avatar color is preserved as the pill background so the player's
-          color identity stays visible. */}
-      <div
-        data-testid="player-name-pill"
-        className="px-2 py-0.5 rounded-full text-xs font-semibold max-w-[88px] truncate text-center shadow-sm"
-        style={{ backgroundColor: bgColor, color: pickContrastTextColor(bgColor) }}
-        title={player.nickname}
-      >
-        {player.nickname}
-      </div>
-
       {/* Card with optional edit/kick buttons */}
       <div className="relative">
         <div
@@ -1149,10 +1135,16 @@ function PlayerCard({
             hover state to reveal it — same convention the old kick button
             used, now applied to the whole bar. The emoji/"+" portion is
             gated by funFeaturesEnabled; kick stays available regardless
-            (moderation shouldn't depend on the "fun" toggle). */}
+            (moderation shouldn't depend on the "fun" toggle).
+            -top-2: the bar floats just above the card itself. It used to sit
+            further up (-top-9) back when the name pill above the card ate
+            into that space, keeping the bar clear of the felt for players
+            near the table edge; now that the pill lives under the card,
+            the card sits closer to the felt and a smaller offset is what
+            keeps the bar from drifting onto the felt for south/side seats. */}
         {!isMe && (
           <div
-            className="absolute -top-9 left-1/2 -translate-x-1/2 z-20 transition-opacity
+            className="absolute -top-2 left-1/2 -translate-x-1/2 z-20 transition-opacity
                        opacity-100 pointer-events-auto
                        [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:pointer-events-none
                        [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-hover:pointer-events-auto"
@@ -1167,9 +1159,20 @@ function PlayerCard({
         )}
       </div>
 
-      {/* Status badges under the card. The duplicate name caption was removed —
-          the name now lives in the pill above the card (see issue #7). */}
-      {isFacilitator && <span className="text-xs text-accent/70">host</span>}
+      {/* Name pill under the card (moved back down from above it — issue #7
+          put it above; this reverses that). Avatar color stays as the pill
+          background so the player's color identity is still visible. */}
+      <div
+        data-testid="player-name-pill"
+        className="px-2 py-0.5 rounded-full text-xs font-semibold max-w-[88px] truncate text-center shadow-sm"
+        style={{ backgroundColor: bgColor, color: pickContrastTextColor(bgColor) }}
+        title={player.nickname}
+      >
+        {player.nickname}
+      </div>
+
+      {/* Status badges under the name pill. The "host" badge was removed —
+          the facilitator isn't called out visually anymore. */}
       {player.is_spectator && <span className="text-xs text-slate-500">spectator</span>}
       {!player.connected && <span className="text-xs text-slate-500">offline</span>}
 
