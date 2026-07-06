@@ -428,6 +428,7 @@ function Room({
           <div className="relative">
             <button
               onClick={() => setShowProfileMenu((o) => !o)}
+              title="Profile"
               className="flex items-center gap-1.5 bg-[var(--c-panel)] rounded-full px-2 sm:px-3 py-1.5 hover:bg-[var(--c-panel2)] transition-colors"
             >
               <div
