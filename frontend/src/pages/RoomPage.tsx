@@ -16,6 +16,7 @@ import { ThrowReactionBar } from "../components/ThrowReactionBar";
 import { ThrowFloater } from "../components/ThrowFloater";
 import { useReactionAnimations, type CardReaction } from "../hooks/useReactionAnimations";
 import { useThrowReactions } from "../hooks/useThrowReactions";
+import { usePlayersWithExit } from "../hooks/usePlayersWithExit";
 import type { Player, RoomState, Stats, GameSettings } from "../types";
 import QRCode from "qrcode";
 
@@ -810,6 +811,13 @@ function PokerTable({
   const players = state.players;
   const n = players.length;
 
+  // Issue #5 — a departed player's card fades out instead of vanishing
+  // instantly. `leavingPlayers` are ghosts no longer in `state.players`;
+  // they render at their last known orbit position (cached below) so they
+  // fade in place rather than jumping somewhere new.
+  const leavingPlayers = usePlayersWithExit(players);
+  const lastPosRef = useRef<Record<string, { x: number; y: number }>>({});
+
   // Issue #23 follow-up — the table used to be desktop-only (a fixed-width
   // fallback with a plain player list took over below md) because every
   // dimension here is a hardcoded pixel value sized for a desktop screen;
@@ -887,9 +895,10 @@ function PokerTable({
         const angle = n === 1 ? -Math.PI / 2 : (i / n) * 2 * Math.PI - Math.PI / 2;
         const x = Math.round(CX + ORX * Math.cos(angle) - PW / 2);
         const y = Math.round(CY + ORY * Math.sin(angle) - PH / 2);
+        lastPosRef.current[player.id] = { x, y };
 
         return (
-          <div key={player.id} className="absolute" style={{ left: x, top: y, width: PW }}>
+          <div key={player.id} className="absolute player-fade-in" style={{ left: x, top: y, width: PW }}>
             <PlayerCard
               player={player}
               voted={state.voted_player_ids.includes(player.id)}
@@ -905,6 +914,31 @@ function PokerTable({
               reaction={cardReactions[player.id]}
               funFeaturesEnabled={state.fun_features_enabled}
               onThrowReaction={(value) => onThrowReaction(player.id, value)}
+            />
+          </div>
+        );
+      })}
+
+      {/* Issue #5 — departed players linger here for one fade-out, rendered
+          at their last known orbit position since they're no longer part of
+          `players`/the angle math above. */}
+      {leavingPlayers.map((player) => {
+        const pos = lastPosRef.current[player.id] ?? { x: CX - PW / 2, y: CY - PH / 2 };
+        return (
+          <div
+            key={player.id}
+            data-testid="player-card-ghost"
+            className="absolute player-fade-out pointer-events-none"
+            style={{ left: pos.x, top: pos.y, width: PW }}
+          >
+            <PlayerCard
+              player={player}
+              voted={false}
+              revealed={state.revealed}
+              cardValue={null}
+              avatarColor={player.avatar_color}
+              deck={state.deck}
+              cardBack={cardBack}
             />
           </div>
         );
@@ -949,7 +983,7 @@ function TableCenter({
 
   if (state.revealed && stats) {
     return (
-      <div className="flex flex-col items-center gap-1 md:gap-2 text-center">
+      <div key="stats" className="flex flex-col items-center gap-1 md:gap-2 text-center stats-slide-in">
         <div className="flex items-center gap-2 md:gap-5">
           {state.deck_type !== "tshirt" && (
             <div>
@@ -1059,6 +1093,22 @@ function PlayerCard({
     ? (CARD_BACKS.find((b) => b.id === cardBack) ?? CARD_BACKS[0]).style
     : {};
 
+  // Issue #5 — play a flip once, right when this card's value goes from
+  // hidden to revealed (reveal or a fresh round's revote). Not tied to
+  // `revealed` staying true across re-renders, or every unrelated update
+  // (another player voting, a nickname edit) would replay it.
+  const [flipping, setFlipping] = useState(false);
+  const wasRevealedRef = useRef(revealed);
+  useEffect(() => {
+    const wasRevealed = wasRevealedRef.current;
+    wasRevealedRef.current = revealed;
+    if (!wasRevealed && revealed) {
+      setFlipping(true);
+      const t = window.setTimeout(() => setFlipping(false), 400);
+      return () => window.clearTimeout(t);
+    }
+  }, [revealed]);
+
   return (
     <div
       data-testid="player-card"
@@ -1069,13 +1119,14 @@ function PlayerCard({
       {/* Card with optional edit/kick buttons */}
       <div className="relative">
         <div
+          data-testid="player-card-face"
           className={`w-12 h-16 sm:w-14 sm:h-20 rounded-xl border-2 flex items-center justify-center font-bold text-base sm:text-lg transition-all ${
             !voted
               ? "bg-[var(--c-panel)] border-[var(--c-border-hi)]"
               : revealed
               ? "bg-[var(--c-panel)] border-accent text-white"
               : "border-accent"
-          }`}
+          } ${flipping ? "card-flip" : ""}`}
           style={cardBackStyle}
         >
           {revealed && cardValue && cardValue !== "hidden" ? cardValue : null}

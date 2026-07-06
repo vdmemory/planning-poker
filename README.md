@@ -244,8 +244,8 @@ frontend/src/
 
 | Слой | Где | Команда | Покрытие |
 |---|---|---|---|
-| Backend (pytest) | `backend/tests/` | `pytest` | 92 теста — комнаты, голосование, issues, права, WS-интеграция |
-| Frontend e2e (Playwright) | `frontend/tests/e2e/` | `npm run test:e2e` | 5 флоу — главная, создание/голосование, reveal+stats, два игрока |
+| Backend (pytest) | `backend/tests/` | `pytest` | 125 тестов — комнаты, голосование, issues, права, WS-интеграция |
+| Frontend e2e (Playwright) | `frontend/tests/e2e/` | `npm run test:e2e` | 44 теста — главная, создание/голосование, reveal+stats, два игрока, мобильные флоу, throw-reaction, UI-анимации и др. |
 
 CI: GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) гоняет оба слоя на каждый push в `main`/`dev` и на каждый PR. При падении e2e — артефакты (видео, скриншоты) аплоадятся.
 
