@@ -100,6 +100,27 @@ test("issue sidebar opens as a full-screen drawer and doesn't squeeze the game s
   await expect(page.locator("main").getByText("Fix mobile layout").first()).toBeVisible();
 });
 
+test("estimate picker on mobile actually sets the estimate (regression: mousedown-outside-close bug)", async ({ page }) => {
+  await createRoom(page, "Mobile estimate test");
+  await page.getByTitle("Toggle issues sidebar").click();
+  await page.getByRole("button", { name: /add another issue/i }).click();
+  await page.getByPlaceholder("Enter a title for the issue").fill("Mobile estimate check");
+  await page.keyboard.press("Enter");
+
+  // Issue #23 follow-up regression — the mobile modal and desktop dropdown
+  // are separate DOM subtrees (only one `display`s at a time), and the
+  // outside-click-closes listener briefly only checked the desktop one.
+  // On mobile that misread every tap *inside* the modal as "outside" and
+  // closed the picker via `mousedown` a beat before the click's onSelect
+  // handler ran, so the estimate never actually changed. Scope to the
+  // trigger button's wrapper — the bottom voting deck also has a "13" card.
+  const wrapper = page.locator('button[title="Set estimate"]').locator("xpath=..");
+  await wrapper.locator('button[title="Set estimate"]').click();
+  await wrapper.getByRole("button", { name: "13", exact: true }).and(page.locator(":visible")).click();
+
+  await expect(page.locator('button[title="Set estimate"]:visible')).toHaveText("13");
+});
+
 async function touchDraw(page: Page, points: { x: number; y: number }[]) {
   await page.evaluate((pts) => {
     const canvas = document.querySelector('[data-testid="drawing-canvas"]') as HTMLElement;
@@ -119,6 +140,26 @@ async function touchDraw(page: Page, points: { x: number; y: number }[]) {
     fire("touchend", pts[pts.length - 1].x, pts[pts.length - 1].y);
   }, points);
 }
+
+test("revote picker on mobile actually changes the vote (regression: mousedown-outside-close bug)", async ({ page }) => {
+  await createRoom(page, "Mobile revote test");
+
+  const card5 = page.getByRole("button", { name: "5", exact: true }).and(page.locator(":visible")).first();
+  await card5.click();
+  const reveal = page.getByRole("button", { name: /reveal cards/i }).and(page.locator(":visible")).first();
+  await expect(reveal).toBeVisible({ timeout: 10_000 });
+  await reveal.click();
+  await expect(page.getByText("Average").and(page.locator(":visible")).first()).toBeVisible({ timeout: 5_000 });
+
+  // See the equivalent estimate-picker regression test above for the root
+  // cause — same bug, same fix, different picker (pencil → change your vote).
+  await page.locator('button[title="Change your vote"]:visible').click();
+  await page.getByRole("button", { name: "8", exact: true }).and(page.locator(":visible")).click();
+
+  // toContainText auto-retries until the WS round-trip lands; a plain
+  // .innerText() read races ahead of it and reads the stale "5".
+  await expect(page.locator('[data-testid="player-card"]:visible').first()).toContainText("8", { timeout: 5_000 });
+});
 
 test("drawing with a finger (touch events) puts a stroke on the canvas", async ({ page }) => {
   await createRoom(page, "Mobile drawing test", "Painter");

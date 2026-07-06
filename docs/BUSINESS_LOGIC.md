@@ -512,6 +512,23 @@ if (accent && ALLOWED.has(accent)) html.setAttribute("data-accent", accent);
 
 Обе версии смонтированы одновременно (`md:hidden` / `hidden md:block`), общий `open`-стейт (`showPicker` в `PlayerCard`) один на оба варианта.
 
+### Баг: выбор в мобильной модалке не применялся (issue #23 follow-up, регрессия)
+
+Обе модалки (`EstimatePicker` и `RevotePicker`) закрываются по клику вне себя через `document`-listener на `mousedown` — это нужно **только** десктопному дропдауну (у мобильной модалки уже есть свой backdrop с `onClick={onClose}` + `stopPropagation()` на контенте). Но так как мобильная модалка и десктопный дропдаун — это **два разных элемента** в DOM (переключаются классами `md:hidden` / `hidden md:block`, а не один и тот же элемент с responsive-классами, как в `ProfileMenu`), а `mousedown`-listener изначально проверял containment только по десктопному `ref`'у — на мобиле клик по ЛЮБОЙ кнопке значения внутри модалки (карточка деки, число оценки) читался как «клик снаружи» и вызывал `onClose()` на `mousedown`, на мгновение раньше, чем успевал сработать `onClick` той же кнопки с `onSelect(v)`. Из-за порядка событий (`mousedown` → `mouseup` → `click`) React успевал размонтировать модалку до наступления `click` — оценка/голос визуально «не менялись», хотя пикер закрывался, будто выбор случился.
+
+Фикс — заводить **отдельный `ref` для мобильной модалки** (`mobileRef`) и проверять containment по обоим (`mobileRef` **и** десктопному `ref`) в одном `mousedown`-handler'е:
+
+```ts
+function handler(e: MouseEvent) {
+  const target = e.target as Node;
+  const insideMobile = mobileRef.current?.contains(target);
+  const insideDesktop = desktopRef.current?.contains(target);
+  if (!insideMobile && !insideDesktop) onClose();
+}
+```
+
+Регрессионные тесты (обязательно кликают конкретное значение и проверяют что оно **реально применилось**, не просто что модалка открылась) — `tests/e2e/mobile-flows.spec.ts`: `estimate picker on mobile actually sets the estimate` и `revote picker on mobile actually changes the vote`.
+
 ### Что осталось design-decision'ом (issue #23, открытые вопросы)
 
 - Отдельный nav/header паттерн (sticky bottom bar / hamburger) — не реализован, текущий хедер с иконками остаётся общим для всех размеров.

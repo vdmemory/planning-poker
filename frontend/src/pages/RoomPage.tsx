@@ -1272,6 +1272,7 @@ function RevotePicker({
   onSelect: (v: string) => void;
   onClose: () => void;
 }) {
+  const mobileRef = useRef<HTMLDivElement>(null);
   const desktopRef = useRef<HTMLDivElement>(null);
   const [style, setStyle] = useState<CSSProperties>({});
 
@@ -1291,11 +1292,20 @@ function RevotePicker({
     setStyle({ position: "fixed", top, left, width: PICKER_W, zIndex: 999 });
   }, [triggerRef]);
 
-  // Desktop only: click outside the dropdown closes it. The mobile modal
-  // closes via its own backdrop onClick instead.
+  // Click outside either the mobile modal's content box or the desktop
+  // dropdown closes it. Both refs need checking here — only one of the two
+  // is visible at a time (the other is `display:none`), but both are always
+  // mounted, and this single document listener runs regardless of which one
+  // CSS is currently showing. Checking only the desktop ref meant a tap on
+  // any button inside the *mobile* modal read as "outside" and fired
+  // onClose() on mousedown, a beat before the click's onSelect handler could
+  // run — the picker closed before the vote change registered.
   useEffect(() => {
     function handler(e: MouseEvent) {
-      if (desktopRef.current && !desktopRef.current.contains(e.target as Node)) onClose();
+      const target = e.target as Node;
+      const insideMobile = mobileRef.current?.contains(target);
+      const insideDesktop = desktopRef.current?.contains(target);
+      if (!insideMobile && !insideDesktop) onClose();
     }
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -1309,6 +1319,7 @@ function RevotePicker({
         onClick={onClose}
       >
         <div
+          ref={mobileRef}
           className="bg-[var(--c-panel)] border border-[var(--c-border)] rounded-2xl p-5 shadow-2xl"
           onClick={(e) => e.stopPropagation()}
         >
