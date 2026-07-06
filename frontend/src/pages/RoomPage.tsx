@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, type CSSProperties, type RefObject } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useRoomSocket } from "../hooks/useRoomSocket";
 import { useTheme } from "../hooks/useTheme";
@@ -1132,6 +1132,7 @@ function PlayerCard({
   reaction?: CardReaction | null;
 }) {
   const [showPicker, setShowPicker] = useState(false);
+  const editBtnRef = useRef<HTMLButtonElement>(null);
   const bgColor = avatarColor || "#3a4f6a";
   const canEdit = isMe && revealed && !!onRevote;
   const cardBackStyle = voted && !revealed
@@ -1207,6 +1208,7 @@ function PlayerCard({
         {/* Edit pencil icon */}
         {canEdit && (
           <button
+            ref={editBtnRef}
             onClick={() => setShowPicker(true)}
             className="absolute -top-2 -left-2 w-6 h-6 bg-accent hover:bg-accent-hover rounded-full flex items-center justify-center shadow-lg transition-colors"
             title="Change your vote"
@@ -1244,6 +1246,7 @@ function PlayerCard({
         <RevotePicker
           deck={deck}
           current={cardValue}
+          triggerRef={editBtnRef}
           onSelect={(v) => { onRevote(v); setShowPicker(false); }}
           onClose={() => setShowPicker(false)}
         />
@@ -1257,41 +1260,93 @@ function PlayerCard({
 function RevotePicker({
   deck,
   current,
+  triggerRef,
   onSelect,
   onClose,
 }: {
   deck: string[];
   current: string | null;
+  // The pencil button that opened this picker (lives in PlayerCard, not
+  // here) — the desktop dropdown anchors itself to its position.
+  triggerRef: RefObject<HTMLButtonElement | null>;
   onSelect: (v: string) => void;
   onClose: () => void;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
+  const desktopRef = useRef<HTMLDivElement>(null);
+  const [style, setStyle] = useState<CSSProperties>({});
 
+  // Desktop only: anchor the dropdown to the pencil button that opened it —
+  // mirrors the fixed-position dropdown pattern in IssueSidebar's
+  // EstimatePicker (issue #23 follow-up: mobile gets a centered modal since
+  // an anchored dropdown has nowhere to open on a narrow screen; desktop
+  // keeps a lightweight anchored popup instead of a heavy full-screen modal).
+  useEffect(() => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const PICKER_H = 260;
+    const PICKER_W = 200;
+    const spaceAbove = rect.top;
+    const top = spaceAbove > PICKER_H + 8 ? rect.top - PICKER_H - 8 : rect.bottom + 8;
+    const left = Math.min(Math.max(8, rect.left), window.innerWidth - PICKER_W - 8);
+    setStyle({ position: "fixed", top, left, width: PICKER_W, zIndex: 999 });
+  }, [triggerRef]);
+
+  // Desktop only: click outside the dropdown closes it. The mobile modal
+  // closes via its own backdrop onClick instead.
   useEffect(() => {
     function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+      if (desktopRef.current && !desktopRef.current.contains(e.target as Node)) onClose();
     }
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+    <>
+      {/* Mobile: centered modal */}
       <div
-        ref={ref}
-        className="bg-[var(--c-panel)] border border-[var(--c-border)] rounded-2xl p-5 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
+        className="md:hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+        onClick={onClose}
       >
-        <p className="text-sm text-slate-400 mb-3 text-center">Change your vote</p>
-        <div className="grid grid-cols-4 gap-2">
+        <div
+          className="bg-[var(--c-panel)] border border-[var(--c-border)] rounded-2xl p-5 shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p className="text-sm text-slate-400 mb-3 text-center">Change your vote</p>
+          <div className="grid grid-cols-4 gap-2">
+            {deck.map((v) => (
+              <button
+                key={v}
+                onClick={() => onSelect(v)}
+                className={`w-12 h-16 sm:w-14 sm:h-20 rounded-xl border-2 font-bold text-base sm:text-lg transition-all ${
+                  v === current
+                    ? "bg-accent border-accent text-accent-fg scale-105"
+                    : "bg-[var(--c-panel2)] border-[var(--c-border)] text-slate-300 hover:border-accent hover:scale-105"
+                }`}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop: fixed-position dropdown anchored to the pencil button */}
+      <div
+        ref={desktopRef}
+        style={style}
+        className="hidden md:block bg-[var(--c-panel)] border border-[var(--c-border)] rounded-2xl p-3 shadow-2xl"
+      >
+        <p className="text-xs text-slate-400 mb-2 text-center">Change your vote</p>
+        <div className="flex flex-wrap gap-1.5 justify-center">
           {deck.map((v) => (
             <button
               key={v}
               onClick={() => onSelect(v)}
-              className={`w-12 h-16 sm:w-14 sm:h-20 rounded-xl border-2 font-bold text-base sm:text-lg transition-all ${
+              className={`w-10 h-14 rounded-lg border font-bold text-sm transition-all ${
                 v === current
-                  ? "bg-accent border-accent text-accent-fg scale-105"
-                  : "bg-[var(--c-panel2)] border-[var(--c-border)] text-slate-300 hover:border-accent hover:scale-105"
+                  ? "bg-accent border-accent text-accent-fg"
+                  : "bg-[var(--c-bg)] border-[var(--c-border)] text-slate-300 hover:border-accent"
               }`}
             >
               {v}
@@ -1299,7 +1354,7 @@ function RevotePicker({
           ))}
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
