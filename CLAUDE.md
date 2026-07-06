@@ -41,7 +41,7 @@ Two layers, both treated as executable documentation (`docs/TESTING.md`):
 ```bash
 # Backend (pytest + FastAPI TestClient + WebSocket)
 cd backend && source .venv/bin/activate && pip install -r requirements-dev.txt
-pytest                   # 92 tests, ~0.1s
+pytest                   # 125 tests, ~0.1s
 
 # Frontend e2e (Playwright + Chromium)
 cd frontend
@@ -115,6 +115,8 @@ frontend/src/
 
 **Facilitator handoff**: If the facilitator disconnects and is removed, the role passes to the first remaining player. The facilitator can opt out of handoff via `close_on_facilitator_leave` (issue #19) — when enabled, dropping the facilitator closes the room for everyone (broadcast `{type: "room_closed", reason: "creator_left"}`) instead of handing the role off.
 
+**Throw reactions** (issue #51): `room.fun_features_enabled` (facilitator-only, off by default, set via `update_room`) gates `throw_reaction` — a reaction aimed at a specific player's card, hover/tap-triggered from `ThrowReactionBar` on `PlayerCard`. Purely ephemeral relay like `reaction`/`draw_*`/`countdown`, not stored on `Room`. Distinct from the issue #32 self-reaction system (`reaction` type, `ReactionsPanel`/`ReactionFloater`) — both exist side by side.
+
 ## WebSocket Protocol
 
 **Client → Server** (full list — see `main.py:handle_message`):
@@ -137,7 +139,7 @@ frontend/src/
 { type: "set_estimate", issue_id, estimate }
 
 # Room / player
-{ type: "update_room", name?, deck_type?, card_back?, who_can_reveal?, who_can_manage_issues?, close_on_facilitator_leave? }
+{ type: "update_room", name?, deck_type?, card_back?, who_can_reveal?, who_can_manage_issues?, close_on_facilitator_leave?, fun_features_enabled? }
 { type: "update_nickname", nickname }
 { type: "update_avatar_color", color }
 { type: "toggle_spectator" }                  # any non-facilitator player
@@ -151,6 +153,7 @@ frontend/src/
 
 # Reactions (relay to all incl. sender)
 { type: "reaction", kind: "emoji" | "number", value }
+{ type: "throw_reaction", target_player_id, value }  # issue #51; requires room.fun_features_enabled
 ```
 
 **Server → Client:**
@@ -164,6 +167,7 @@ frontend/src/
 { type: "room_expired", reason }        # timer ran out, sent to already-connected clients (cleanup_expired_rooms)
 { type: "room_inactive", reason }       # fresh WS connect to a missing/expired room (reason: not_found | expired)
 { type: "draw_*" }                      # relay
+{ type: "thrown_reaction", from_player_id, from_nickname, from_avatar_color, target_player_id, value }  # relay, issue #51
 { type: "error", message }
 ```
 

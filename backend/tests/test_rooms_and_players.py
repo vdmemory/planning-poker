@@ -94,6 +94,24 @@ def test_update_room_can_toggle_close_on_facilitator_leave(service):
     assert service.get_room(room.id).close_on_facilitator_leave is True
 
 
+# ---------- Issue #51 — fun_features_enabled setting ----------
+
+def test_default_fun_features_enabled_is_false(service):
+    room, _ = service.create_room("X", DeckType.FIBONACCI, "alice")
+    assert room.fun_features_enabled is False
+
+
+def test_fun_features_enabled_appears_in_public_state(service):
+    room, _ = service.create_room("X", DeckType.FIBONACCI, "alice")
+    assert room.public_state()["fun_features_enabled"] is False
+
+
+def test_update_room_can_toggle_fun_features_enabled(service):
+    room, alice = service.create_room("X", DeckType.FIBONACCI, "alice")
+    service.update_room(room.id, alice.id, fun_features_enabled=True)
+    assert service.get_room(room.id).fun_features_enabled is True
+
+
 def test_remove_facilitator_with_setting_closes_room_and_signals_caller(service):
     """When the room is configured to close on facilitator leave AND other
     players remain, `remove_player` returns True (so the WS layer can

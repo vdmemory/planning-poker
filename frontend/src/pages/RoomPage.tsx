@@ -12,7 +12,10 @@ import { ProfileMenu } from "../components/ProfileMenu";
 import { ReactionsPanel } from "../components/ReactionsPanel";
 import { ReactionFloater } from "../components/ReactionFloater";
 import { ConfirmModal } from "../components/ConfirmModal";
+import { ThrowReactionBar } from "../components/ThrowReactionBar";
+import { ThrowFloater } from "../components/ThrowFloater";
 import { useReactionAnimations, type CardReaction } from "../hooks/useReactionAnimations";
+import { useThrowReactions } from "../hooks/useThrowReactions";
 import type { Player, RoomState, Stats, GameSettings } from "../types";
 import QRCode from "qrcode";
 
@@ -170,12 +173,17 @@ function Room({
   // manager. Used for the on-card overlay AND the rising floaters.
   const { cardReactions, floaters, handleReactionMessage } = useReactionAnimations();
 
+  // Issue #51 — `thrown_reaction` broadcasts (reactions aimed at a specific
+  // player's card) drive a separate set of flying-emoji floaters.
+  const { flights, handleThrowReactionMessage } = useThrowReactions();
+
   const { state, stats, myPlayerId, connected, send, error, countdown, roomInactive } = useRoomSocket({
     roomId,
     playerId: storedPlayerId,
     nickname,
     onDrawMessage: handleDrawMessage,
     onReactionMessage: handleReactionMessage,
+    onThrowReactionMessage: handleThrowReactionMessage,
   });
   const { theme, setTheme } = useTheme();
   const { accent, setAccent } = useAccent();
@@ -303,6 +311,7 @@ function Room({
       // Issue #19 — when changed in settings, the backend hands this back
       // in the next `room_state` so every client renders consistently.
       close_on_facilitator_leave?: boolean;
+      fun_features_enabled?: boolean;
     },
     settingsPatch: Partial<GameSettings>
   ) {
@@ -597,6 +606,9 @@ function Room({
               onReset={() => send({ type: "reset" })}
               onRevote={(card) => send({ type: "revote", card })}
               onKickPlayer={isFacilitator ? onKickPlayer : undefined}
+              onThrowReaction={(targetPlayerId, value) =>
+                send({ type: "throw_reaction", target_player_id: targetPlayerId, value })
+              }
               cardReactions={cardReactions}
             />
           </div>
@@ -663,6 +675,21 @@ function Room({
           nickname={f.nickname}
           color={f.color}
           xLane={f.xLane}
+        />
+      ))}
+
+      {/* Reactions thrown at a specific player's card (#51) — flies from the
+          thrower's card to the target's, distinct from the self-reaction
+          floaters above. */}
+      {flights.map((f) => (
+        <ThrowFloater
+          key={f.id}
+          id={f.id}
+          value={f.value}
+          fromRect={f.fromRect}
+          toRect={f.toRect}
+          landOffsetX={f.landOffsetX}
+          landOffsetY={f.landOffsetY}
         />
       ))}
 
@@ -760,6 +787,7 @@ function PokerTable({
   onReset,
   onRevote,
   onKickPlayer,
+  onThrowReaction,
   cardReactions,
 }: {
   state: RoomState;
@@ -775,6 +803,8 @@ function PokerTable({
   onReset: () => void;
   onRevote: (card: string) => void;
   onKickPlayer?: (id: string) => void;
+  // Issue #51 — throw an emoji at a specific player's card.
+  onThrowReaction: (targetPlayerId: string, value: string) => void;
   cardReactions: Record<string, CardReaction>;
 }) {
   const players = state.players;
@@ -788,9 +818,11 @@ function PokerTable({
   // every breakpoint instead.
   const isMobile = useIsMobile();
 
-  // Table oval dimensions (px)
-  const TW = isMobile ? 200 : 520;
-  const TH = isMobile ? 100 : 250;
+  // Table dimensions (px). Desktop keeps the wide oval (520×250); mobile is
+  // a true circle (equal width/height) instead of the squat rectangle a
+  // scaled-down oval produced — round table, round felt.
+  const TW = isMobile ? 180 : 520;
+  const TH = isMobile ? 180 : 250;
 
   // Player card area size (w × h, including avatar + card + name) — matches
   // PlayerCard's own responsive card size (w-12/h-16 below the `sm`
@@ -800,13 +832,12 @@ function PokerTable({
 
   // Gap from table edge to player card center. On desktop TW/TH dwarf PW/PH
   // (felt is 5-8x a card's size) so one shared GAP clears both axes with
-  // room to spare. Shrinking the felt down for mobile without shrinking the
-  // card by the same factor flips that ratio — a card at the top of the
-  // oval is now taller than the felt itself — so a single GAP small enough
-  // to keep the table narrow was letting cards overlap the felt vertically.
-  // Two GAPs, each sized to clear its own axis (>= half the card's size on
-  // that axis, plus a few px of breathing room):
-  const GAP_X = isMobile ? PW / 2 + 6 : 56;
+  // room to spare. On mobile the felt is much closer in size to a card, so
+  // GAP has to be sized off the card's own half-size (not an arbitrary
+  // constant) to keep cards from overlapping the felt — and since the felt
+  // is now a circle, both axes use the same (larger) requirement so the
+  // player orbit stays circular too, instead of stretching into an oval.
+  const GAP_X = isMobile ? PH / 2 + 6 : 56;
   const GAP_Y = isMobile ? PH / 2 + 6 : 56;
 
   // Orbit radii (center → player card center)
@@ -864,7 +895,6 @@ function PokerTable({
               voted={state.voted_player_ids.includes(player.id)}
               revealed={state.revealed}
               cardValue={state.revealed ? state.votes[player.id] : null}
-              isFacilitator={player.id === state.facilitator_id}
               avatarColor={player.id === myPlayerId ? avatarColor : player.avatar_color}
               isMe={player.id === myPlayerId}
               deck={state.deck}
@@ -873,6 +903,8 @@ function PokerTable({
               canKick={!!onKickPlayer && player.id !== myPlayerId}
               onKick={onKickPlayer ? () => onKickPlayer(player.id) : undefined}
               reaction={cardReactions[player.id]}
+              funFeaturesEnabled={state.fun_features_enabled}
+              onThrowReaction={(value) => onThrowReaction(player.id, value)}
             />
           </div>
         );
@@ -988,7 +1020,6 @@ function PlayerCard({
   voted,
   revealed,
   cardValue,
-  isFacilitator,
   avatarColor,
   isMe,
   deck,
@@ -997,12 +1028,13 @@ function PlayerCard({
   canKick,
   onKick,
   reaction,
+  funFeaturesEnabled,
+  onThrowReaction,
 }: {
   player: Player;
   voted: boolean;
   revealed: boolean;
   cardValue: string | null;
-  isFacilitator: boolean;
   avatarColor: string;
   isMe?: boolean;
   deck?: string[];
@@ -1014,6 +1046,10 @@ function PlayerCard({
   // pop-in overlay above the card for REACTION_OVERLAY_MS. Parent (RoomPage)
   // owns the timer.
   reaction?: CardReaction | null;
+  // Issue #51 — room-wide opt-in gating the emoji-throw part of the hover
+  // bar below. The kick button inside it stays available regardless.
+  funFeaturesEnabled?: boolean;
+  onThrowReaction?: (value: string) => void;
 }) {
   const [showPicker, setShowPicker] = useState(false);
   const editBtnRef = useRef<HTMLButtonElement>(null);
@@ -1027,20 +1063,9 @@ function PlayerCard({
     <div
       data-testid="player-card"
       data-player-nickname={player.nickname}
+      data-player-id={player.id}
       className={`flex flex-col items-center gap-1.5 group ${!player.connected ? "opacity-40" : ""}`}
     >
-      {/* Name pill above the card. Replaces the previous letter-avatar circle:
-          the avatar color is preserved as the pill background so the player's
-          color identity stays visible. */}
-      <div
-        data-testid="player-name-pill"
-        className="px-2 py-0.5 rounded-full text-xs font-semibold max-w-[88px] truncate text-center shadow-sm"
-        style={{ backgroundColor: bgColor, color: pickContrastTextColor(bgColor) }}
-        title={player.nickname}
-      >
-        {player.nickname}
-      </div>
-
       {/* Card with optional edit/kick buttons */}
       <div className="relative">
         <div
@@ -1103,25 +1128,51 @@ function PlayerCard({
           </button>
         )}
 
-        {/* Kick button (facilitator only). Hover-reveal on devices with a
-            real pointer (mouse/trackpad); always visible on touchscreens,
-            which have no hover state to reveal it (issue #23). */}
-        {canKick && onKick && (
-          <button
-            onClick={onKick}
-            className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-400 rounded-full flex items-center justify-center shadow-lg transition-all opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
-            title="Remove from room"
+        {/* Throw-reaction bar (issue #51): default emoji + "+" for more,
+            plus — facilitator only — the kick action that used to be a
+            standalone corner "X" (issue #23). Hover-reveal on devices with a
+            real pointer; always visible on touchscreens, which have no
+            hover state to reveal it — same convention the old kick button
+            used, now applied to the whole bar. The emoji/"+" portion is
+            gated by funFeaturesEnabled; kick stays available regardless
+            (moderation shouldn't depend on the "fun" toggle).
+            -top-2: the bar floats just above the card itself. It used to sit
+            further up (-top-9) back when the name pill above the card ate
+            into that space, keeping the bar clear of the felt for players
+            near the table edge; now that the pill lives under the card,
+            the card sits closer to the felt and a smaller offset is what
+            keeps the bar from drifting onto the felt for south/side seats. */}
+        {!isMe && (
+          <div
+            className="absolute -top-2 left-1/2 -translate-x-1/2 z-20 transition-opacity
+                       opacity-100 pointer-events-auto
+                       [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:pointer-events-none
+                       [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-hover:pointer-events-auto"
           >
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-              <path d="M2 2l6 6M8 2l-6 6" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-          </button>
+            <ThrowReactionBar
+              canThrow={!!funFeaturesEnabled && !!onThrowReaction}
+              canKick={!!canKick && !!onKick}
+              onThrow={(emoji) => onThrowReaction?.(emoji)}
+              onKick={() => onKick?.()}
+            />
+          </div>
         )}
       </div>
 
-      {/* Status badges under the card. The duplicate name caption was removed —
-          the name now lives in the pill above the card (see issue #7). */}
-      {isFacilitator && <span className="text-xs text-accent/70">host</span>}
+      {/* Name pill under the card (moved back down from above it — issue #7
+          put it above; this reverses that). Avatar color stays as the pill
+          background so the player's color identity is still visible. */}
+      <div
+        data-testid="player-name-pill"
+        className="px-2 py-0.5 rounded-full text-xs font-semibold max-w-[88px] truncate text-center shadow-sm"
+        style={{ backgroundColor: bgColor, color: pickContrastTextColor(bgColor) }}
+        title={player.nickname}
+      >
+        {player.nickname}
+      </div>
+
+      {/* Status badges under the name pill. The "host" badge was removed —
+          the facilitator isn't called out visually anymore. */}
       {player.is_spectator && <span className="text-xs text-slate-500">spectator</span>}
       {!player.connected && <span className="text-xs text-slate-500">offline</span>}
 

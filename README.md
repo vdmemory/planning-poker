@@ -25,6 +25,7 @@ Real-time инструмент для оценки задач agile-команд
 - Drawing: рисование на экране и live-курсоры (мышью и пальцем на тачскрине); штрихи автоматически исчезают через 5s (Slack-style)
 - Mobile-friendly: issues-сайдбар превращается в выезжающий drawer, карточки/шрифты адаптивны, модалки не вылезают за экран на коротких viewport'ах (issue #23)
 - Quick reactions: 10 анимированных эмодзи (Lottie-флоатеры, Google Noto Animated Emoji, прозрачный фон) + 10 time-values (1h..6h + 1d/12h/2d/3d) с pop-overlay над карточкой и Google Meet-style анимацией подъёма; throttle 600ms
+- Throw reactions (issue #51): наведи на карточку другого игрока — вылезет панель с эмодзи (🎯✈️🧻❤️ + «+» на ещё 10), клик анимированно кидает эмодзи в его карточку у всех участников; опция room-wide, включается фасилитатором в Game Settings
 - ConfirmModal для деструктивных действий (delete issue, close room, kick player) с ESC и backdrop-cancel
 - Countdown перед reveal
 - Авто-реконнект через 30s grace-период; `player_id` сохраняется в `localStorage`

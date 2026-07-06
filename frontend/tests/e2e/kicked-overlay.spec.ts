@@ -26,13 +26,12 @@ test("facilitator kicks a player → kicked player sees the removed-from-room ov
   await expect(alice.getByText("Bob").first()).toBeVisible({ timeout: 10_000 });
   await expect(bob.getByText("Alice").first()).toBeVisible({ timeout: 10_000 });
 
-  // Alice hovers Bob's card to reveal the ✕ button. The kick button only
-  // appears on group-hover (facilitator UI), so we use force-click on the
-  // hover target — the button is in the DOM, just not visible until hover.
+  // Alice hovers Bob's card to reveal the throw-reaction bar (issue #51),
+  // which now carries the kick action facilitators used to get from a
+  // standalone corner "✕" (issue #23: hover-reveal on real pointers). Title
+  // attribute is still "Remove from room" — that's our stable selector.
   const bobCard = alice.locator("[data-testid='player-card'][data-player-nickname='Bob']").first();
   await bobCard.hover();
-  // The kick button is positioned `-top-2 -right-2` on the card. Its title
-  // attribute is "Remove from room" — that's our stable selector.
   await alice.getByRole("button", { name: /remove from room/i }).click();
 
   // ConfirmModal (issue #4) gates the kick — confirm via its primary button.

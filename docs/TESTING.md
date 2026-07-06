@@ -7,8 +7,8 @@
 
 | Уровень | Где | Технология | Скорость |
 |---|---|---|---|
-| Backend service + WS | `backend/tests/` | pytest + FastAPI TestClient | 92 теста, <0.1s |
-| Frontend e2e | `frontend/tests/e2e/` | Playwright + Chromium | 5 тестов, ~15s |
+| Backend service + WS | `backend/tests/` | pytest + FastAPI TestClient | 125 тестов, <0.1s |
+| Frontend e2e | `frontend/tests/e2e/` | Playwright + Chromium | 39 тестов, ~1 мин |
 
 ## Backend (pytest)
 
@@ -16,7 +16,7 @@
 cd backend
 source .venv/bin/activate
 pip install -r requirements-dev.txt   # один раз
-pytest                                # все 92 теста
+pytest                                # все 125 тестов
 pytest tests/test_voting_and_stats.py # один файл
 pytest -k "facilitator"               # все тесты со словом "facilitator"
 ```
@@ -91,6 +91,7 @@ Bob, потом ws закрылся, потом второй WS пришёл с 
 | `reveal-and-stats.spec.ts` | Голосует → Reveal → «Average» + «New round»; New round сбрасывает |
 | `two-players.spec.ts` | Два контекста (две сессии) в одной комнате → видят друг друга → оба голосуют → reveal на одном → обе видят stats |
 | `mobile-flows.spec.ts` | Issue #23 — те же 5 ключевых флоу на viewport 375×667 (iPhone SE) с `hasTouch: true`: создание комнаты + join по ссылке, голос+reveal, Game Settings (проверка что Save помещается в viewport), issues-drawer (добавить+выбрать issue), рисование пальцем через синтетические `TouchEvent`; + два регрессионных теста, которые кликают конкретное значение в `EstimatePicker`/`RevotePicker` на мобиле и проверяют что оно **реально применилось** (не просто что модалка открылась) — см. `docs/BUSINESS_LOGIC.md` раздел «Баг: выбор в мобильной модалке не применялся» |
+| `throw-reaction.spec.ts` | Issue #51 — эмодзи-часть бара скрыта пока `fun_features_enabled=false`, но kick у фасилитатора работает всегда; включение тумблера в Game Settings → hover на чужой карточке → клик по дефолтному эмодзи → `throw-floater` появляется у ОБОИХ клиентов и исчезает по истечении lifetime; `+`-пикер бросает доп. эмодзи и закрывается сам; kick по-прежнему работает из новой корзины в баре |
 
 ### Helpers (`tests/e2e/helpers.ts`)
 

@@ -107,7 +107,8 @@ class RoomService:
                     deck_type: Optional[DeckType] = None, card_back: Optional[str] = None,
                     who_can_reveal: Optional[str] = None,
                     who_can_manage_issues: Optional[str] = None,
-                    close_on_facilitator_leave: Optional[bool] = None) -> None:
+                    close_on_facilitator_leave: Optional[bool] = None,
+                    fun_features_enabled: Optional[bool] = None) -> None:
         room = self.get_room(room_id)
         self._require_facilitator(room, player_id)
         if name is not None:
@@ -124,6 +125,8 @@ class RoomService:
             room.who_can_manage_issues = who_can_manage_issues
         if close_on_facilitator_leave is not None:
             room.close_on_facilitator_leave = close_on_facilitator_leave
+        if fun_features_enabled is not None:
+            room.fun_features_enabled = fun_features_enabled
         self.store.save(room)
 
     def kick_player(self, room_id: str, player_id: str, target_player_id: str) -> None:
@@ -132,6 +135,33 @@ class RoomService:
         if target_player_id == player_id:
             raise RoomError("Cannot kick yourself")
         self.remove_player(room_id, target_player_id)
+
+    def throw_reaction(self, room_id: str, player_id: str, target_player_id: str, value: str) -> dict:
+        """Issue #51 — a player throws an emoji at another player's card.
+
+        Purely ephemeral relay, like `reaction`/`draw_*`/`countdown`: nothing
+        here lands on the Room object, this just validates and packages the
+        broadcast payload. Gated by `fun_features_enabled` (facilitator opts
+        the whole room in via update_room).
+        """
+        room = self.get_room(room_id)
+        if not room.fun_features_enabled:
+            raise RoomError("Fun features are disabled in this room")
+        sender = room.players.get(player_id)
+        if not sender:
+            raise RoomError("Player not in room")
+        if target_player_id not in room.players:
+            raise RoomError("Target player not in room")
+        if not value:
+            raise RoomError("Missing reaction value")
+        return {
+            "type": "thrown_reaction",
+            "from_player_id": player_id,
+            "from_nickname": sender.nickname,
+            "from_avatar_color": sender.avatar_color,
+            "target_player_id": target_player_id,
+            "value": value,
+        }
 
     def mark_disconnected(self, room_id: str, player_id: str) -> bool:
         """Returns True if the player was in the room and marked disconnected."""

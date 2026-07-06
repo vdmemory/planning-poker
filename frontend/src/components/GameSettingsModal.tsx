@@ -15,6 +15,7 @@ interface Props {
       who_can_reveal?: string;
       who_can_manage_issues?: string;
       close_on_facilitator_leave?: boolean;
+      fun_features_enabled?: boolean;
     },
     settingsPatch: Partial<GameSettings>,
   ) => void;
@@ -33,6 +34,13 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
   const [closeOnFacilitatorLeave, setCloseOnFacilitatorLeave] = useState(
     state.close_on_facilitator_leave ?? false,
   );
+  // Issue #51 — room-wide opt-in for the "throw a reaction at another
+  // player" hover panel on PlayerCard. Unlike autoReveal (a local per-client
+  // preference in `settings`), this is a room policy broadcast to everyone,
+  // so it lives on `state`/roomPatch like the toggle above.
+  const [funFeaturesEnabled, setFunFeaturesEnabled] = useState(
+    state.fun_features_enabled ?? false,
+  );
   const [localSettings, setLocalSettings] = useState<GameSettings>({ ...settings });
 
   function toggle(key: keyof GameSettings) {
@@ -47,6 +55,7 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
       who_can_reveal?: string;
       who_can_manage_issues?: string;
       close_on_facilitator_leave?: boolean;
+      fun_features_enabled?: boolean;
     } = {};
     if (name.trim() !== state.name) roomPatch.name = name.trim();
     if (deckType !== state.deck_type) roomPatch.deck_type = deckType;
@@ -55,6 +64,9 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
     if (whoCanManageIssues !== state.who_can_manage_issues) roomPatch.who_can_manage_issues = whoCanManageIssues;
     if (closeOnFacilitatorLeave !== state.close_on_facilitator_leave) {
       roomPatch.close_on_facilitator_leave = closeOnFacilitatorLeave;
+    }
+    if (funFeaturesEnabled !== state.fun_features_enabled) {
+      roomPatch.fun_features_enabled = funFeaturesEnabled;
     }
     onSave(roomPatch, localSettings);
     onClose();
@@ -177,12 +189,18 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
             checked={localSettings.autoReveal}
             onChange={() => toggle("autoReveal")}
           />
-          <ToggleRow
-            label="Enable fun features"
-            description="Allow players throw projectiles to each other in this game."
-            checked={localSettings.funFeatures}
-            onChange={() => toggle("funFeatures")}
-          />
+          {/* Issue #51 — facilitator-only room policy (not a local pref,
+              see the state comment above), so it's disabled for everyone
+              else the same way who_can_reveal/who_can_manage_issues are. */}
+          <div data-testid="fun-features-enabled-row">
+            <ToggleRow
+              label="Enable fun reactions"
+              description="Let players throw emoji at each other's cards — hover (or tap on mobile) a player's card to fling one."
+              checked={funFeaturesEnabled}
+              onChange={() => isFacilitator && setFunFeaturesEnabled((v) => !v)}
+              disabled={!isFacilitator}
+            />
+          </div>
         </div>
 
         <div className="px-6 py-4 border-t border-[var(--c-border)] shrink-0">
@@ -346,23 +364,26 @@ function ToggleRow({
   description,
   checked,
   onChange,
+  disabled = false,
 }: {
   label: string;
   description: string;
   checked: boolean;
   onChange: () => void;
+  disabled?: boolean;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4">
+    <div className={`flex items-start justify-between gap-4 ${disabled ? "opacity-60" : ""}`}>
       <div>
         <div className="text-sm text-white font-medium">{label}</div>
         <div className="text-xs text-slate-400 mt-0.5">{description}</div>
       </div>
       <button
         onClick={onChange}
+        disabled={disabled}
         className={`relative shrink-0 w-11 h-6 rounded-full transition-colors mt-0.5 ${
           checked ? "bg-accent" : "bg-[var(--c-border)]"
-        }`}
+        } ${disabled ? "cursor-not-allowed" : ""}`}
       >
         <span
           className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
