@@ -460,3 +460,36 @@ if (accent && ALLOWED.has(accent)) html.setAttribute("data-accent", accent);
 - Семантические цвета (kick = red, success = green, warning = yellow, drawing цвета) остаются Tailwind-классами `red-500`, `yellow-500` и т.д. — они не меняются при смене акцента, потому что означают **смысл**, а не **бренд**.
 - Avatar colors игрока (8 вариантов) — независимы, выбираются в ProfileMenu отдельной полоской.
 - Poker felt (зелёный) — semantic, всегда зелёный.
+
+## Mobile UX (issue #23)
+
+`RoomPage.tsx` рендерит **два параллельных layout'а** для стола: `PokerTable` (овальный стол, `hidden md:flex`) и мобильный fallback — `ActionBox` + `flex-wrap` список `PlayerCard` (`md:hidden`). Оба существуют в DOM одновременно, CSS `display` переключает видимость по брейкпоинту `md` (768px). Это важно для e2e-тестов: локаторы по тексту/роли часто матчатся на обе копии, и `.first()` в DOM-порядке не гарантирует видимую — нужно сужать через `:visible` (см. `tests/e2e/mobile-flows.spec.ts`).
+
+### Issues drawer
+
+`IssueSidebar` рендерится в одном и том же компоненте на всех размерах экрана, но контейнер вокруг него разный:
+- **Мобильный (`< md`)**: `fixed inset-y-0 right-0` full-height overlay шириной `85vw` (max `max-w-sm`), выезжает поверх экрана справа, с полупрозрачным backdrop (`fixed inset-0 bg-black/50`, tap — закрывает). До issue #23 это был инлайн `w-72` элемент в общем `flex` ряду, который на узких экранах сжимал `main` до узкой полоски.
+- **Десктоп (`md+`)**: как раньше — инлайн-панель `w-80 border-l` в общем flex-ряду, без backdrop.
+
+Кнопка-триггер (`title="Toggle issues sidebar"`) в хедере одна на все размеры экрана.
+
+### Touch-рисование
+
+`DrawingCanvas` обрабатывает `touchstart`/`touchmove`/`touchend`/`touchcancel` наравне с `mousedown`/`mousemove`/`mouseup` — оба пути ведут в общие `startStroke`/`moveStroke`/`endStroke`, разница только во входных координатах (`e.touches[0]` vs `e.clientX/Y`). Пока `isActive`, канвас получает `touch-action: none`, чтобы браузер не перехватывал жест под скролл/pinch-zoom страницы — это снимает необходимость в `preventDefault()` внутри обработчика (что потребовало бы non-passive listener, React по умолчанию вешает touch-обработчики как passive).
+
+### Kick-кнопка на тачскринах
+
+Кнопка удаления игрока (facilitator-only) была `opacity-0 group-hover:opacity-100` — на тачскрине нет hover-состояния, кнопка была недостижима. Теперь она видна всегда (`opacity-100`) и только на устройствах с настоящим hover (`@media (hover: hover)` через Tailwind arbitrary variant `[@media(hover:hover)]:opacity-0` + `[@media(hover:hover)]:group-hover:opacity-100`) скрывается до наведения. Это не breakpoint-based (`sm:`/`md:`), а capability-based — планшет с мышью всё равно получит hover-поведение.
+
+### Game Settings на коротких viewport'ах
+
+Модалка `GameSettingsModal` раньше ограничивала высотой (`max-h-[70vh]`) только внутренний скролл-контейнер, а сама модалка не имела верхнего предела — на коротком viewport (iPhone SE, 667px) или с открытой iOS-клавиатурой шапка+тело+футер могли не поместиться, и кнопка Save уезжала за экран. Теперь вся модалка — `flex flex-col max-h-[90dvh]`: шапка и футер (`shrink-0`) зафиксированы, тело — `flex-1 min-h-0 overflow-y-auto`. `dvh` (dynamic viewport height), а не `vh`, учитывает схлопывание адресной строки/клавиатуры на мобильных браузерах.
+
+### Размер карт
+
+Карточки голосования и карточки игроков (`VotingCard`, `PlayerCard`, revote picker) — `w-12 h-16 sm:w-14 sm:h-20` вместо фиксированного `w-14 h-20`, чтобы на самых узких экранах (< 640px) ряд карт не переносился криво.
+
+### Что осталось design-decision'ом (issue #23, открытые вопросы)
+
+- Отдельный nav/header паттерн (sticky bottom bar / hamburger) — не реализован, текущий хедер с иконками остаётся общим для всех размеров.
+- Рисование поддерживает только один палец (`e.touches[0]`) — жестов мультитача/стилуса нет, для MVP этого достаточно.
