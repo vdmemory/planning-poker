@@ -66,16 +66,22 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
       onClick={onClose}
     >
       <div
-        className="bg-[var(--c-panel)] rounded-2xl w-full max-w-md shadow-2xl overflow-hidden"
+        className="bg-[var(--c-panel)] rounded-2xl w-full max-w-md shadow-2xl overflow-hidden
+                   flex flex-col max-h-[90dvh]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--c-border)]">
+        {/* Header — fixed, doesn't scroll with the body */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--c-border)] shrink-0">
           <h2 className="text-lg font-semibold text-white">Game settings</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">✕</button>
         </div>
 
-        <div className="px-6 py-4 space-y-5 max-h-[70vh] overflow-y-auto">
+        {/* Issue #23 — the modal itself is capped at 90dvh (dvh accounts for
+            mobile browser chrome / the iOS keyboard, unlike vh) and laid out
+            as a column so only this body scrolls; header and save button
+            stay pinned instead of getting pushed off-screen on short
+            viewports. min-h-0 lets a flex child actually shrink to scroll. */}
+        <div className="px-6 py-4 space-y-5 overflow-y-auto min-h-0 flex-1">
           {/* Facilitator */}
           <div>
             <label className="text-xs text-slate-400 block mb-1">Game facilitator</label>
@@ -179,7 +185,7 @@ export function GameSettingsModal({ state, settings, isFacilitator, facilitatorN
           />
         </div>
 
-        <div className="px-6 py-4 border-t border-[var(--c-border)]">
+        <div className="px-6 py-4 border-t border-[var(--c-border)] shrink-0">
           <button
             onClick={save}
             className="w-full bg-accent hover:bg-accent-hover text-accent-fg font-semibold py-3 rounded-xl transition-colors"

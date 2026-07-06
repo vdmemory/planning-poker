@@ -22,7 +22,8 @@ Real-time инструмент для оценки задач agile-команд
 - Кастомные цвета аватара и рубашка карты
 - Темы оформления: светлая / тёмная / system + 7 акцентов (blue/green/red/purple/yellow/orange/teal), все 14 комбинаций подобраны вручную для контраста (issue #42)
 - Kick игрока фасилитатором, закрытие комнаты
-- Drawing: рисование на экране и live-курсоры; штрихи автоматически исчезают через 5s (Slack-style)
+- Drawing: рисование на экране и live-курсоры (мышью и пальцем на тачскрине); штрихи автоматически исчезают через 5s (Slack-style)
+- Mobile-friendly: issues-сайдбар превращается в выезжающий drawer, карточки/шрифты адаптивны, модалки не вылезают за экран на коротких viewport'ах (issue #23)
 - Quick reactions: 10 анимированных эмодзи (Lottie-флоатеры, Google Noto Animated Emoji, прозрачный фон) + 10 time-values (1h..6h + 1d/12h/2d/3d) с pop-overlay над карточкой и Google Meet-style анимацией подъёма; throttle 600ms
 - ConfirmModal для деструктивных действий (delete issue, close room, kick player) с ESC и backdrop-cancel
 - Countdown перед reveal
