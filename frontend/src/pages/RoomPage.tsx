@@ -4,6 +4,7 @@ import { useRoomSocket } from "../hooks/useRoomSocket";
 import { useTheme } from "../hooks/useTheme";
 import { useAccent } from "../hooks/useAccent";
 import { useSettings } from "../hooks/useSettings";
+import { useIsMobile } from "../hooks/useIsMobile";
 import { IssueSidebar } from "../components/IssueSidebar";
 import { GameSettingsModal, CARD_BACKS } from "../components/GameSettingsModal";
 import { DrawingCanvas, DRAW_COLORS } from "../components/DrawingCanvas";
@@ -575,8 +576,13 @@ function Room({
             </div>
           )}
 
-          {/* Poker table (desktop) */}
-          <div className="hidden md:flex flex-col items-center w-full">
+          {/* Poker table — same layout on every breakpoint (issue #23
+              follow-up: previously mobile got a fallback ActionBox +
+              flex-wrap player list instead, since the table's oval was
+              hardcoded to desktop pixel dimensions and would have overflowed
+              a phone screen; PokerTable now scales those dimensions down via
+              useIsMobile() instead). */}
+          <div className="flex flex-col items-center w-full">
             <PokerTable
               state={state}
               stats={stats}
@@ -593,40 +599,6 @@ function Room({
               onKickPlayer={isFacilitator ? onKickPlayer : undefined}
               cardReactions={cardReactions}
             />
-          </div>
-
-          {/* Mobile: ActionBox + player list */}
-          <div className="md:hidden w-full flex flex-col items-center gap-4">
-            <ActionBox
-              state={state}
-              stats={stats}
-              isFacilitator={isFacilitator}
-              canReveal={canReveal}
-              everyoneVoted={everyoneVoted}
-              countdown={countdown}
-              onReveal={triggerReveal}
-              onReset={() => send({ type: "reset" })}
-            />
-            <div className="flex flex-wrap justify-center gap-4">
-              {state.players.map((player) => (
-                <PlayerCard
-                  key={player.id}
-                  player={player}
-                  voted={state.voted_player_ids.includes(player.id)}
-                  revealed={state.revealed}
-                  cardValue={state.revealed ? state.votes[player.id] : null}
-                  isFacilitator={player.id === state.facilitator_id}
-                  avatarColor={player.id === myPlayerId ? avatarColor : player.avatar_color}
-                  isMe={player.id === myPlayerId}
-                  deck={state.deck}
-                  cardBack={state.card_back}
-                  onRevote={(card) => send({ type: "revote", card })}
-                  canKick={isFacilitator && player.id !== myPlayerId}
-                  onKick={() => onKickPlayer(player.id)}
-                  reaction={cardReactions[player.id]}
-                />
-              ))}
-            </div>
           </div>
 
           {/* Bottom: voting deck */}
@@ -808,20 +780,38 @@ function PokerTable({
   const players = state.players;
   const n = players.length;
 
-  // Table oval dimensions (px)
-  const TW = 520;
-  const TH = 250;
+  // Issue #23 follow-up — the table used to be desktop-only (a fixed-width
+  // fallback with a plain player list took over below md) because every
+  // dimension here is a hardcoded pixel value sized for a desktop screen;
+  // the 520px-wide felt alone would overflow a 375px phone. Scaling all of
+  // them down under useIsMobile() lets the same oval-table layout render at
+  // every breakpoint instead.
+  const isMobile = useIsMobile();
 
-  // Gap from table edge to player card center
-  const GAP = 56;
+  // Table oval dimensions (px)
+  const TW = isMobile ? 200 : 520;
+  const TH = isMobile ? 100 : 250;
+
+  // Player card area size (w × h, including avatar + card + name) — matches
+  // PlayerCard's own responsive card size (w-12/h-16 below the `sm`
+  // breakpoint, w-14/h-20 at and above it).
+  const PW = isMobile ? 52 : 64;
+  const PH = isMobile ? 88 : 100;
+
+  // Gap from table edge to player card center. On desktop TW/TH dwarf PW/PH
+  // (felt is 5-8x a card's size) so one shared GAP clears both axes with
+  // room to spare. Shrinking the felt down for mobile without shrinking the
+  // card by the same factor flips that ratio — a card at the top of the
+  // oval is now taller than the felt itself — so a single GAP small enough
+  // to keep the table narrow was letting cards overlap the felt vertically.
+  // Two GAPs, each sized to clear its own axis (>= half the card's size on
+  // that axis, plus a few px of breathing room):
+  const GAP_X = isMobile ? PW / 2 + 6 : 56;
+  const GAP_Y = isMobile ? PH / 2 + 6 : 56;
 
   // Orbit radii (center → player card center)
-  const ORX = TW / 2 + GAP;
-  const ORY = TH / 2 + GAP;
-
-  // Player card area size (w × h, including avatar + card + name)
-  const PW = 64;
-  const PH = 100;
+  const ORX = TW / 2 + GAP_X;
+  const ORY = TH / 2 + GAP_Y;
 
   // Container size
   const CW = Math.round((ORX + PW / 2 + 8) * 2);
@@ -913,10 +903,10 @@ function TableCenter({
   if (countdown !== null) {
     return (
       <div className="flex flex-col items-center gap-1">
-        <div className="text-green-200/60 text-xs">Revealing in…</div>
+        <div className="text-green-200/60 text-[10px] md:text-xs">Revealing in…</div>
         <div
           key={countdown}
-          className="text-6xl font-bold text-white"
+          className="text-3xl md:text-6xl font-bold text-white"
           style={{ animation: "countdownPop 0.3s ease-out", textShadow: "0 2px 8px rgba(0,0,0,0.5)" }}
         >
           {countdown}
@@ -927,25 +917,25 @@ function TableCenter({
 
   if (state.revealed && stats) {
     return (
-      <div className="flex flex-col items-center gap-2 text-center">
-        <div className="flex items-center gap-5">
+      <div className="flex flex-col items-center gap-1 md:gap-2 text-center">
+        <div className="flex items-center gap-2 md:gap-5">
           {state.deck_type !== "tshirt" && (
             <div>
-              <div className="text-green-300/70 text-xs">Average</div>
-              <div className="text-3xl font-bold text-white" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.5)" }}>
+              <div className="text-green-300/70 text-[10px] md:text-xs">Average</div>
+              <div className="text-lg md:text-3xl font-bold text-white" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.5)" }}>
                 {stats.average ?? "—"}
               </div>
             </div>
           )}
           <div>
-            <div className="text-green-300/70 text-xs">{stats.consensus ? "Consensus" : "No consensus"}</div>
-            <div className="text-3xl">{stats.consensus ? "😎" : "🤔"}</div>
+            <div className="text-green-300/70 text-[10px] md:text-xs">{stats.consensus ? "Consensus" : "No consensus"}</div>
+            <div className="text-lg md:text-3xl">{stats.consensus ? "😎" : "🤔"}</div>
           </div>
         </div>
         {canReveal && (
           <button
             onClick={onReset}
-            className="mt-1 bg-white/20 hover:bg-white/30 text-white text-sm font-semibold px-6 py-2 rounded-full transition-colors"
+            className="mt-1 bg-white/20 hover:bg-white/30 text-white text-[11px] md:text-sm font-semibold px-3 md:px-6 py-1 md:py-2 rounded-full transition-colors"
           >
             New round
           </button>
@@ -956,12 +946,12 @@ function TableCenter({
 
   if (everyoneVoted) {
     return (
-      <div className="flex flex-col items-center gap-2">
-        <div className="text-green-300/70 text-sm">All voted!</div>
+      <div className="flex flex-col items-center gap-1 md:gap-2">
+        <div className="text-green-300/70 text-[11px] md:text-sm">All voted!</div>
         {canReveal && (
           <button
             onClick={onReveal}
-            className="bg-white/20 hover:bg-white/30 text-white text-base font-semibold px-7 py-2.5 rounded-full transition-colors"
+            className="bg-white/20 hover:bg-white/30 text-white text-xs md:text-base font-semibold px-3 md:px-7 py-1 md:py-2.5 rounded-full transition-colors"
           >
             Reveal cards
           </button>
@@ -974,124 +964,18 @@ function TableCenter({
   const voted = state.voted_player_ids.length;
 
   return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="text-white/40 text-4xl font-bold">
+    <div className="flex flex-col items-center gap-1 md:gap-2">
+      <div className="text-white/40 text-xl md:text-4xl font-bold">
         {voted}/{total}
       </div>
-      <div className="text-green-300/60 text-xs">voted</div>
+      <div className="text-green-300/60 text-[10px] md:text-xs">voted</div>
       {canReveal && voted > 0 && (
         <button
           onClick={onReveal}
-          className="mt-1 bg-white/20 hover:bg-white/30 text-white text-sm font-semibold px-5 py-2 rounded-full transition-colors"
+          className="mt-1 bg-white/20 hover:bg-white/30 text-white text-[11px] md:text-sm font-semibold px-2.5 md:px-5 py-1 md:py-2 rounded-full transition-colors"
         >
           Reveal early
         </button>
-      )}
-    </div>
-  );
-}
-
-// ─── ActionBox (mobile / fallback) ───────────────────────────────────────────
-
-function ActionBox({
-  state,
-  stats,
-  isFacilitator,
-  canReveal,
-  everyoneVoted,
-  countdown,
-  onReveal,
-  onReset,
-}: {
-  state: RoomState;
-  stats: Stats | null;
-  isFacilitator: boolean;
-  canReveal: boolean;
-  everyoneVoted: boolean;
-  countdown: number | null;
-  onReveal: () => void;
-  onReset: () => void;
-}) {
-  if (countdown !== null) {
-    return (
-      <div className="bg-[var(--c-panel)] rounded-2xl px-8 py-8 w-full max-w-2xl flex flex-col items-center gap-2">
-        <div className="text-slate-400 text-sm">Revealing in…</div>
-        <div
-          key={countdown}
-          className="text-8xl font-bold text-white"
-          style={{ animation: "countdownPop 0.3s ease-out" }}
-        >
-          {countdown}
-        </div>
-      </div>
-    );
-  }
-
-  if (state.revealed) {
-    return (
-      <div className="bg-[var(--c-panel)] rounded-2xl px-8 py-6 w-full max-w-2xl flex flex-wrap justify-center items-center gap-8">
-        {stats && (
-          <>
-            {state.deck_type !== "tshirt" && (
-              <>
-                <div className="text-center">
-                  <div className="text-xs text-slate-400 mb-1">Average</div>
-                  <div className="text-4xl font-bold">{stats.average ?? "—"}</div>
-                </div>
-                <div className="w-px h-12 bg-[var(--c-border)]" />
-              </>
-            )}
-            <div className="text-center">
-              <div className="text-xs text-slate-400 mb-1">Agreement</div>
-              <div className="text-4xl">{stats.consensus ? "😎" : "🤔"}</div>
-            </div>
-            <div className="w-px h-12 bg-[var(--c-border)]" />
-            <div className="text-center">
-              <div className="text-xs text-slate-400 mb-1">Votes</div>
-              <div className="text-4xl font-bold">{stats.total_votes}</div>
-            </div>
-          </>
-        )}
-        {canReveal && (
-          <button
-            onClick={onReset}
-            className="bg-[var(--c-panel2)] hover:bg-[var(--c-border)] border border-[var(--c-border-hi)] text-slate-200 px-8 py-3 rounded-xl font-semibold text-lg transition-colors"
-          >
-            New round
-          </button>
-        )}
-      </div>
-    );
-  }
-
-  if (everyoneVoted) {
-    return (
-      <div className="bg-[var(--c-panel)] rounded-2xl px-8 py-8 w-full max-w-2xl flex flex-col items-center gap-3">
-        <div className="text-7xl font-bold text-[var(--c-dim)]">{state.voted_player_ids.length}</div>
-        <p className="text-slate-400">
-          All voted!{" "}
-          {canReveal && (
-            <button onClick={onReveal} className="text-accent hover:underline font-semibold text-lg">
-              Reveal cards
-            </button>
-          )}
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="bg-[var(--c-panel)] rounded-2xl px-8 py-8 w-full max-w-2xl flex items-center justify-center min-h-[100px]">
-      {canReveal ? (
-        <button
-          onClick={onReveal}
-          disabled={state.voted_player_ids.length === 0}
-          className="bg-accent hover:bg-accent-hover disabled:opacity-40 text-accent-fg px-10 py-4 rounded-xl font-semibold text-xl transition-colors"
-        >
-          Reveal cards
-        </button>
-      ) : (
-        <p className="text-slate-300 text-lg font-medium">Pick your cards!</p>
       )}
     </div>
   );

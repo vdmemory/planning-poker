@@ -18,11 +18,11 @@ test("facilitator creates a room and a second player joins via the invite link",
   const roomUrl = await createRoom(alice, "Mobile test");
   await joinRoom(bob, roomUrl, "Bob");
 
-  // Below md, the desktop poker-table layout is `hidden` and a separate
-  // mobile layout renders each player again — both copies exist in the DOM,
-  // so scope to the one CSS actually shows at this viewport instead of
-  // relying on DOM order (:visible; getByText().first() picks up the
-  // display:none desktop copy here).
+  // PokerTable renders once at every breakpoint (issue #23 follow-up — it
+  // used to have a separate mobile fallback with its own player list, which
+  // meant two name pills existed in the DOM for the same player and needed
+  // this same `:visible` filter to disambiguate). Kept here defensively;
+  // harmless now that there's only one match either way.
   await expect(alice.locator('[data-testid="player-name-pill"]:visible', { hasText: "Bob" })).toBeVisible({ timeout: 10_000 });
   await expect(bob.locator('[data-testid="player-name-pill"]:visible', { hasText: "Alice" })).toBeVisible({ timeout: 10_000 });
 
@@ -33,11 +33,9 @@ test("facilitator creates a room and a second player joins via the invite link",
 test("vote and reveal works on a narrow viewport", async ({ page }) => {
   await createRoom(page, "Mobile vote test");
 
-  // Below md the app renders both the desktop poker-table markup (display:
-  // none) and the mobile fallback for the same state, so any text/role
-  // query matching both copies must be narrowed to the one CSS actually
-  // shows here — otherwise `.first()` picks the hidden desktop copy in DOM
-  // order and every assertion below flakes out to "not visible".
+  // See the comment on the previous test — PokerTable is unified across
+  // breakpoints now, so this `:visible` narrowing is no longer load-bearing
+  // for text inside it, just kept as a defensive habit.
   const visible = (l: ReturnType<Page["getByText"]>) => l.and(page.locator(":visible")).first();
 
   const card5 = page.getByRole("button", { name: "5", exact: true });
