@@ -258,25 +258,28 @@ export function DrawingCanvas({ myPlayerId, myNickname, isActive, activeColor, s
     }
   }, [isActive, myPlayerId, myNickname, activeColor, getOrCreate]);
 
-  const norm = (e: React.MouseEvent) => ({
-    x: e.clientX / window.innerWidth,
-    y: e.clientY / window.innerHeight,
+  const normXY = (clientX: number, clientY: number) => ({
+    x: clientX / window.innerWidth,
+    y: clientY / window.innerHeight,
   });
+  const norm = (e: React.MouseEvent) => normXY(e.clientX, e.clientY);
+  // First touch of a gesture — used by touchstart/touchmove/touchend so a
+  // finger draws the same way a mouse does. touchend has no `touches` left,
+  // so touchmove's last point is reused there.
+  const touchPoint = (e: React.TouchEvent) => {
+    const t = e.touches[0] ?? e.changedTouches[0];
+    return t ? normXY(t.clientX, t.clientY) : null;
+  };
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (!isActive) return;
-    e.preventDefault();
+  const startStroke = useCallback((pt: Point) => {
     isMouseDownRef.current = true;
-    const pt = norm(e);
     const me = getOrCreate(myPlayerId, myNickname, activeColor);
     me.color = activeColor;
     me.currentPoints = [pt];
     dirtyRef.current = true;
-  }, [isActive, myPlayerId, myNickname, activeColor, getOrCreate]);
+  }, [myPlayerId, myNickname, activeColor, getOrCreate]);
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isActive) return;
-    const pt = norm(e);
+  const moveStroke = useCallback((pt: Point) => {
     const now = Date.now();
 
     if (isMouseDownRef.current) {
@@ -301,12 +304,11 @@ export function DrawingCanvas({ myPlayerId, myNickname, isActive, activeColor, s
       sendRef.current({ type: "draw_cursor", x: pt.x, y: pt.y, color: activeColor });
       lastCursorSendRef.current = now;
     }
-  }, [isActive, myPlayerId, activeColor]);
+  }, [myPlayerId, activeColor]);
 
-  const handleMouseUp = useCallback((e: React.MouseEvent) => {
-    if (!isActive || !isMouseDownRef.current) return;
+  const endStroke = useCallback((pt: Point) => {
+    if (!isMouseDownRef.current) return;
     isMouseDownRef.current = false;
-    const pt = norm(e);
     const me = playersRef.current.get(myPlayerId);
     if (me) {
       me.currentPoints.push(pt);
@@ -318,7 +320,46 @@ export function DrawingCanvas({ myPlayerId, myNickname, isActive, activeColor, s
       me.currentPoints = [];
       dirtyRef.current = true;
     }
-  }, [isActive, myPlayerId, activeColor]);
+  }, [myPlayerId, activeColor]);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (!isActive) return;
+    e.preventDefault();
+    startStroke(norm(e));
+  }, [isActive, startStroke]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isActive) return;
+    moveStroke(norm(e));
+  }, [isActive, moveStroke]);
+
+  const handleMouseUp = useCallback((e: React.MouseEvent) => {
+    if (!isActive) return;
+    endStroke(norm(e));
+  }, [isActive, endStroke]);
+
+  // Finger drawing (issue #23) — mirrors the mouse handlers above. The
+  // canvas gets `touch-action: none` while active so the browser doesn't
+  // hijack the gesture for page scroll/zoom, so we don't need
+  // preventDefault() here (which would require a non-passive listener).
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (!isActive) return;
+    const pt = touchPoint(e);
+    if (pt) startStroke(pt);
+  }, [isActive, startStroke]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isActive) return;
+    const pt = touchPoint(e);
+    if (pt) moveStroke(pt);
+  }, [isActive, moveStroke]);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (!isActive) return;
+    const t = e.changedTouches[0];
+    const pt = t ? normXY(t.clientX, t.clientY) : null;
+    if (pt) endStroke(pt);
+  }, [isActive, endStroke]);
 
   return (
     <canvas
@@ -326,11 +367,15 @@ export function DrawingCanvas({ myPlayerId, myNickname, isActive, activeColor, s
       data-testid="drawing-canvas"
       data-stroke-count="0"
       className="fixed inset-0 z-40"
-      style={{ pointerEvents: isActive ? "auto" : "none", cursor: "none" }}
+      style={{ pointerEvents: isActive ? "auto" : "none", cursor: "none", touchAction: isActive ? "none" : "auto" }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
     />
   );
 }

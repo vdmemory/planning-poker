@@ -428,6 +428,7 @@ function Room({
           <div className="relative">
             <button
               onClick={() => setShowProfileMenu((o) => !o)}
+              title="Profile"
               className="flex items-center gap-1.5 bg-[var(--c-panel)] rounded-full px-2 sm:px-3 py-1.5 hover:bg-[var(--c-panel2)] transition-colors"
             >
               <div
@@ -650,15 +651,32 @@ function Room({
         </main>
 
         {sidebarOpen && (
-          <aside className="w-72 sm:w-80 border-l border-[var(--c-border)] overflow-y-auto shrink-0">
-            <IssueSidebar
-              state={state}
-              canManageIssues={canManageIssues}
-              myPlayerId={myPlayerId}
-              send={send}
-              onClose={() => setSidebarOpen(false)}
+          <>
+            {/* Mobile: backdrop behind the drawer, tap to dismiss. Desktop
+                (md+) keeps the old inline side panel, so no backdrop there. */}
+            <div
+              className="fixed inset-0 bg-black/50 z-40 md:hidden"
+              onClick={() => setSidebarOpen(false)}
             />
-          </aside>
+            {/* Issue #23 — on mobile the sidebar used to sit inline in the
+                flex row at a fixed width, squeezing the main content into a
+                sliver on narrow screens. It's now a full-height overlay
+                drawer that slides in from the right; md+ keeps the original
+                inline panel. */}
+            <aside
+              className="fixed inset-y-0 right-0 z-50 w-[85vw] max-w-sm bg-[var(--c-bg)]
+                         md:static md:z-auto md:w-80 md:max-w-none md:border-l md:border-[var(--c-border)]
+                         overflow-y-auto shrink-0"
+            >
+              <IssueSidebar
+                state={state}
+                canManageIssues={canManageIssues}
+                myPlayerId={myPlayerId}
+                send={send}
+                onClose={() => setSidebarOpen(false)}
+              />
+            </aside>
+          </>
         )}
       </div>
 
@@ -1141,7 +1159,7 @@ function PlayerCard({
       {/* Card with optional edit/kick buttons */}
       <div className="relative">
         <div
-          className={`w-14 h-20 rounded-xl border-2 flex items-center justify-center font-bold text-lg transition-all ${
+          className={`w-12 h-16 sm:w-14 sm:h-20 rounded-xl border-2 flex items-center justify-center font-bold text-base sm:text-lg transition-all ${
             !voted
               ? "bg-[var(--c-panel)] border-[var(--c-border-hi)]"
               : revealed
@@ -1199,11 +1217,13 @@ function PlayerCard({
           </button>
         )}
 
-        {/* Kick button (facilitator only, on hover) */}
+        {/* Kick button (facilitator only). Hover-reveal on devices with a
+            real pointer (mouse/trackpad); always visible on touchscreens,
+            which have no hover state to reveal it (issue #23). */}
         {canKick && onKick && (
           <button
             onClick={onKick}
-            className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-400 rounded-full flex items-center justify-center shadow-lg transition-all opacity-0 group-hover:opacity-100"
+            className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-400 rounded-full flex items-center justify-center shadow-lg transition-all opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
             title="Remove from room"
           >
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -1268,7 +1288,7 @@ function RevotePicker({
             <button
               key={v}
               onClick={() => onSelect(v)}
-              className={`w-14 h-20 rounded-xl border-2 font-bold text-lg transition-all ${
+              className={`w-12 h-16 sm:w-14 sm:h-20 rounded-xl border-2 font-bold text-base sm:text-lg transition-all ${
                 v === current
                   ? "bg-accent border-accent text-accent-fg scale-105"
                   : "bg-[var(--c-panel2)] border-[var(--c-border)] text-slate-300 hover:border-accent hover:scale-105"
@@ -1326,7 +1346,7 @@ function VotingCard({
   return (
     <button
       onClick={onClick}
-      className={`w-14 h-20 rounded-xl border-2 font-bold text-lg transition-all shrink-0 ${
+      className={`w-12 h-16 sm:w-14 sm:h-20 rounded-xl border-2 font-bold text-base sm:text-lg transition-all shrink-0 ${
         selected
           ? "bg-accent border-accent text-accent-fg -translate-y-3 shadow-lg shadow-accent/40"
           : "bg-[var(--c-panel)] border-[var(--c-border)] text-slate-300 hover:border-accent hover:-translate-y-1"

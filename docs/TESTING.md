@@ -90,6 +90,7 @@ Bob, потом ws закрылся, потом второй WS пришёл с 
 | `create-and-vote.spec.ts` | Фасилитатор создаёт комнату → голосует → «Reveal cards» появляется |
 | `reveal-and-stats.spec.ts` | Голосует → Reveal → «Average» + «New round»; New round сбрасывает |
 | `two-players.spec.ts` | Два контекста (две сессии) в одной комнате → видят друг друга → оба голосуют → reveal на одном → обе видят stats |
+| `mobile-flows.spec.ts` | Issue #23 — те же 5 ключевых флоу на viewport 375×667 (iPhone SE) с `hasTouch: true`: создание комнаты + join по ссылке, голос+reveal, Game Settings (проверка что Save помещается в viewport), issues-drawer (добавить+выбрать issue), рисование пальцем через синтетические `TouchEvent` |
 
 ### Helpers (`tests/e2e/helpers.ts`)
 
@@ -97,10 +98,23 @@ Bob, потом ws закрылся, потом второй WS пришёл с 
 - `joinRoom(page, url, nickname, asSpectator?)` — открыть URL комнаты как другой пользователь.
 - `voteCard(page, card, confirmRegex?)` — кликает карту с повторами, пока на странице не появится подтверждение (по умолчанию «All voted!»). Polling нужен потому что в коротком окне между HTTP-навигацией и WS-handshake первый клик может улететь в no-op (`send()` дропает сообщения, если ws.readyState !== OPEN).
 
+### Мобильные тесты и ловушка с `.first()` (issue #23)
+
+`mobile-flows.spec.ts` не переиспользует `voteCard`/текстовые локаторы 1-в-1 из десктопных тестов, потому что ниже `md` в DOM одновременно присутствуют **обе** копии стола — `PokerTable` (`hidden md:flex`) и мобильный fallback (`md:hidden`) — CSS прячет только одну. Locator по тексту/роли матчит обе, и `.first()` берёт первую **в DOM-порядке**, а не первую видимую — на мобильном viewport'е это чаще всего скрытая desktop-копия, и `expect(...).toBeVisible()` зависает до таймаута. Паттерн, которым это обходится в `mobile-flows.spec.ts`:
+
+```ts
+const visible = (l: Locator) => l.and(page.locator(":visible")).first();
+await expect(visible(page.getByText(/all voted/i))).toBeVisible();
+```
+
+Локальный запуск: `npm run test:e2e` гоняет и `mobile-flows.spec.ts` вместе со всеми остальными спеками (single Chromium project, viewport переопределяется через `test.use()` внутри файла). Чтобы посмотреть тот же экран глазами — Chrome DevTools → Toggle device toolbar → выбрать iPhone SE / iPhone 14 / iPad mini, либо `npm run test:e2e:headed` на этом файле.
+
+Playwright здесь гоняет desktop Chromium с эмулированным viewport/touch — это **не** то же самое, что настоящий iOS Safari или Android Chrome (разный рендеринг клавиатуры, разное поведение `dvh`, разные touch-квирки). Issue #23 явно требует ручной smoke-test на реальном устройстве перед мерджем — это отдельный шаг, автоматические тесты его не заменяют.
+
 ### Что НЕ покрыто
 
-- Рисование / live-курсоры (релейные сообщения, бизнес-эффекта нет)
-- Мобильные breakpoint'ы (можно добавить через `projects:` в конфиге)
+- Live-курсоры и кросс-клиентский relay рисования (только локальное состояние одного клиента проверяется)
+- Мультитач / стилус в рисовании — только один палец (`e.touches[0]`), MVP-решение по issue #23
 - Visual regression (нет screenshot baselines)
 - Тесты на медленных соединениях / cold start Render (offline-индикатор)
 
