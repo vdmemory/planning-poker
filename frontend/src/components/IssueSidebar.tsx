@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type CSSProperties } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, type CSSProperties } from "react";
 import type { RoomState, Issue } from "../types";
 import { ConfirmModal } from "./ConfirmModal";
 
@@ -32,6 +32,49 @@ export function IssueSidebar({ state, canManageIssues, myPlayerId, send, onClose
   // Issue #4 — replaces the three previous `confirm("Delete…")` browser
   // dialogs with a single in-app ConfirmModal driven by this state.
   const [pendingDelete, setPendingDelete] = useState<PendingDelete>(null);
+
+  // Issue #5 — FLIP-slide issue rows when `reorder_issue` changes their
+  // order: capture each row's position before the reorder commits, then
+  // after the DOM has the new order, offset each row back to where it used
+  // to be and transition it to zero. Same manual-FLIP approach as
+  // ThrowFloater (issue #51) — no animation library.
+  const listRef = useRef<HTMLUListElement>(null);
+  const prevOrderRef = useRef<string[]>([]);
+  const prevRectsRef = useRef<Map<string, DOMRect>>(new Map());
+
+  useLayoutEffect(() => {
+    const ul = listRef.current;
+    if (!ul) return;
+    const newOrder = state.issues.map((i) => i.id);
+    const prevOrder = prevOrderRef.current;
+    const prevRects = prevRectsRef.current;
+
+    if (prevOrder.length > 0 && prevOrder.join() !== newOrder.join()) {
+      for (const id of newOrder) {
+        const el = ul.querySelector<HTMLElement>(`[data-issue-id="${id}"]`);
+        const oldRect = prevRects.get(id);
+        if (!el || !oldRect) continue;
+        const newRect = el.getBoundingClientRect();
+        const deltaY = oldRect.top - newRect.top;
+        if (!deltaY) continue;
+        el.style.transition = "none";
+        el.style.transform = `translateY(${deltaY}px)`;
+        el.getBoundingClientRect(); // force reflow before re-enabling transition
+        requestAnimationFrame(() => {
+          el.style.transition = "transform 0.25s ease-out";
+          el.style.transform = "";
+        });
+      }
+    }
+
+    const newRects = new Map<string, DOMRect>();
+    for (const id of newOrder) {
+      const el = ul.querySelector<HTMLElement>(`[data-issue-id="${id}"]`);
+      if (el) newRects.set(id, el.getBoundingClientRect());
+    }
+    prevRectsRef.current = newRects;
+    prevOrderRef.current = newOrder;
+  }, [state.issues]);
 
   const totalPoints = state.issues.reduce((sum, i) => {
     const n = Number(i.final_estimate);
@@ -135,7 +178,7 @@ export function IssueSidebar({ state, canManageIssues, myPlayerId, send, onClose
       </div>
 
       {/* Issue list */}
-      <ul className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
+      <ul ref={listRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
         {state.issues.map((issue, index) => {
           const isCurrent = issue.id === state.current_issue_id;
           return (
@@ -303,6 +346,7 @@ function IssueCard({
 }) {
   return (
     <li
+      data-issue-id={issue.id}
       className={`rounded-xl text-sm transition-colors ${
         isCurrent ? "bg-[var(--c-panel2)] border border-[var(--c-border-hi)]" : "bg-[var(--c-panel)]"
       }`}
