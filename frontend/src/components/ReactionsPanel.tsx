@@ -10,7 +10,10 @@ import { preloadAllReactionLottie } from "./reaction-lottie-cache";
  *             user's choice of variant A in the issue discussion
  *
  * The panel lives in the room header on desktop (visible inline). On mobile
- * it collapses into a single button that opens a bottom-sheet drawer.
+ * it collapses into a single button that opens a centered modal dialog
+ * (issue #23 follow-up — it used to be a bottom-sheet, but that read as
+ * inconsistent next to every other mobile dialog in the app, which are all
+ * centered modals).
  *
  * Throttling: at most one reaction every 600 ms per client. Anything faster
  * is silently dropped — kept tight so the float-up animation stays lively
@@ -96,7 +99,7 @@ export function ReactionsPanel({ onReact }: Props) {
         </div>
       </div>
 
-      {/* Mobile: single trigger button + slide-up bottom-sheet. */}
+      {/* Mobile: single trigger button + centered modal. */}
       <div className="md:hidden relative z-50" data-testid="reactions-panel-mobile">
         <button
           data-testid="reactions-mobile-trigger"
@@ -107,14 +110,25 @@ export function ReactionsPanel({ onReact }: Props) {
           <span className="text-base leading-none">😀</span>
         </button>
         {mobileOpen && (
-          <>
-            {/* Backdrop — close on outside tap */}
-            <div className="fixed inset-0 z-40 bg-black/40" onClick={() => setMobileOpen(false)} />
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+            onClick={() => setMobileOpen(false)}
+          >
             <div
-              data-testid="reactions-mobile-sheet"
-              className="fixed left-0 right-0 bottom-0 z-50 bg-[var(--c-panel)] border-t border-[var(--c-border)] rounded-t-2xl p-4 shadow-2xl"
+              data-testid="reactions-mobile-modal"
+              className="w-full max-w-sm bg-[var(--c-panel)] border border-[var(--c-border)] rounded-2xl p-5 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
             >
-              <div className="mx-auto max-w-md flex flex-col gap-3">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-semibold text-white">Reactions</h2>
+                <button
+                  onClick={() => setMobileOpen(false)}
+                  className="text-slate-400 hover:text-white text-xl leading-none"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="flex flex-col gap-3">
                 <ModeToggle mode={mode} setMode={setMode} centered />
                 <div className="flex flex-wrap gap-2 justify-center">
                   {items.map((v) => (
@@ -123,7 +137,7 @@ export function ReactionsPanel({ onReact }: Props) {
                 </div>
               </div>
             </div>
-          </>
+          </div>
         )}
       </div>
     </>
