@@ -25,7 +25,6 @@ export function IssueSidebar({ state, canManageIssues, myPlayerId, send, onClose
   const [adding, setAdding] = useState(false);
   const [addTitle, setAddTitle] = useState("");
   const [editingIssue, setEditingIssue] = useState<Issue | null>(null);
-  const [showImportMenu, setShowImportMenu] = useState(false);
   const [showBulkMenu, setShowBulkMenu] = useState(false);
   const [issueMenuId, setIssueMenuId] = useState<string | null>(null);
   const [estimatePickerId, setEstimatePickerId] = useState<string | null>(null);
@@ -118,32 +117,11 @@ export function IssueSidebar({ state, canManageIssues, myPlayerId, send, onClose
           </p>
         </div>
         <div className="flex items-center gap-1">
-          {/* Import */}
-          {canManageIssues && (
-            <div className="relative">
-              <button
-                onClick={() => { setShowImportMenu((v) => !v); setShowBulkMenu(false); }}
-                title="Import issues"
-                className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-[var(--c-panel2)] transition-colors"
-              >
-                📥
-              </button>
-              {showImportMenu && (
-                <Dropdown onClose={() => setShowImportMenu(false)}>
-                  <DropdownItem icon="🔗" label="Import from JIRA" onClick={() => setShowImportMenu(false)} />
-                  <DropdownItem icon="📐" label="Import from Linear" onClick={() => setShowImportMenu(false)} />
-                  <DropdownItem icon="🌐" label="Add from URLs" onClick={() => setShowImportMenu(false)} />
-                  <DropdownItem icon="📋" label="Import from CSV" onClick={() => setShowImportMenu(false)} />
-                </Dropdown>
-              )}
-            </div>
-          )}
-
           {/* Bulk actions */}
           {canManageIssues && (
             <div className="relative">
               <button
-                onClick={() => { setShowBulkMenu((v) => !v); setShowImportMenu(false); }}
+                onClick={() => setShowBulkMenu((v) => !v)}
                 title="More options"
                 className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-[var(--c-panel2)] transition-colors text-lg leading-none"
               >
