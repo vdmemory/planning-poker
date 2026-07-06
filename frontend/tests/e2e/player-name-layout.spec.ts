@@ -2,17 +2,16 @@ import { test, expect } from "@playwright/test";
 import { createRoom, joinRoom } from "./helpers";
 
 /**
- * Issue #7: nickname is shown in a colored pill ABOVE the card.
- * The duplicate caption that used to sit UNDER the card was removed.
- * The letter-avatar circle that used to sit above the card was replaced
- * by the full-name pill.
+ * Issue #7: nickname is shown in a colored pill under the card (the
+ * letter-avatar circle it replaced used to sit above the card). A later
+ * pass moved the pill from above the card to under it, and dropped the
+ * "host" badge that used to sit next to the facilitator's card.
  *
- * The room screen has TWO layouts in the DOM at the same time — mobile
- * (md:hidden) and desktop (hidden md:flex) — exactly one is visible per
- * viewport size. We assert against visible elements only so the test
- * doesn't double-count.
+ * `PokerTable` is one component across all breakpoints (see
+ * `docs/BUSINESS_LOGIC.md`), so there's only ever one PlayerCard per player
+ * in the DOM — no duplicate mobile/desktop copies to filter out here.
  */
-test("player nickname renders as a pill above the card, not under it", async ({ browser }) => {
+test("player nickname renders as a pill under the card", async ({ browser }) => {
   const aliceCtx = await browser.newContext();
   const bobCtx = await browser.newContext();
   const alice = await aliceCtx.newPage();
@@ -21,8 +20,7 @@ test("player nickname renders as a pill above the card, not under it", async ({ 
   const roomUrl = await createRoom(alice, "Layout test", "AliceLongName");
   await joinRoom(bob, roomUrl, "Bob");
 
-  // At default desktop viewport, exactly one layout (the oval table) is
-  // visible — so two players => two visible PlayerCard nodes.
+  // Two players => two visible PlayerCard nodes.
   const visibleCards = (page: typeof alice) =>
     page.locator("[data-testid='player-card']:visible");
 
