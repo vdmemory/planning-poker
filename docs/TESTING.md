@@ -7,8 +7,8 @@
 
 | Уровень | Где | Технология | Скорость |
 |---|---|---|---|
-| Backend service + WS | `backend/tests/` | pytest + FastAPI TestClient | 125 тестов, <0.1s |
-| Frontend e2e | `frontend/tests/e2e/` | Playwright + Chromium | 50 тестов, ~1 мин |
+| Backend service + WS | `backend/tests/` | pytest + FastAPI TestClient | 191 тестов (125 Planning Poker + 66 Retro Board), <0.1s |
+| Frontend e2e | `frontend/tests/e2e/` | Playwright + Chromium | 59 тестов (50 Planning Poker + 9 Retro Board), ~1.5 мин |
 
 ## Backend (pytest)
 
@@ -16,7 +16,7 @@
 cd backend
 source .venv/bin/activate
 pip install -r requirements-dev.txt   # один раз
-pytest                                # все 125 тестов
+pytest                                # все 191 тестов
 pytest tests/test_voting_and_stats.py # один файл
 pytest -k "facilitator"               # все тесты со словом "facilitator"
 ```
@@ -39,6 +39,11 @@ pytest -k "facilitator"               # все тесты со словом "fac
 | `test_issues.py` | add/update/delete/reorder/select/set_estimate; авто-выбор первой задачи; что происходит при удалении активной | 19 |
 | `test_permissions_and_settings.py` | `who_can_reveal`, `who_can_manage_issues`, facilitator-only действия, partial-update комнаты | 12 |
 | `test_websocket.py` | REST + WS интеграция: auto-join по URL, broadcast, error reply, countdown/draw relay, kick закрывает соединение, room_closed | 16 |
+| `test_retro_boards_and_participants.py` | Retro Board (issue #62) — создание доски по каждому из 3 шаблонов, facilitator-handoff, join/kick/close, disconnect grace, обновление ника/цвета | 24 |
+| `test_retro_cards_voting_timer.py` | Retro Board — add/edit/delete карточек с permission-проверками (автор/фасилитатор/чужой), vote/unvote с enforced бюджетом, `update_board` (rename, anonymous_mode, лимит голосов), полный жизненный цикл таймера | 27 |
+| `test_retro_websocket.py` | Retro Board — REST bootstrap, WS auto-join/reconnect, `board_inactive`, broadcast карточек, error-пути, таймер по WS, kick + `board_closed` | 15 |
+
+Бизнес-правила Retro Board — в `docs/RETRO_BUSINESS_LOGIC.md`.
 
 ### Что НЕ покрыто
 
@@ -96,12 +101,19 @@ Bob, потом ws закрылся, потом второй WS пришёл с 
 | `throw-reaction.spec.ts` | Issue #51 — эмодзи-часть бара скрыта пока `fun_features_enabled=false`, но kick у фасилитатора работает всегда; включение тумблера в Game Settings → hover на чужой карточке → клик по дефолтному эмодзи → `throw-floater` появляется у ОБОИХ клиентов и исчезает по истечении lifetime; `+`-пикер бросает доп. эмодзи и закрывается сам; kick по-прежнему работает из новой корзины в баре |
 | `drawing-toggle-and-fade.spec.ts` | Toggle рисования по клику/ESC; штрих исчезает через ~5s; Issue #50 — вершина-«кончик» карандашного курсора рендерится строго на позиции мыши (`getBoundingClientRect` временного SVG-маркера), а «ластик» — выше и левее (наклон вправо, не строго вертикально) |
 | `animations.spec.ts` | Issue #5 — UI-анимации: карта переворачивается (`card-flip`) ровно на момент `revealed: false→true` и класс снимается сам через ~400ms; новая карточка игрока получает `player-fade-in`; kick-нутый игрок рендерится ghost'ом с `player-fade-out` (`data-testid="player-card-ghost"`) и исчезает после анимации; stats-панель в центре стола получает `stats-slide-in` при reveal; issue-строки несут `data-issue-id` (нужен FLIP-хуку в `IssueSidebar.tsx`) и reorder («Move to top») по-прежнему меняет порядок |
+| `retro-board.spec.ts` | Issue #62 (Phase 1) — создание доски + дефолтные колонки шаблона; два участника видят карточки/голоса друг друга живьём; vote-бюджет enforced по всем карточкам сразу (`max_votes_per_person`), unvote освобождает бюджет; автор редактирует/удаляет свою карточку; `anonymous_mode` скрывает имя автора у остальных, но не у самого автора; таймер start/pause/reset; kick участника → overlay `retro-inactive-overlay[data-reason=kicked]`; close board → overlay `[data-reason=closed]`; неизвестный board id → overlay `[data-reason=not_found]` |
 
 ### Helpers (`tests/e2e/helpers.ts`)
 
 - `createRoom(page, gameName?, facilitatorNick?)` — `/new` → создать → ввести ник → ждать WS. (Issue #22 переместил форму создания комнаты с `/` на `/new` — `/` теперь лендинг.)
 - `joinRoom(page, url, nickname, asSpectator?)` — открыть URL комнаты как другой пользователь.
 - `voteCard(page, card, confirmRegex?)` — кликает карту с повторами, пока на странице не появится подтверждение (по умолчанию «All voted!»). Polling нужен потому что в коротком окне между HTTP-навигацией и WS-handshake первый клик может улететь в no-op (`send()` дропает сообщения, если ws.readyState !== OPEN).
+
+### Helpers (`tests/e2e/retro-helpers.ts`)
+
+- `createRetroBoard(page, boardName?, facilitatorNick?)` — `/retro/new` → создать → ввести ник → ждать WS. `waitForURL` явно исключает `/retro/new` из паттерна (`/\/retro\/(?!new$)[a-z0-9]+$/`) — без этого регэксп ложно матчит саму страницу создания (`new` проходит под `[a-z0-9]+`), и хелпер возвращал бы неправильный URL.
+- `joinRetroBoard(page, boardUrl, nickname)` — открыть URL доски как другой участник.
+- `addCard(page, columnTitle, text)` — находит колонку по заголовку, печатает текст, жмёт Enter, ждёт появления карточки.
 
 ### Мобильные тесты и ловушка с `.first()` (issue #23)
 

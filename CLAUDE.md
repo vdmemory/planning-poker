@@ -8,6 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Real-time Planning Poker tool for agile teams. Guest mode (no registration), WebSocket-based voting. All state is in-memory — no database, no persistence between restarts.
 
+**Retro Board** (issue #62, Phase 1) is a second, fully independent product on the same site — a WebSocket-based retrospective board (Mad/Sad/Glad, Start/Stop/Continue, 4Ls templates). It shares no code with Planning Poker's `Room`/`RoomService` beyond the domain-agnostic `ConnectionManager`. See `docs/RETRO_BUSINESS_LOGIC.md` for business logic and the "Retro Board" subsection below for architecture.
+
 ## Running Locally
 
 **Backend** (FastAPI + uvicorn, port 8000):
@@ -41,13 +43,13 @@ Two layers, both treated as executable documentation (`docs/TESTING.md`):
 ```bash
 # Backend (pytest + FastAPI TestClient + WebSocket)
 cd backend && source .venv/bin/activate && pip install -r requirements-dev.txt
-pytest                   # 125 tests, ~0.1s
+pytest                   # 191 tests (125 Planning Poker + 66 Retro Board), ~0.1s
 
 # Frontend e2e (Playwright + Chromium)
 cd frontend
 npm install
 npx playwright install chromium
-npm run test:e2e         # 50 tests, ~1 min
+npm run test:e2e         # 59 tests (50 Planning Poker + 9 Retro Board), ~1.5 min
 ```
 
 Test naming reads as the spec (`test_facilitator_cannot_become_spectator`). When adding business logic, add the test **and** update `docs/BUSINESS_LOGIC.md` in the same PR — see `docs/RULES.md` rule 13 (Definition of Done for new business logic). This is non-negotiable; "later" doesn't work.
@@ -100,6 +102,30 @@ frontend/src/
 └── types.ts               # Frontend types mirroring backend public_state()
 ```
 
+### Retro Board (parallel domain)
+
+```
+backend/app/
+├── retro_models.py      # RetroTemplate, RetroColumn, RETRO_TEMPLATES, RetroParticipant, RetroCard, RetroBoard
+├── retro_store.py       # RetroBoardStore Protocol + InMemoryRetroBoardStore
+├── retro_service.py     # RetroService — all business logic
+├── retro_ws_manager.py  # reuses ConnectionManager; own cleanup tasks (different field names)
+└── main.py              # + POST/GET /api/retro-boards, WS /ws/retro/{board_id}, handle_retro_message
+
+frontend/src/
+├── pages/
+│   ├── RetroNewPage.tsx    # `/retro/new` — board creation form
+│   └── RetroBoardPage.tsx  # `/retro/:boardId` — join modal + board screen
+├── components/
+│   ├── RetroTemplatePicker.tsx
+│   ├── RetroColumn.tsx
+│   ├── RetroCardItem.tsx
+│   └── RetroTimer.tsx
+└── hooks/useRetroSocket.ts
+```
+
+Full architecture writeup: `docs/ARCHITECTURE.md` → "Retro Board".
+
 ## Key Design Decisions
 
 **Layered backend**: `main.py` only parses HTTP/WS messages and delegates to `RoomService`. All logic lives in `services.py`, making it testable without a running server.
@@ -120,7 +146,11 @@ frontend/src/
 
 **Throw reactions** (issue #51): `room.fun_features_enabled` (facilitator-only, off by default, set via `update_room`) gates `throw_reaction` — a reaction aimed at a specific player's card, hover/tap-triggered from `ThrowReactionBar` on `PlayerCard`. Purely ephemeral relay like `reaction`/`draw_*`/`countdown`, not stored on `Room`. Distinct from the issue #32 self-reaction system (`reaction` type, `ReactionsPanel`/`ReactionFloater`) — both exist side by side.
 
+**Retro Board cards are never hidden** (issue #62): unlike Planning Poker's `revealed` gate, retro cards and vote counts are visible to everyone immediately — no per-viewer `public_state()` needed. **Anonymous mode is display-only**: `author_id` always stays on the wire for permission checks; the frontend just hides the nickname label for non-authors when `anonymous_mode` is on. **Timer uses an absolute deadline** (`timer_ends_at`), not a server tick — clients compute their own live countdown, avoiding a new per-board background task. Full rules: `docs/RETRO_BUSINESS_LOGIC.md`.
+
 ## WebSocket Protocol
+
+> Below is the **Planning Poker** (`/ws/{room_id}`) protocol. Retro Board's parallel protocol (`/ws/retro/{board_id}`) is documented in `docs/RETRO_BUSINESS_LOGIC.md`.
 
 **Client → Server** (full list — see `main.py:handle_message`):
 

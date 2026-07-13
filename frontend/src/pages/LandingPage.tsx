@@ -29,13 +29,20 @@ export default function LandingPage() {
           Estimate stories together in real time. No sign-up, no install — create a room,
           share the link, and start voting in seconds.
         </p>
-        <div className="mt-8">
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <Link
             to="/new"
             data-testid="landing-cta"
             className="inline-block bg-accent hover:bg-accent-hover text-accent-fg font-semibold text-lg px-8 py-3.5 rounded-xl transition-colors"
           >
             Create a room
+          </Link>
+          <Link
+            to="/retro/new"
+            data-testid="landing-retro-cta"
+            className="inline-block bg-[var(--c-panel)] border border-[var(--c-border)] hover:bg-[var(--c-panel2)] text-white font-semibold text-lg px-8 py-3.5 rounded-xl transition-colors"
+          >
+            Start a retro board
           </Link>
         </div>
       </section>
@@ -87,6 +94,23 @@ export default function LandingPage() {
               <p className="text-sm text-slate-400">{f.body}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* Retro Boards teaser */}
+      <section className="max-w-3xl mx-auto px-4 sm:px-6 pb-20 text-center">
+        <div className="bg-[var(--c-panel)] border border-[var(--c-border)] rounded-2xl p-8">
+          <div className="text-3xl mb-3">📝</div>
+          <h2 className="text-2xl font-bold text-white mb-2">Running a retrospective instead?</h2>
+          <p className="text-slate-400 mb-6">
+            Same idea, different board — collect Mad/Sad/Glad or Start/Stop/Continue cards live with your team, vote on what matters, and time-box the discussion.
+          </p>
+          <Link
+            to="/retro/new"
+            className="inline-block bg-accent hover:bg-accent-hover text-accent-fg font-semibold px-6 py-3 rounded-xl transition-colors"
+          >
+            Start a retro board
+          </Link>
         </div>
       </section>
 
