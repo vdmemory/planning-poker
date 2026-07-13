@@ -85,6 +85,9 @@ export interface RetroCard {
   author_id: string;
   text: string;
   votes: string[];
+  // Issue #62 Phase 2 — drag-to-merge grouping. `null` means standalone (or
+  // this card IS the group's head); otherwise points at the head card's id.
+  group_id: string | null;
   created_at: string;
 }
 

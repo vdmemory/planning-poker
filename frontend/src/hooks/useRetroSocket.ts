@@ -5,6 +5,11 @@ interface UseRetroSocketArgs {
   boardId: string;
   participantId: string | null;
   nickname: string;
+  // Issue #62 Phase 2 — fired on every `card_reaction` broadcast (includes
+  // the sender's own click, so their overlay pops too). Held in a ref so
+  // changing the handler doesn't tear down the WS, same convention as
+  // useRoomSocket's onReactionMessage.
+  onCardReactionMessage?: (msg: object) => void;
 }
 
 interface UseRetroSocketResult {
@@ -19,13 +24,15 @@ interface UseRetroSocketResult {
   boardInactive: "expired" | "not_found" | "closed" | "kicked" | null;
 }
 
-export function useRetroSocket({ boardId, participantId, nickname }: UseRetroSocketArgs): UseRetroSocketResult {
+export function useRetroSocket({ boardId, participantId, nickname, onCardReactionMessage }: UseRetroSocketArgs): UseRetroSocketResult {
   const [state, setState] = useState<RetroBoardState | null>(null);
   const [myParticipantId, setMyParticipantId] = useState<string | null>(participantId);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [boardInactive, setBoardInactive] = useState<"expired" | "not_found" | "closed" | "kicked" | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const onCardReactionMessageRef = useRef(onCardReactionMessage);
+  useEffect(() => { onCardReactionMessageRef.current = onCardReactionMessage; });
   const reconnectTimeoutRef = useRef<number | null>(null);
   const shouldReconnectRef = useRef(true);
   const myParticipantIdRef = useRef<string | null>(participantId);
@@ -63,6 +70,8 @@ export function useRetroSocket({ boardId, participantId, nickname }: UseRetroSoc
         localStorage.setItem(`retro:${boardId}:participant_id`, msg.participant_id);
       } else if (msg.type === "board_state") {
         setState(msg.state);
+      } else if (msg.type === "card_reaction") {
+        onCardReactionMessageRef.current?.(msg);
       } else if (msg.type === "kicked") {
         shouldReconnectRef.current = false;
         setBoardInactive("kicked");

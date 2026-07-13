@@ -126,6 +126,75 @@ def test_edit_and_delete_card(client):
         assert msg["state"]["cards"] == []
 
 
+# ---------- WS grouping & card reactions (issue #62 Phase 2) ----------
+
+def test_group_cards_broadcasts_state_to_all(client):
+    data = create_retro_board_via_api(client)
+    with client.websocket_connect(_ws_url(data["board_id"], data["participant_id"])) as ws_a, \
+         client.websocket_connect(_ws_url(data["board_id"], "x", "bob")) as ws_b:
+        ws_a.receive_json()  # joined
+        ws_a.receive_json()  # board_state (alice only)
+        ws_b.receive_json()  # joined
+        ws_b.receive_json()  # board_state (alice+bob)
+        ws_a.receive_json()  # broadcast after bob joined
+
+        ws_a.send_json({"type": "add_card", "column_id": "mad", "text": "one"})
+        msg = ws_a.receive_json(); ws_b.receive_json()
+        card_a = msg["state"]["cards"][0]["id"]
+
+        ws_a.send_json({"type": "add_card", "column_id": "mad", "text": "two"})
+        msg = ws_a.receive_json(); ws_b.receive_json()
+        card_b = next(c["id"] for c in msg["state"]["cards"] if c["text"] == "two")
+
+        ws_a.send_json({"type": "group_cards", "source_card_id": card_a, "target_card_id": card_b})
+        for ws in (ws_a, ws_b):
+            msg = ws.receive_json()
+            assert msg["type"] == "board_state"
+            grouped = next(c for c in msg["state"]["cards"] if c["id"] == card_a)
+            assert grouped["group_id"] == card_b
+
+        ws_a.send_json({"type": "ungroup_card", "card_id": card_a})
+        msg = ws_a.receive_json()
+        ungrouped = next(c for c in msg["state"]["cards"] if c["id"] == card_a)
+        assert ungrouped["group_id"] is None
+
+
+def test_group_cards_cross_column_sends_error(client):
+    data = create_retro_board_via_api(client)
+    with client.websocket_connect(_ws_url(data["board_id"], data["participant_id"])) as ws:
+        ws.receive_json(); ws.receive_json()
+        ws.send_json({"type": "add_card", "column_id": "mad", "text": "one"})
+        card_a = ws.receive_json()["state"]["cards"][0]["id"]
+        ws.send_json({"type": "add_card", "column_id": "sad", "text": "two"})
+        msg = ws.receive_json()
+        card_b = next(c["id"] for c in msg["state"]["cards"] if c["text"] == "two")
+
+        ws.send_json({"type": "group_cards", "source_card_id": card_a, "target_card_id": card_b})
+        msg = ws.receive_json()
+        assert msg == {"type": "error", "message": "Cannot group cards from different columns"}
+
+
+def test_react_to_card_broadcasts_to_all_including_sender(client):
+    data = create_retro_board_via_api(client)
+    with client.websocket_connect(_ws_url(data["board_id"], data["participant_id"])) as ws_a, \
+         client.websocket_connect(_ws_url(data["board_id"], "x", "bob")) as ws_b:
+        ws_a.receive_json(); ws_a.receive_json()
+        ws_b.receive_json(); ws_b.receive_json()
+        ws_a.receive_json()  # bob join broadcast
+
+        ws_a.send_json({"type": "add_card", "column_id": "mad", "text": "text"})
+        msg = ws_a.receive_json(); ws_b.receive_json()
+        card_id = msg["state"]["cards"][0]["id"]
+
+        ws_b.send_json({"type": "react_to_card", "card_id": card_id, "value": "👍"})
+        for ws in (ws_a, ws_b):
+            msg = ws.receive_json()
+            assert msg["type"] == "card_reaction"
+            assert msg["card_id"] == card_id
+            assert msg["value"] == "👍"
+            assert msg["from_nickname"] == "bob"
+
+
 # ---------- WS error path ----------
 
 def test_vote_unknown_card_sends_error_to_sender_only(client):

@@ -348,6 +348,17 @@ async def handle_retro_message(board_id: str, participant_id: str, data: dict) -
             retro_service.vote_card(board_id, participant_id, data["card_id"])
         elif msg_type == "unvote_card":
             retro_service.unvote_card(board_id, participant_id, data["card_id"])
+        elif msg_type == "group_cards":
+            retro_service.group_cards(board_id, participant_id, data["source_card_id"], data["target_card_id"])
+        elif msg_type == "ungroup_card":
+            retro_service.ungroup_card(board_id, participant_id, data["card_id"])
+        elif msg_type == "react_to_card":
+            # Issue #62 Phase 2 — pure ephemeral relay, like Planning Poker's
+            # `reaction`/`throw_reaction`. Broadcast to ALL clients including
+            # the sender so their own overlay pops too.
+            msg = retro_service.react_to_card(board_id, participant_id, data["card_id"], data.get("value", ""))
+            await retro_manager.broadcast(board_id, msg)
+            return
         elif msg_type == "start_timer":
             retro_service.start_timer(board_id, participant_id, data["seconds"])
         elif msg_type == "pause_timer":

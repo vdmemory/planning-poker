@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useRetroSocket } from "../hooks/useRetroSocket";
+import { useRetroCardDrag } from "../hooks/useRetroCardDrag";
+import { useRetroCardReactions } from "../hooks/useRetroCardReactions";
 import { RetroColumn } from "../components/RetroColumn";
 import { RetroTimer } from "../components/RetroTimer";
 import { ConfirmModal } from "../components/ConfirmModal";
@@ -84,11 +86,16 @@ function RetroBoard({ boardId, nickname, storedParticipantId }: {
   boardId: string; nickname: string; storedParticipantId: string | null;
 }) {
   const navigate = useNavigate();
+  const { cardReactionOverlays, handleCardReactionMessage } = useRetroCardReactions();
   const { state, myParticipantId, connected, send, error, boardInactive } = useRetroSocket({
     boardId,
     participantId: storedParticipantId,
     nickname,
+    onCardReactionMessage: handleCardReactionMessage,
   });
+  const { draggingId, overId, startDrag, moveDrag, endDrag } = useRetroCardDrag(
+    (sourceCardId, targetCardId) => send({ type: "group_cards", source_card_id: sourceCardId, target_card_id: targetCardId })
+  );
 
   const avatarSyncedRef = useRef(false);
   useEffect(() => {
@@ -281,6 +288,14 @@ function RetroBoard({ boardId, nickname, storedParticipantId }: {
               onUnvote={(cardId) => send({ type: "unvote_card", card_id: cardId })}
               onEditCard={(cardId, text) => send({ type: "edit_card", card_id: cardId, text })}
               onDeleteCard={(cardId) => send({ type: "delete_card", card_id: cardId })}
+              onUngroupCard={(cardId) => send({ type: "ungroup_card", card_id: cardId })}
+              draggingId={draggingId}
+              overId={overId}
+              onDragStart={startDrag}
+              onDragMove={moveDrag}
+              onDragEnd={endDrag}
+              cardReactionOverlays={cardReactionOverlays}
+              onReactToCard={(cardId, value) => send({ type: "react_to_card", card_id: cardId, value })}
             />
           ))}
         </div>

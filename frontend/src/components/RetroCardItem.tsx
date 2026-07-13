@@ -1,5 +1,7 @@
 import { useState } from "react";
 import type { RetroCard, RetroParticipant } from "../types";
+import { RetroCardReactionBar } from "./RetroCardReactionBar";
+import type { CardReactionOverlay } from "../hooks/useRetroCardReactions";
 
 interface Props {
   card: RetroCard;
@@ -13,6 +15,18 @@ interface Props {
   onUnvote: () => void;
   onEdit: (text: string) => void;
   onDelete: () => void;
+  // Issue #62 Phase 2 — grouping (drag-to-merge).
+  isGroupChild: boolean;
+  groupChildCount: number;
+  onUngroup: () => void;
+  isDragging: boolean;
+  isDropTarget: boolean;
+  onDragStart: () => void;
+  onDragMove: (clientX: number, clientY: number) => void;
+  onDragEnd: () => void;
+  // Issue #62 Phase 2 — quick emoji reactions on a card.
+  reactionOverlay: CardReactionOverlay | null;
+  onReact: (emoji: string) => void;
 }
 
 export function RetroCardItem({
@@ -27,12 +41,23 @@ export function RetroCardItem({
   onUnvote,
   onEdit,
   onDelete,
+  isGroupChild,
+  groupChildCount,
+  onUngroup,
+  isDragging,
+  isDropTarget,
+  onDragStart,
+  onDragMove,
+  onDragEnd,
+  reactionOverlay,
+  onReact,
 }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(card.text);
   const canManage = isMine || isFacilitator;
   const hasVoted = card.votes.includes(myParticipantId);
   const showAuthor = !anonymousMode || isMine;
+  const isGrouped = isGroupChild || groupChildCount > 0;
 
   function saveEdit() {
     const trimmed = draft.trim();
@@ -44,8 +69,26 @@ export function RetroCardItem({
     <div
       data-testid="retro-card"
       data-card-id={card.id}
-      className="bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl p-3 shadow-sm"
+      data-group-id={card.group_id ?? ""}
+      className={`relative group bg-[var(--c-panel)] border rounded-xl p-3 shadow-sm transition-all ${
+        isGroupChild ? "ml-3 border-l-4" : ""
+      } ${
+        isDropTarget ? "border-accent ring-2 ring-accent" : "border-[var(--c-border)]"
+      } ${isDragging ? "opacity-40" : ""}`}
     >
+      {/* Reaction overlay pop — mirrors PlayerCard's issue #32 treatment. */}
+      {reactionOverlay && (
+        <div
+          data-testid="retro-card-reaction-overlay"
+          data-reaction-value={reactionOverlay.value}
+          className="absolute top-0 right-2 -translate-y-1/2 pointer-events-none z-10"
+        >
+          <div className="reactions-overlay-pop inline-flex items-center justify-center w-9 h-9 text-2xl leading-none">
+            {reactionOverlay.value}
+          </div>
+        </div>
+      )}
+
       {editing ? (
         <div className="space-y-2">
           <textarea
@@ -76,12 +119,57 @@ export function RetroCardItem({
         </div>
       ) : (
         <>
-          <p className="text-sm text-white whitespace-pre-wrap break-words mb-2">{card.text}</p>
+          <div className="flex items-start gap-1.5 mb-2">
+            {/* Drag handle — pointer capture keeps move/up routed here
+                regardless of where the pointer travels, so no document
+                listeners are needed. touch-none stops the browser turning
+                a vertical drag into a page scroll. */}
+            <span
+              data-testid="retro-card-grip"
+              role="button"
+              aria-label="Drag to group with another card"
+              title="Drag onto another card to group them"
+              className="cursor-grab active:cursor-grabbing touch-none select-none text-slate-600 hover:text-slate-400 shrink-0 mt-0.5 leading-none"
+              onPointerDown={(e) => {
+                e.currentTarget.setPointerCapture(e.pointerId);
+                onDragStart();
+              }}
+              onPointerMove={(e) => { if (isDragging) onDragMove(e.clientX, e.clientY); }}
+              onPointerUp={(e) => {
+                if (isDragging) onDragEnd();
+                e.currentTarget.releasePointerCapture(e.pointerId);
+              }}
+            >
+              ⠿
+            </span>
+            <p className="text-sm text-white whitespace-pre-wrap break-words flex-1">{card.text}</p>
+          </div>
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-slate-500 truncate">
+            <span className="text-xs text-slate-500 truncate flex items-center gap-1.5">
               {showAuthor ? (author?.nickname ?? "Unknown") : "Anonymous"}
+              {groupChildCount > 0 && (
+                <span
+                  data-testid="retro-card-group-badge"
+                  title={`${groupChildCount + 1} cards grouped together`}
+                  className="inline-flex items-center gap-0.5 bg-[var(--c-panel2)] text-slate-400 rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
+                >
+                  🗂 {groupChildCount + 1}
+                </span>
+              )}
             </span>
             <div className="flex items-center gap-1 shrink-0">
+              {isGrouped && (
+                <button
+                  data-testid="retro-card-ungroup"
+                  onClick={onUngroup}
+                  title="Ungroup"
+                  className="text-slate-500 hover:text-white p-1 rounded transition-colors"
+                >
+                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                    <path d="M6 4L2 8l4 4M10 4l4 4-4 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+              )}
               {canManage && (
                 <>
                   <button
@@ -122,6 +210,18 @@ export function RetroCardItem({
                 👍 {card.votes.length}
               </button>
             </div>
+          </div>
+
+          {/* Reaction trigger — hover-reveal on real pointers, always
+              visible on touch (no hover state to reveal it there), same
+              convention as Planning Poker's ThrowReactionBar (issue #51). */}
+          <div
+            className="absolute -top-2 right-2 z-20 transition-opacity
+                       opacity-100 pointer-events-auto
+                       [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:pointer-events-none
+                       [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-hover:pointer-events-auto"
+          >
+            <RetroCardReactionBar onReact={onReact} />
           </div>
         </>
       )}

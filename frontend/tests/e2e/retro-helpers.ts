@@ -41,3 +41,26 @@ export async function addCard(page: Page, columnTitle: string, text: string): Pr
   await input.press("Enter");
   await expect(column.getByTestId("retro-card").filter({ hasText: text })).toBeVisible({ timeout: 10_000 });
 }
+
+/**
+ * Drag `sourceText`'s card onto `targetText`'s card via real mouse input
+ * (Playwright's `page.mouse` drives genuine pointer events, unlike a
+ * scripted `dispatchEvent`, so this exercises the same `onPointerDown` /
+ * `setPointerCapture` path a real user's drag would — issue #62 Phase 2
+ * groups cards this way instead of native HTML5 drag-and-drop, which
+ * doesn't fire on touch devices).
+ */
+export async function dragCardOnto(page: Page, sourceText: string, targetText: string): Promise<void> {
+  const sourceCard = page.getByTestId("retro-card").filter({ hasText: sourceText }).first();
+  const targetCard = page.getByTestId("retro-card").filter({ hasText: targetText }).first();
+  const grip = sourceCard.getByTestId("retro-card-grip");
+
+  const gripBox = await grip.boundingBox();
+  const targetBox = await targetCard.boundingBox();
+  if (!gripBox || !targetBox) throw new Error("Could not measure drag source/target");
+
+  await page.mouse.move(gripBox.x + gripBox.width / 2, gripBox.y + gripBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 5 });
+  await page.mouse.up();
+}

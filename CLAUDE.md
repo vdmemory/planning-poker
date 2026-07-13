@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Real-time Planning Poker tool for agile teams. Guest mode (no registration), WebSocket-based voting. All state is in-memory — no database, no persistence between restarts.
 
-**Retro Board** (issue #62, Phase 1) is a second, fully independent product on the same site — a WebSocket-based retrospective board (Mad/Sad/Glad, Start/Stop/Continue, 4Ls templates). It shares no code with Planning Poker's `Room`/`RoomService` beyond the domain-agnostic `ConnectionManager`. See `docs/RETRO_BUSINESS_LOGIC.md` for business logic and the "Retro Board" subsection below for architecture.
+**Retro Board** (issue #62) is a second, fully independent product on the same site — a WebSocket-based retrospective board (Mad/Sad/Glad, Start/Stop/Continue, 4Ls templates). It shares no code with Planning Poker's `Room`/`RoomService` beyond the domain-agnostic `ConnectionManager`. Phase 1 shipped the core board (cards, voting, timer, moderation); Phase 2 added drag-to-merge card grouping, emoji reactions on cards, and mobile adaptation. See `docs/RETRO_BUSINESS_LOGIC.md` for business logic and the "Retro Board" subsection below for architecture.
 
 ## Running Locally
 
@@ -43,13 +43,13 @@ Two layers, both treated as executable documentation (`docs/TESTING.md`):
 ```bash
 # Backend (pytest + FastAPI TestClient + WebSocket)
 cd backend && source .venv/bin/activate && pip install -r requirements-dev.txt
-pytest                   # 191 tests (125 Planning Poker + 66 Retro Board), ~0.1s
+pytest                   # 211 tests (125 Planning Poker + 86 Retro Board), ~0.1s
 
 # Frontend e2e (Playwright + Chromium)
 cd frontend
 npm install
 npx playwright install chromium
-npm run test:e2e         # 59 tests (50 Planning Poker + 9 Retro Board), ~1.5 min
+npm run test:e2e         # 64 tests (50 Planning Poker + 14 Retro Board), ~1.5 min
 ```
 
 Test naming reads as the spec (`test_facilitator_cannot_become_spectator`). When adding business logic, add the test **and** update `docs/BUSINESS_LOGIC.md` in the same PR — see `docs/RULES.md` rule 13 (Definition of Done for new business logic). This is non-negotiable; "later" doesn't work.
@@ -118,10 +118,14 @@ frontend/src/
 │   └── RetroBoardPage.tsx  # `/retro/:boardId` — join modal + board screen
 ├── components/
 │   ├── RetroTemplatePicker.tsx
-│   ├── RetroColumn.tsx
-│   ├── RetroCardItem.tsx
+│   ├── RetroColumn.tsx           # renders card "stacks" (head + grouped children)
+│   ├── RetroCardItem.tsx         # inline-edit, vote, drag grip, ungroup, reactions
+│   ├── RetroCardReactionBar.tsx  # Phase 2 — hover/tap emoji panel per card
 │   └── RetroTimer.tsx
-└── hooks/useRetroSocket.ts
+└── hooks/
+    ├── useRetroSocket.ts
+    ├── useRetroCardDrag.ts        # Phase 2 — Pointer Events drag-to-merge (not HTML5 DnD)
+    └── useRetroCardReactions.ts   # Phase 2 — on-card reaction overlay, no floaters
 ```
 
 Full architecture writeup: `docs/ARCHITECTURE.md` → "Retro Board".
@@ -146,7 +150,7 @@ Full architecture writeup: `docs/ARCHITECTURE.md` → "Retro Board".
 
 **Throw reactions** (issue #51): `room.fun_features_enabled` (facilitator-only, off by default, set via `update_room`) gates `throw_reaction` — a reaction aimed at a specific player's card, hover/tap-triggered from `ThrowReactionBar` on `PlayerCard`. Purely ephemeral relay like `reaction`/`draw_*`/`countdown`, not stored on `Room`. Distinct from the issue #32 self-reaction system (`reaction` type, `ReactionsPanel`/`ReactionFloater`) — both exist side by side.
 
-**Retro Board cards are never hidden** (issue #62): unlike Planning Poker's `revealed` gate, retro cards and vote counts are visible to everyone immediately — no per-viewer `public_state()` needed. **Anonymous mode is display-only**: `author_id` always stays on the wire for permission checks; the frontend just hides the nickname label for non-authors when `anonymous_mode` is on. **Timer uses an absolute deadline** (`timer_ends_at`), not a server tick — clients compute their own live countdown, avoiding a new per-board background task. Full rules: `docs/RETRO_BUSINESS_LOGIC.md`.
+**Retro Board cards are never hidden** (issue #62): unlike Planning Poker's `revealed` gate, retro cards and vote counts are visible to everyone immediately — no per-viewer `public_state()` needed. **Anonymous mode is display-only**: `author_id` always stays on the wire for permission checks; the frontend just hides the nickname label for non-authors when `anonymous_mode` is on. **Timer uses an absolute deadline** (`timer_ends_at`), not a server tick — clients compute their own live countdown, avoiding a new per-board background task. **Card grouping (Phase 2)** uses `RetroCard.group_id` (one hop max: a head's own `group_id` is always `None`) and Pointer Events on the frontend (`onPointerDown` + `setPointerCapture`), not HTML5 drag-and-drop, since that API doesn't fire on touch devices. **Card reactions (Phase 2)** are a pure ephemeral relay (`react_to_card` → `card_reaction`), nothing persisted, same pattern as `reaction`/`throw_reaction`. Full rules: `docs/RETRO_BUSINESS_LOGIC.md`.
 
 ## WebSocket Protocol
 
