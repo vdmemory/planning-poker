@@ -15,7 +15,8 @@
    - `README.md` — внешняя витрина (стек, фичи, запуск, релизы)
    - `CLAUDE.md` — гайд для агента (архитектура, branching, deploy, тесты, releases)
    - `docs/ARCHITECTURE.md` — слои, контракты, потоки данных
-   - `docs/BUSINESS_LOGIC.md` — сущности, права, lifecycle, протокол
+   - `docs/BUSINESS_LOGIC.md` — сущности, права, lifecycle, протокол (Planning Poker)
+   - `docs/RETRO_BUSINESS_LOGIC.md` — то же самое для Retro Board (issue #62)
    - `docs/DEPLOY_SETUP.md` — одноразовые UI-шаги на Render/Vercel
    - `docs/RELEASES.md` — release flow, conventional commits, версионирование
    - `docs/TESTING.md` — как запускать тесты, что покрыто, CI

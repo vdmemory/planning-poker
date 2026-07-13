@@ -189,6 +189,79 @@ dev  → Render(planning-poker-backend-dev) → Vercel Preview scope → <projec
 
 Один Blueprint `render.yaml` создаёт оба бэк-сервиса. Один Vercel-проект имеет scope-разделённый `VITE_API_URL`.
 
+## Retro Board (issue #62, Phase 1)
+
+Второй независимый продукт на том же сайте — доска для ретроспектив. Полностью параллельный домен: свои модели/store/сервис/WS-менеджер/WS-эндпоинт/REST-эндпоинты, **не** расширение `Room`/`RoomService`. Бизнес-логика — в `docs/RETRO_BUSINESS_LOGIC.md`.
+
+### Структура бэка
+
+```
+backend/app/
+├── retro_models.py      Pydantic-модели: RetroTemplate, RetroColumn, RETRO_TEMPLATES,
+│                        RetroParticipant, RetroCard, RetroBoard
+├── retro_store.py       RetroBoardStore (Protocol) + InMemoryRetroBoardStore — тот же
+│                        паттерн, что store.py
+├── retro_service.py     RetroService — вся бизнес-логика, framework-agnostic
+├── retro_ws_manager.py  Переиспользует ConnectionManager из ws_manager.py (domain-agnostic
+│                        dict[str, dict[str, WebSocket]]) + свои cleanup-задачи
+│                        (cleanup_disconnected_participants, cleanup_expired_boards) —
+│                        не общие с room-версиями, т.к. ссылаются на поля RetroBoard
+│                        (participants) вместо Room (players)
+└── main.py              + REST POST/GET /api/retro-boards, WS /ws/retro/{board_id},
+                         handle_retro_message dispatcher — параллельно room-роутам
+```
+
+### Структура фронта
+
+```
+frontend/src/
+├── pages/
+│   ├── RetroNewPage.tsx        `/retro/new` — форма создания доски, POST /api/retro-boards
+│   └── RetroBoardPage.tsx      `/retro/:boardId` — join-модалка + сама доска
+├── components/
+│   ├── RetroTemplatePicker.tsx выбор из 3 preset-шаблонов колонок
+│   ├── RetroColumn.tsx         одна колонка: карточки + форма добавления
+│   ├── RetroCardItem.tsx       одна карточка: inline-edit, vote-кнопка, permission-гейты
+│   └── RetroTimer.tsx          idle/running/paused UI таймера, live-countdown на клиенте
+├── hooks/
+│   └── useRetroSocket.ts       WS с авто-реконнектом, аналог useRoomSocket, без
+│                               countdown/draw/reaction (не нужны в Phase 1)
+└── types.ts                     + RetroTemplate, RetroColumnDef, RetroParticipant,
+                                  RetroCard, RetroBoardState
+```
+
+### Роуты фронта (добавлено в `main.tsx`)
+
+| Path | Компонент | Что |
+|---|---|---|
+| `/retro/new` | `RetroNewPage` | Форма создания доски — POST `/api/retro-boards` |
+| `/retro/:boardId` | `RetroBoardPage` | Экран доски |
+
+Кнопка-переход на лендинге (`LandingPage.tsx`, `data-testid="landing-retro-cta"`) ведёт на `/retro/new` — hero-секция и отдельный teaser-блок перед bottom CTA.
+
+### REST
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| `POST` | `/api/retro-boards` | `{ name, template, facilitator_nickname }` | `{ board_id, participant_id, state }` |
+| `GET`  | `/api/retro-boards/{board_id}` | — | `{ state }` |
+
+### WebSocket
+
+**Client → Server**: `add_card`, `edit_card`, `delete_card`, `vote_card`, `unvote_card`, `start_timer`, `pause_timer`, `resume_timer`, `reset_timer`, `update_board`, `update_nickname`, `update_avatar_color`, `kick_participant`, `close_board`.
+
+**Server → Client**: `joined`, `board_state`, `kicked`, `board_closed`, `board_expired`, `board_inactive`, `error`.
+
+Полный протокол и семантика каждого сообщения — `docs/RETRO_BUSINESS_LOGIC.md`.
+
+### Ключевые архитектурные решения
+
+- **Голоса/карточки не скрываются** — в отличие от `revealed` в Planning Poker, карточки видны всем сразу. Избегает необходимости в per-viewer `public_state()`.
+- **Anonymous mode — display-only**: `author_id` всегда на wire (нужен для permission-проверок), фронт лишь скрывает никнейм у не-авторов. Не переход на per-connection `send_to()`.
+- **Таймер — абсолютный дедлайн** (`timer_ends_at`), не серверный тик — клиент считает live-countdown сам, никакой новой per-board фоновой задачи.
+- **`ConnectionManager` переиспользуется** напрямую (domain-agnostic), но cleanup-задачи — отдельные функции (ссылаются на разные имена полей `Room`/`RetroBoard`).
+- **Нет `close_on_facilitator_leave`** — упрощённый facilitator-handoff без опт-аута, сознательный scope-trim для Phase 1.
+
 ## Невидимые ограничения (важно держать в голове)
 
 - **Всё в памяти**. Рестарт бэка = потеря всех комнат. Принято осознанно ради простоты MVP.
