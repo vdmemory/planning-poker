@@ -189,9 +189,9 @@ dev  → Render(planning-poker-backend-dev) → Vercel Preview scope → <projec
 
 Один Blueprint `render.yaml` создаёт оба бэк-сервиса. Один Vercel-проект имеет scope-разделённый `VITE_API_URL`.
 
-## Retro Board (issue #62, Phase 1)
+## Retro Board (issue #62, Phase 1 + Phase 2)
 
-Второй независимый продукт на том же сайте — доска для ретроспектив. Полностью параллельный домен: свои модели/store/сервис/WS-менеджер/WS-эндпоинт/REST-эндпоинты, **не** расширение `Room`/`RoomService`. Бизнес-логика — в `docs/RETRO_BUSINESS_LOGIC.md`.
+Второй независимый продукт на том же сайте — доска для ретроспектив. Полностью параллельный домен: свои модели/store/сервис/WS-менеджер/WS-эндпоинт/REST-эндпоинты, **не** расширение `Room`/`RoomService`. Бизнес-логика — в `docs/RETRO_BUSINESS_LOGIC.md`. Phase 2 добавила drag-to-merge группировку карточек, эмодзи-реакции на карточки и мобильную адаптацию.
 
 ### Структура бэка
 
@@ -220,14 +220,17 @@ frontend/src/
 │   └── RetroBoardPage.tsx      `/retro/:boardId` — join-модалка + сама доска
 ├── components/
 │   ├── RetroTemplatePicker.tsx выбор из 3 preset-шаблонов колонок
-│   ├── RetroColumn.tsx         одна колонка: карточки + форма добавления
-│   ├── RetroCardItem.tsx       одна карточка: inline-edit, vote-кнопка, permission-гейты
+│   ├── RetroColumn.tsx         одна колонка: рендерит стопки (head+children), форма добавления
+│   ├── RetroCardItem.tsx       одна карточка: inline-edit, vote, drag-grip, ungroup, reactions
+│   ├── RetroCardReactionBar.tsx Phase 2 — hover/tap-панель из 6 эмодзи для react_to_card
 │   └── RetroTimer.tsx          idle/running/paused UI таймера, live-countdown на клиенте
 ├── hooks/
-│   └── useRetroSocket.ts       WS с авто-реконнектом, аналог useRoomSocket, без
-│                               countdown/draw/reaction (не нужны в Phase 1)
+│   ├── useRetroSocket.ts       WS с авто-реконнектом, аналог useRoomSocket
+│   ├── useRetroCardDrag.ts     Phase 2 — Pointer Events drag-to-merge state (не HTML5 DnD)
+│   └── useRetroCardReactions.ts Phase 2 — on-card оверлей для card_reaction, упрощённый
+│                               аналог useReactionAnimations (без floater'ов)
 └── types.ts                     + RetroTemplate, RetroColumnDef, RetroParticipant,
-                                  RetroCard, RetroBoardState
+                                  RetroCard (+ group_id), RetroBoardState
 ```
 
 ### Роуты фронта (добавлено в `main.tsx`)
@@ -248,9 +251,9 @@ frontend/src/
 
 ### WebSocket
 
-**Client → Server**: `add_card`, `edit_card`, `delete_card`, `vote_card`, `unvote_card`, `start_timer`, `pause_timer`, `resume_timer`, `reset_timer`, `update_board`, `update_nickname`, `update_avatar_color`, `kick_participant`, `close_board`.
+**Client → Server**: `add_card`, `edit_card`, `delete_card`, `vote_card`, `unvote_card`, `group_cards`, `ungroup_card`, `react_to_card`, `start_timer`, `pause_timer`, `resume_timer`, `reset_timer`, `update_board`, `update_nickname`, `update_avatar_color`, `kick_participant`, `close_board`.
 
-**Server → Client**: `joined`, `board_state`, `kicked`, `board_closed`, `board_expired`, `board_inactive`, `error`.
+**Server → Client**: `joined`, `board_state`, `card_reaction`, `kicked`, `board_closed`, `board_expired`, `board_inactive`, `error`.
 
 Полный протокол и семантика каждого сообщения — `docs/RETRO_BUSINESS_LOGIC.md`.
 
@@ -259,6 +262,8 @@ frontend/src/
 - **Голоса/карточки не скрываются** — в отличие от `revealed` в Planning Poker, карточки видны всем сразу. Избегает необходимости в per-viewer `public_state()`.
 - **Anonymous mode — display-only**: `author_id` всегда на wire (нужен для permission-проверок), фронт лишь скрывает никнейм у не-авторов. Не переход на per-connection `send_to()`.
 - **Таймер — абсолютный дедлайн** (`timer_ends_at`), не серверный тик — клиент считает live-countdown сам, никакой новой per-board фоновой задачи.
+- **Группировка через Pointer Events, не HTML5 Drag-and-Drop** (Phase 2) — нативный `draggable` не работает на тач-устройствах; `onPointerDown`/`setPointerCapture` на маленькой ручке карточки работает одинаково с мышью и пальцем без дублирования обработчиков.
+- **Реакции на карточки — чистый relay** (Phase 2), как `reaction`/`throw_reaction` в Planning Poker — ничего не пишется в `RetroCard`, только validate + broadcast.
 - **`ConnectionManager` переиспользуется** напрямую (domain-agnostic), но cleanup-задачи — отдельные функции (ссылаются на разные имена полей `Room`/`RetroBoard`).
 - **Нет `close_on_facilitator_leave`** — упрощённый facilitator-handoff без опт-аута, сознательный scope-trim для Phase 1.
 

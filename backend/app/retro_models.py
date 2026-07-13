@@ -68,6 +68,11 @@ class RetroCard(BaseModel):
     # security boundary. `anonymous_mode` only hides the AUTHOR display name
     # (client-side); it never hides who voted or how many votes a card has.
     votes: list[str] = Field(default_factory=list)
+    # Issue #62 Phase 2 — drag-to-merge grouping. `None` means standalone (or
+    # this card IS the group's head). A non-null value points at the head
+    # card's id. Only one level deep: a head's own `group_id` is always None,
+    # so resolving a card's head never needs to chase more than one hop.
+    group_id: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 

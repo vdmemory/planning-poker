@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { RetroCard, RetroColumnDef, RetroParticipant } from "../types";
 import { RetroCardItem } from "./RetroCardItem";
+import type { CardReactionOverlay } from "../hooks/useRetroCardReactions";
 
 interface Props {
   column: RetroColumnDef;
@@ -15,6 +16,16 @@ interface Props {
   onUnvote: (cardId: string) => void;
   onEditCard: (cardId: string, text: string) => void;
   onDeleteCard: (cardId: string) => void;
+  // Issue #62 Phase 2 — grouping (lifted to the board so drag state is
+  // shared across columns) and reactions.
+  onUngroupCard: (cardId: string) => void;
+  draggingId: string | null;
+  overId: string | null;
+  onDragStart: (cardId: string, columnId: string) => void;
+  onDragMove: (clientX: number, clientY: number) => void;
+  onDragEnd: () => void;
+  cardReactionOverlays: Record<string, CardReactionOverlay>;
+  onReactToCard: (cardId: string, value: string) => void;
 }
 
 export function RetroColumn({
@@ -30,6 +41,14 @@ export function RetroColumn({
   onUnvote,
   onEditCard,
   onDeleteCard,
+  onUngroupCard,
+  draggingId,
+  overId,
+  onDragStart,
+  onDragMove,
+  onDragEnd,
+  cardReactionOverlays,
+  onReactToCard,
 }: Props) {
   const [draft, setDraft] = useState("");
 
@@ -40,6 +59,11 @@ export function RetroColumn({
     setDraft("");
   }
 
+  // Issue #62 Phase 2 — a "stack" is a head card (group_id === null) plus any
+  // cards pointing at it. Rendered head-first, children directly beneath.
+  const heads = cards.filter((c) => !c.group_id);
+  const childrenOf = (headId: string) => cards.filter((c) => c.group_id === headId);
+
   return (
     <div data-testid="retro-column" data-column-id={column.id} className="flex flex-col min-w-[260px] w-[260px] shrink-0">
       <div className="flex items-center gap-2 px-3 py-2 rounded-t-xl" style={{ backgroundColor: `${column.color}22` }}>
@@ -49,22 +73,62 @@ export function RetroColumn({
       </div>
 
       <div className="flex-1 bg-[var(--c-panel2)] rounded-b-xl p-2 space-y-2 min-h-[120px]">
-        {cards.map((card) => (
-          <RetroCardItem
-            key={card.id}
-            card={card}
-            author={participants[card.author_id]}
-            isMine={card.author_id === myParticipantId}
-            isFacilitator={isFacilitator}
-            anonymousMode={anonymousMode}
-            myParticipantId={myParticipantId}
-            votesLeft={votesLeft}
-            onVote={() => onVote(card.id)}
-            onUnvote={() => onUnvote(card.id)}
-            onEdit={(text) => onEditCard(card.id, text)}
-            onDelete={() => onDeleteCard(card.id)}
-          />
-        ))}
+        {heads.map((head) => {
+          const children = childrenOf(head.id);
+          return (
+            <div key={head.id} className="space-y-2">
+              <RetroCardItem
+                card={head}
+                author={participants[head.author_id]}
+                isMine={head.author_id === myParticipantId}
+                isFacilitator={isFacilitator}
+                anonymousMode={anonymousMode}
+                myParticipantId={myParticipantId}
+                votesLeft={votesLeft}
+                onVote={() => onVote(head.id)}
+                onUnvote={() => onUnvote(head.id)}
+                onEdit={(text) => onEditCard(head.id, text)}
+                onDelete={() => onDeleteCard(head.id)}
+                isGroupChild={false}
+                groupChildCount={children.length}
+                onUngroup={() => onUngroupCard(head.id)}
+                isDragging={draggingId === head.id}
+                isDropTarget={overId === head.id}
+                onDragStart={() => onDragStart(head.id, column.id)}
+                onDragMove={onDragMove}
+                onDragEnd={onDragEnd}
+                reactionOverlay={cardReactionOverlays[head.id] ?? null}
+                onReact={(value) => onReactToCard(head.id, value)}
+              />
+              {children.map((child) => (
+                <RetroCardItem
+                  key={child.id}
+                  card={child}
+                  author={participants[child.author_id]}
+                  isMine={child.author_id === myParticipantId}
+                  isFacilitator={isFacilitator}
+                  anonymousMode={anonymousMode}
+                  myParticipantId={myParticipantId}
+                  votesLeft={votesLeft}
+                  onVote={() => onVote(child.id)}
+                  onUnvote={() => onUnvote(child.id)}
+                  onEdit={(text) => onEditCard(child.id, text)}
+                  onDelete={() => onDeleteCard(child.id)}
+                  isGroupChild={true}
+                  groupChildCount={0}
+                  onUngroup={() => onUngroupCard(child.id)}
+                  isDragging={draggingId === child.id}
+                  isDropTarget={overId === child.id}
+                  onDragStart={() => onDragStart(child.id, column.id)}
+                  onDragMove={onDragMove}
+                  onDragEnd={onDragEnd}
+                  reactionOverlay={cardReactionOverlays[child.id] ?? null}
+                  onReact={(value) => onReactToCard(child.id, value)}
+                />
+              ))}
+            </div>
+          );
+        })}
 
         <textarea
           data-testid="retro-add-card-input"

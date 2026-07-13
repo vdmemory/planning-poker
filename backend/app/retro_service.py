@@ -195,6 +195,15 @@ class RetroService:
         if not card:
             raise RetroError("Card not found")
         self._require_card_owner_or_facilitator(board, participant_id, card)
+        # Deleting a group's head would otherwise orphan its children's
+        # `group_id` (pointing at a card that no longer exists) — promote the
+        # first remaining child to head instead of dissolving the group.
+        children = [c for c in board.cards.values() if c.group_id == card_id]
+        if children:
+            new_head = children[0]
+            new_head.group_id = None
+            for c in children[1:]:
+                c.group_id = new_head.id
         del board.cards[card_id]
         self.store.save(board)
 
@@ -220,6 +229,90 @@ class RetroService:
         if participant_id in card.votes:
             card.votes.remove(participant_id)
             self.store.save(board)
+
+    # ---------- Grouping (issue #62 Phase 2 — drag-to-merge) ----------
+
+    @staticmethod
+    def _group_head_id(board: RetroBoard, card: RetroCard) -> str:
+        return card.group_id or card.id
+
+    def group_cards(self, board_id: str, participant_id: str, source_card_id: str, target_card_id: str) -> None:
+        """Merge `source_card_id`'s whole stack into `target_card_id`'s stack.
+
+        Any participant can group cards — unlike edit/delete, this isn't
+        ownership-gated (clustering similar thoughts is a team activity).
+        Only cards in the same column can be merged; grouping across columns
+        would blur what a "column" means.
+        """
+        board = self.get_board(board_id)
+        if participant_id not in board.participants:
+            raise RetroError("Participant not in board")
+        source = board.cards.get(source_card_id)
+        target = board.cards.get(target_card_id)
+        if not source or not target:
+            raise RetroError("Card not found")
+        if source.id == target.id:
+            raise RetroError("Cannot group a card with itself")
+        if source.column_id != target.column_id:
+            raise RetroError("Cannot group cards from different columns")
+
+        source_head = self._group_head_id(board, source)
+        new_head = self._group_head_id(board, target)
+        if source_head == new_head:
+            raise RetroError("Cards are already in the same group")
+
+        # Re-point the whole source stack (its head, plus anything already
+        # pointing at that head) at the new head in one pass.
+        for c in board.cards.values():
+            if c.id == source_head or c.group_id == source_head:
+                c.group_id = new_head
+        self.store.save(board)
+
+    def ungroup_card(self, board_id: str, participant_id: str, card_id: str) -> None:
+        board = self.get_board(board_id)
+        if participant_id not in board.participants:
+            raise RetroError("Participant not in board")
+        card = board.cards.get(card_id)
+        if not card:
+            raise RetroError("Card not found")
+
+        if card.group_id is not None:
+            # A child card detaches on its own; the rest of the stack is untouched.
+            card.group_id = None
+        else:
+            # This card is a head. If nothing points at it, there's no group.
+            children = [c for c in board.cards.values() if c.group_id == card.id]
+            if not children:
+                raise RetroError("Card is not part of a group")
+            # Dissolve the whole stack — no new head is promoted, everyone
+            # goes back to standalone. Keeps the mental model simple: a group
+            # only survives while its original head still leads it.
+            for c in children:
+                c.group_id = None
+        self.store.save(board)
+
+    # ---------- Card reactions (issue #62 Phase 2) ----------
+
+    def react_to_card(self, board_id: str, participant_id: str, card_id: str, value: str) -> dict:
+        """Pure ephemeral relay, like Planning Poker's `reaction`/`throw_reaction`:
+        nothing lands on the board, this just validates and packages the
+        broadcast payload for the WS layer.
+        """
+        board = self.get_board(board_id)
+        participant = board.participants.get(participant_id)
+        if not participant:
+            raise RetroError("Participant not in board")
+        if card_id not in board.cards:
+            raise RetroError("Card not found")
+        if not value:
+            raise RetroError("Missing reaction value")
+        return {
+            "type": "card_reaction",
+            "card_id": card_id,
+            "from_participant_id": participant_id,
+            "from_nickname": participant.nickname,
+            "value": value,
+        }
 
     # ---------- Timer ----------
 
