@@ -174,6 +174,26 @@ def test_group_cards_cross_column_sends_error(client):
         assert msg == {"type": "error", "message": "Cannot group cards from different columns"}
 
 
+def test_draw_stroke_is_relayed_to_everyone_except_sender(client):
+    data = create_retro_board_via_api(client)
+    with client.websocket_connect(_ws_url(data["board_id"], data["participant_id"])) as ws_a, \
+         client.websocket_connect(_ws_url(data["board_id"], "x", "bob")) as ws_b:
+        ws_a.receive_json(); ws_a.receive_json()
+        ws_b.receive_json(); ws_b.receive_json()
+        ws_a.receive_json()  # bob-joined broadcast
+
+        ws_a.send_json({"type": "draw_stroke", "points": [[1, 2]]})
+        msg_b = ws_b.receive_json()
+        assert msg_b["type"] == "draw_stroke"
+        assert msg_b["player_id"] == data["participant_id"]
+
+        # alice does NOT receive her own draw_stroke — prove it by sending a
+        # follow-up action and checking the next message is that, not a relay.
+        ws_a.send_json({"type": "add_card", "column_id": "mad", "text": "text"})
+        next_a = ws_a.receive_json()
+        assert next_a["type"] == "board_state"
+
+
 def test_react_to_card_broadcasts_to_all_including_sender(client):
     data = create_retro_board_via_api(client)
     with client.websocket_connect(_ws_url(data["board_id"], data["participant_id"])) as ws_a, \

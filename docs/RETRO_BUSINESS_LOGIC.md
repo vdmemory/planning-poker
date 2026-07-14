@@ -156,6 +156,11 @@ Facilitator-only: `start_timer { seconds }`, `pause_timer`, `resume_timer`, `res
 { type: "update_avatar_color", color }
 { type: "kick_participant", target_id }
 { type: "close_board" }
+
+# Рисование по экрану (issue #62 follow-up) — чистый relay, ничего не хранится
+{ type: "draw_stroke", ... }
+{ type: "draw_cursor", ... }
+{ type: "draw_clear" }
 ```
 
 **Server → Client**:
@@ -167,6 +172,7 @@ Facilitator-only: `start_timer { seconds }`, `pause_timer`, `resume_timer`, `res
 { type: "board_closed" }
 { type: "board_expired", reason: "timer" }
 { type: "board_inactive", reason: "not_found" | "expired" }
+{ type: "draw_*" }              # relay, обогащённый player_id + nickname отправителя
 { type: "error", message }
 ```
 
@@ -258,6 +264,14 @@ Facilitator-only: `start_timer { seconds }`, `pause_timer`, `resume_timer`, `res
 **Регрессия, найденная и исправленная в этом же PR**: первая реализация реакций рендерила `RetroCardReactionBar` как floating-оверлей (`position: absolute`, hover-reveal на десктопе / всегда видимый на тач-устройствах), позиционированный ПОВЕРХ самой карточки. Так как карточки в колонке стоят плотно (`space-y-2` — всего 8px между ними, в отличие от игровых карточек Planning Poker на просторном овальном столе), у оверлея физически не было места, чтобы не перекрыть текст самой карточки — на десктопе текст становился нечитаемым при любом наведении (в том числе при клике на vote/edit/delete, которые требуют навести мышь на карточку), а на тач-устройствах, где hover-состояния не существует, панель реакций перекрывала текст **постоянно**, на 100% времени. Исправлено: реакция теперь — маленькая кнопка-триггер в собственном ряду действий карточки (там же, где edit/delete/vote), по клику открывающая popover эмодзи, который разворачивается **вниз** (`top-full`, а не `bottom-full`) — так popover уходит в пустое пространство под карточкой, а не на её же текст. Регрессионный e2e-тест (`retro-board-phase2.spec.ts` → «reaction popover never overlaps the card's own text») сравнивает bounding box'ы текста и popover'а напрямую, потому что `toBeVisible()` не ловит геометрическое перекрытие.
 
 Genuine touch-drag группировки не покрыт e2e-тестами (см. `docs/TESTING.md`) — синтетические `TouchEvent`, диспатченные тестом, не транслируются браузером в `PointerEvent` так, как это делает реальное аппаратное прикосновение; e2e использует настоящий `page.mouse` (который Chromium честно транслирует в `PointerEvent`) вместо этого.
+
+## Header: настройки доски, профиль участника, рисование (issue #62 follow-up)
+
+Хедер `RetroBoardPage.tsx` переведён на ту же двухуровневую схему, что и Planning Poker, вместо прежних ad-hoc виджетов (инлайн-переименование по клику на имя доски + шестерёнка с якорным дропдауном `RetroSettingsDropdown`, оба удалены):
+
+- **Клик по имени доски** (только фасилитатор) открывает `RetroSettingsModal` — полноэкранный модал 1-в-1 с `GameSettingsModal` (`fixed inset-0 bg-black/60`, карточка с `max-h-[90dvh]`, закреплённые header/footer, скроллится только тело). Поля — `name`, `anonymous_mode`, `max_votes_per_person` (те же, что раньше жили в `RetroSettingsDropdown`) плюс кнопка «Close board for everyone». В отличие от старого дропдована, где каждое изменение (тумблер, инпут) сразу слалось на сервер, теперь изменения копятся локально и уходят одним `update_board` только по клику «Save» — так же, как в `GameSettingsModal`.
+- **Клик по аватарке участника** открывает `RetroProfileMenu` — клон `ProfileMenu` без переключателя spectator (в ретро нет этой роли): никнейм (инлайн-редактирование), выбор цвета аватара, тема (light/dark/system), акцент, кнопка «Leave board» / «Close board for everyone» (для фасилитатора). Тема и акцент читаются из тех же кросс-продуктовых `useTheme`/`useAccent` хуков (`pp:theme`, `pp:accent` в localStorage), что и Planning Poker — переключение темы на одной доске отражается и в другой.
+- **Рисование по экрану** — тот же компонент `DrawingCanvas`, что и в Planning Poker, переиспользован без изменений (он уже был написан универсально: единственное требование — что входящие relay-сообщения несут поле `player_id`). Бэкенд-релей: `handle_retro_message` добавляет ветку `draw_stroke`/`draw_cursor`/`draw_clear`, которая просто транслирует сообщение всем, кроме отправителя (`ConnectionManager.broadcast_except`), подставляя `player_id: participant_id` и текущий `nickname` — это единственный шов между доменом Retro Board (`participant_id`) и доменом компонента `DrawingCanvas` (ожидает `player_id`). При дисконнекте участника сервер точно так же, как для Planning Poker, дополнительно шлёт `draw_clear` за него, чтобы его штрихи/курсор исчезли у остальных.
 
 ## Роуты и REST
 
