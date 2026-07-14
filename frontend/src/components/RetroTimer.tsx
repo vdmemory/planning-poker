@@ -75,19 +75,36 @@ export function RetroTimer({
 
   const display = timerRunning ? liveSeconds : (timerRemainingSeconds ?? 0);
 
+  // "Time's up" — reached zero, either because this client's own countdown
+  // just got there (checked against the real deadline, not the `liveSeconds`
+  // state itself, so a freshly-started timer never flashes this for the one
+  // render before its first tick) or because the backend's periodic sweep
+  // (`expire_finished_timers`) already auto-paused it for everyone. Pause
+  // and Resume both stop making sense once expired — nothing to pause, and
+  // resuming a zero-remaining snapshot would just re-expire instantly — so
+  // only Reset stays available.
+  const expired =
+    (timerRunning && timerEndsAt !== null && new Date(timerEndsAt).getTime() <= Date.now()) ||
+    (!timerRunning && timerRemainingSeconds === 0);
+
   return (
     <div className="flex items-center gap-1.5">
       <span
         data-testid="retro-timer-display"
+        data-expired={expired ? "true" : "false"}
         className={`text-sm font-mono font-semibold px-2.5 py-1 rounded-lg ${
-          display <= 30 ? "text-red-400 bg-red-500/10" : "text-white bg-[var(--c-panel2)]"
+          expired
+            ? "text-red-400 bg-red-500/10 animate-pulse"
+            : display <= 30
+            ? "text-red-400 bg-red-500/10"
+            : "text-white bg-[var(--c-panel2)]"
         }`}
       >
-        {formatMMSS(display)}
+        {expired ? "⏰ Time's up!" : formatMMSS(display)}
       </span>
       {isFacilitator && (
         <>
-          {timerRunning ? (
+          {!expired && (timerRunning ? (
             <button data-testid="retro-timer-pause" onClick={onPause} title="Pause"
               className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-[var(--c-panel2)] transition-colors">
               <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><rect x="2" y="1" width="3" height="10"/><rect x="7" y="1" width="3" height="10"/></svg>
@@ -97,7 +114,7 @@ export function RetroTimer({
               className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-[var(--c-panel2)] transition-colors">
               <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M2 1l9 5-9 5V1z"/></svg>
             </button>
-          )}
+          ))}
           <button data-testid="retro-timer-reset" onClick={onReset} title="Reset"
             className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-[var(--c-panel2)] transition-colors">
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none">

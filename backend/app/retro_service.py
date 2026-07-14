@@ -366,6 +366,27 @@ class RetroService:
         board.timer_remaining_seconds = None
         self.store.save(board)
 
+    def expire_timer_if_due(self, board: RetroBoard) -> bool:
+        """Auto-pause a timer that ran past its deadline — same end state as a
+        manual `pause_timer` called exactly at zero (`timer_running=False`,
+        `timer_remaining_seconds=0`), so the frontend's "Time's up" badge
+        (triggered by `remaining <= 0`) and hidden Pause/Resume controls just
+        fall out of the normal paused-state rendering, no new wire field
+        needed. Called from a periodic sweep (`expire_finished_timers`),
+        not on every action — a few seconds of lag before the *server*
+        state flips is fine, since every client already shows "Time's up"
+        itself the moment its own local countdown reaches zero.
+        """
+        if not board.timer_running or not board.timer_ends_at:
+            return False
+        if datetime.now(timezone.utc) < board.timer_ends_at:
+            return False
+        board.timer_running = False
+        board.timer_remaining_seconds = 0
+        board.timer_ends_at = None
+        self.store.save(board)
+        return True
+
     # ---------- Helpers ----------
 
     @staticmethod

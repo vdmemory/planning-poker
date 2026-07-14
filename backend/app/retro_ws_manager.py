@@ -19,6 +19,11 @@ manager = ConnectionManager()
 # How often to check the store for expired boards.
 EXPIRED_BOARDS_CHECK_INTERVAL_SECONDS = 60
 
+# How often to check for timers that ran past their deadline. Short interval
+# (vs. the 5s/60s sweeps above) since this drives a user-visible state flip —
+# but still just a sweep over the in-memory dict, not a per-board task.
+TIMER_EXPIRY_CHECK_INTERVAL_SECONDS = 1
+
 
 async def cleanup_disconnected_participants(service: RetroService) -> None:
     """Каждые 5 секунд удаляет участников, которые в дисконнекте > 30 сек.
@@ -53,6 +58,25 @@ async def cleanup_disconnected_participants(service: RetroService) -> None:
                     )
         except Exception as e:
             print(f"[retro cleanup] error: {e}")
+
+
+async def expire_finished_timers(service: RetroService) -> None:
+    """Auto-pauses any board's timer once it runs past `timer_ends_at`, then
+    broadcasts the fresh state so the Pause/Resume controls and "Time's up"
+    badge stay in sync for everyone (not just whoever's tab computed zero
+    first). See `RetroService.expire_timer_if_due` for why this is safe as a
+    periodic sweep instead of a per-board scheduled callback.
+    """
+    while True:
+        await asyncio.sleep(TIMER_EXPIRY_CHECK_INTERVAL_SECONDS)
+        try:
+            for board in list(store.all()):
+                if service.expire_timer_if_due(board):
+                    await manager.broadcast(
+                        board.id, {"type": "board_state", "state": board.public_state()}
+                    )
+        except Exception as e:
+            print(f"[retro expire_finished_timers] error: {e}")
 
 
 async def cleanup_expired_boards(service: RetroService) -> None:
