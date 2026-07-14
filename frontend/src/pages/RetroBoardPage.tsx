@@ -285,7 +285,7 @@ function RetroBoard({ boardId, nickname, storedParticipantId }: {
           />
 
           <div className="flex items-center -space-x-2">
-            {state.participants.map((p) => (
+            {state.participants.filter((p) => p.id !== myParticipantId).map((p) => (
               <div
                 key={p.id}
                 data-testid="retro-participant"
@@ -295,7 +295,7 @@ function RetroBoard({ boardId, nickname, storedParticipantId }: {
                 style={{ backgroundColor: p.avatar_color }}
               >
                 {p.nickname[0]?.toUpperCase()}
-                {isFacilitator && p.id !== myParticipantId && (
+                {isFacilitator && (
                   <button
                     data-testid="retro-kick-button"
                     onClick={() => setPendingKick({ id: p.id, nickname: p.nickname })}
@@ -507,7 +507,6 @@ function RetroBoard({ boardId, nickname, storedParticipantId }: {
           state={state}
           isFacilitator={isFacilitator}
           onSave={(patch) => send({ type: "update_board", ...patch })}
-          onCloseBoard={() => setShowCloseConfirm(true)}
           onClose={() => setShowBoardSettings(false)}
         />
       )}

@@ -11,11 +11,10 @@ interface Props {
   state: RetroBoardState;
   isFacilitator: boolean;
   onSave: (patch: { name?: string; anonymous_mode?: boolean; max_votes_per_person?: number }) => void;
-  onCloseBoard: () => void;
   onClose: () => void;
 }
 
-export function RetroSettingsModal({ state, isFacilitator, onSave, onCloseBoard, onClose }: Props) {
+export function RetroSettingsModal({ state, isFacilitator, onSave, onClose }: Props) {
   const [name, setName] = useState(state.name);
   const [anonymousMode, setAnonymousMode] = useState(state.anonymous_mode);
   const [maxVotes, setMaxVotes] = useState(state.max_votes_per_person);
@@ -89,18 +88,6 @@ export function RetroSettingsModal({ state, isFacilitator, onSave, onCloseBoard,
               className="w-full bg-[var(--c-bg)] border border-[var(--c-border-hi)] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent disabled:opacity-60"
             />
           </div>
-
-          {isFacilitator && (
-            <>
-              <div className="border-t border-[var(--c-border)]" />
-              <button
-                onClick={() => { onClose(); onCloseBoard(); }}
-                className="w-full text-left text-sm text-red-400 hover:text-red-300 font-medium"
-              >
-                Close board for everyone
-              </button>
-            </>
-          )}
         </div>
 
         {isFacilitator && (
