@@ -161,7 +161,7 @@ test("facilitator closes the board, disconnecting all participants", async ({ br
   await joinRetroBoard(bob, boardUrl, "Bob");
   await expect(alice.getByTestId("retro-participant").filter({ hasText: "B" })).toBeVisible({ timeout: 10_000 });
 
-  await alice.getByTitle("Board settings").click();
+  await alice.getByRole("button", { name: /alice/i }).first().click();
   await alice.getByText(/close board for everyone/i).click();
   await alice.getByRole("button", { name: /close board/i }).click();
 
