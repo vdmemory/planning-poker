@@ -12,6 +12,7 @@ import { RetroProfileMenu } from "../components/RetroProfileMenu";
 import { RetroSettingsModal } from "../components/RetroSettingsModal";
 import { DrawingCanvas, DRAW_COLORS } from "../components/DrawingCanvas";
 import type { RetroParticipant } from "../types";
+import QRCode from "qrcode";
 
 const AVATAR_COLORS = ["#3b82f6", "#8b5cf6", "#ec4899", "#ef4444", "#f97316", "#eab308", "#22c55e", "#06b6d4"];
 function getAvatarColor() {
@@ -517,6 +518,14 @@ function RetroBoard({ boardId, nickname, storedParticipantId }: {
 function RetroInviteModal({ onClose }: { onClose: () => void }) {
   const url = window.location.href;
   const [copied, setCopied] = useState(false);
+  const [showQR, setShowQR] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    if (showQR && canvasRef.current) {
+      QRCode.toCanvas(canvasRef.current, url, { width: 200, margin: 2 });
+    }
+  }, [showQR, url]);
 
   function copy() {
     navigator.clipboard.writeText(url);
@@ -540,10 +549,23 @@ function RetroInviteModal({ onClose }: { onClose: () => void }) {
         />
         <button
           onClick={copy}
-          className="w-full bg-accent hover:bg-accent-hover text-accent-fg py-3 rounded-xl font-semibold transition-colors"
+          className="w-full bg-accent hover:bg-accent-hover text-accent-fg py-3 rounded-xl font-semibold transition-colors mb-3"
         >
-          {copied ? "Copied!" : "Copy link"}
+          {copied ? "✓ Copied!" : "Copy link"}
         </button>
+
+        <button
+          onClick={() => setShowQR((v) => !v)}
+          className="w-full border border-[var(--c-border)] text-slate-300 hover:bg-[var(--c-panel2)] py-2.5 rounded-xl text-sm transition-colors"
+        >
+          {showQR ? "Hide QR code" : "Show QR code"}
+        </button>
+
+        {showQR && (
+          <div className="mt-4 flex justify-center bg-white rounded-xl p-3">
+            <canvas ref={canvasRef} />
+          </div>
+        )}
       </div>
     </div>
   );

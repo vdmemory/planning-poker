@@ -127,3 +127,26 @@ test("a stroke drawn by one participant is relayed to another on the retro board
   await aliceCtx.close();
   await bobCtx.close();
 });
+
+/**
+ * Invite modal QR code — mirrors Planning Poker's InviteModal (issue #22
+ * follow-up), which renders a QR code for the invite URL on a toggle button.
+ */
+test("invite modal can show and hide a QR code for the board url", async ({ page }) => {
+  await createRetroBoard(page, "QR retro", "Alice");
+
+  // Scope to non-drawing canvases — DrawingCanvas is always mounted in the
+  // background and is itself a <canvas>, so an unscoped locator would match it too.
+  const qrCanvas = page.locator("canvas:not([data-testid='drawing-canvas'])");
+
+  await page.getByRole("button", { name: /^invite$/i }).click();
+  await expect(page.getByRole("button", { name: /show qr code/i })).toBeVisible();
+  await expect(qrCanvas).toHaveCount(0);
+
+  await page.getByRole("button", { name: /show qr code/i }).click();
+  await expect(qrCanvas).toBeVisible();
+  await expect(qrCanvas).toHaveAttribute("width", "200");
+
+  await page.getByRole("button", { name: /hide qr code/i }).click();
+  await expect(qrCanvas).toHaveCount(0);
+});
