@@ -49,7 +49,7 @@ pytest                   # 213 tests (125 Planning Poker + 88 Retro Board), ~0.1
 cd frontend
 npm install
 npx playwright install chromium
-npm run test:e2e         # 66 tests (50 Planning Poker + 16 Retro Board), ~1.5 min
+npm run test:e2e         # 67 tests (50 Planning Poker + 17 Retro Board), ~1.5 min
 ```
 
 Test naming reads as the spec (`test_facilitator_cannot_become_spectator`). When adding business logic, add the test **and** update `docs/BUSINESS_LOGIC.md` in the same PR — see `docs/RULES.md` rule 13 (Definition of Done for new business logic). This is non-negotiable; "later" doesn't work.
