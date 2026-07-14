@@ -91,6 +91,36 @@ def test_group_cards_grouping_onto_a_child_resolves_to_its_head(retro_service):
     assert fresh.cards[c.id].group_id == b.id
 
 
+def test_group_cards_dragging_a_child_moves_only_that_card(retro_service):
+    """Regression: dragging an already-grouped child used to resolve to its
+    OLD head and drag the whole former stack along with it, even though the
+    user only grabbed one card. Dragging a child now moves just that card;
+    the rest of its former stack (the head) is left untouched."""
+    board, alice = _board(retro_service)
+    a = retro_service.add_card(board.id, alice.id, "mad", "head")
+    b = retro_service.add_card(board.id, alice.id, "mad", "child")
+    c = retro_service.add_card(board.id, alice.id, "mad", "target")
+    retro_service.group_cards(board.id, alice.id, b.id, a.id)  # stack: a (head) <- b (child)
+    retro_service.group_cards(board.id, alice.id, b.id, c.id)  # drag the CHILD b onto c
+    fresh = retro_service.get_board(board.id)
+    assert fresh.cards[b.id].group_id == c.id
+    assert fresh.cards[a.id].group_id is None  # a stays standalone, untouched
+
+
+def test_group_cards_dragging_a_head_still_carries_its_children(retro_service):
+    """The flip side of the above: dragging the HEAD of a stack (the visual
+    top card) still carries the whole stack — this is how two stacks merge."""
+    board, alice = _board(retro_service)
+    a = retro_service.add_card(board.id, alice.id, "mad", "head")
+    b = retro_service.add_card(board.id, alice.id, "mad", "child")
+    c = retro_service.add_card(board.id, alice.id, "mad", "target")
+    retro_service.group_cards(board.id, alice.id, b.id, a.id)  # stack: a (head) <- b (child)
+    retro_service.group_cards(board.id, alice.id, a.id, c.id)  # drag the HEAD a onto c
+    fresh = retro_service.get_board(board.id)
+    assert fresh.cards[a.id].group_id == c.id
+    assert fresh.cards[b.id].group_id == c.id  # b followed its head over
+
+
 def test_ungroup_child_detaches_only_itself(retro_service):
     board, alice = _board(retro_service)
     a = retro_service.add_card(board.id, alice.id, "mad", "one")

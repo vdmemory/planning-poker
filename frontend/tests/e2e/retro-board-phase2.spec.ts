@@ -55,6 +55,26 @@ test("ungrouping a child detaches it while the rest of the stack stays intact", 
   await expect(childOne).toHaveAttribute("data-group-id", "");
 });
 
+test("dragging an already-grouped child moves only that card, not its whole former stack", async ({ page }) => {
+  // Regression: dragging a child used to resolve to its OLD head and carry
+  // the whole former stack along, even though only one card was grabbed.
+  await createRetroBoard(page, "Child drag retro");
+  await addCard(page, "Mad", "Head card");
+  await addCard(page, "Mad", "Child card");
+  await addCard(page, "Mad", "Target card");
+
+  await dragCardOnto(page, "Child card", "Head card"); // stack: Head <- Child
+  const headCard = page.getByTestId("retro-card").filter({ hasText: "Head card" });
+  await expect(headCard.getByTestId("retro-card-group-badge")).toHaveText(/2/, { timeout: 10_000 });
+
+  await dragCardOnto(page, "Child card", "Target card"); // drag the CHILD onto Target
+
+  const targetCard = page.getByTestId("retro-card").filter({ hasText: "Target card" });
+  await expect(targetCard.getByTestId("retro-card-group-badge")).toHaveText(/2/, { timeout: 10_000 });
+  // The former head is left standalone — no longer showing a group badge.
+  await expect(headCard.getByTestId("retro-card-group-badge")).toHaveCount(0);
+});
+
 test("reacting to a card shows an overlay on both clients", async ({ browser }) => {
   const aliceCtx = await browser.newContext();
   const bobCtx = await browser.newContext();
@@ -68,7 +88,7 @@ test("reacting to a card shows an overlay on both clients", async ({ browser }) 
   await expect(bob.getByTestId("retro-card").filter({ hasText: "Flaky CI" })).toBeVisible({ timeout: 10_000 });
 
   const bobCard = bob.getByTestId("retro-card").filter({ hasText: "Flaky CI" });
-  await bobCard.hover();
+  await bobCard.getByTestId("retro-card-reaction-trigger").click();
   await bobCard.getByTestId("retro-card-reaction-button").first().click();
 
   const aliceCard = alice.getByTestId("retro-card").filter({ hasText: "Flaky CI" });
@@ -79,20 +99,60 @@ test("reacting to a card shows an overlay on both clients", async ({ browser }) 
   await bobCtx.close();
 });
 
+test("reaction popover never overlaps the card's own text", async ({ page }) => {
+  // Regression test: the reaction trigger used to be a hover-reveal overlay
+  // positioned directly on top of the card, which covered the card's own
+  // text on hover (and permanently on touch devices, which have no hover
+  // state at all). Fixed by making it a click-triggered popover anchored to
+  // a small button in the card's footer instead. `toBeVisible()` alone
+  // wouldn't catch a geometric overlap (it doesn't check occlusion), so
+  // this compares bounding boxes directly.
+  await createRetroBoard(page, "Readability retro");
+  await addCard(page, "Mad", "This text must stay readable");
+
+  const card = page.getByTestId("retro-card").filter({ hasText: "This text must stay readable" });
+  const text = card.getByText("This text must stay readable");
+
+  await card.getByTestId("retro-card-reaction-trigger").click();
+  const popover = card.getByTestId("retro-card-reaction-bar");
+  await expect(popover).toBeVisible();
+
+  const textBox = await text.boundingBox();
+  const popoverBox = await popover.boundingBox();
+  if (!textBox || !popoverBox) throw new Error("Could not measure text/popover");
+  const overlaps =
+    textBox.x < popoverBox.x + popoverBox.width &&
+    textBox.x + textBox.width > popoverBox.x &&
+    textBox.y < popoverBox.y + popoverBox.height &&
+    textBox.y + textBox.height > popoverBox.y;
+  expect(overlaps).toBe(false);
+
+  // Clicking outside closes the popover.
+  await page.mouse.click(700, 500);
+  await expect(popover).toHaveCount(0);
+});
+
 test.describe("mobile viewport", () => {
   test.use({ viewport: { width: 375, height: 667 }, hasTouch: true });
 
-  test("grip and reaction trigger are visible without hover, vote still works via tap", async ({ page }) => {
+  test("grip and reaction trigger are visible without hover, vote and react still work via tap", async ({ page }) => {
     await createRetroBoard(page, "Mobile retro test");
     await addCard(page, "Mad", "Touch card");
 
     const card = page.getByTestId("retro-card").filter({ hasText: "Touch card" });
-    // No `:hover` state on a touchscreen — both controls default to visible
-    // (issue #23 convention: opacity-100 unless a real pointer is present).
+    // Both controls are always part of the card's own layout — no hover
+    // state to reveal them, so there's nothing touch-specific to break here
+    // (this replaced an earlier hover-reveal overlay that permanently
+    // covered the card's text on touch devices, since they have no hover).
     await expect(card.getByTestId("retro-card-grip")).toBeVisible();
-    await expect(card.getByTestId("retro-card-reaction-bar")).toBeVisible();
+    await expect(card.getByTestId("retro-card-reaction-trigger")).toBeVisible();
+    await expect(card.getByText("Touch card")).toBeVisible();
 
     await card.getByTestId("retro-card-vote").tap();
     await expect(card.getByTestId("retro-card-vote")).toHaveText(/1/, { timeout: 10_000 });
+
+    await card.getByTestId("retro-card-reaction-trigger").tap();
+    await card.getByTestId("retro-card-reaction-button").first().tap();
+    await expect(card.getByTestId("retro-card-reaction-overlay")).toBeVisible({ timeout: 10_000 });
   });
 });
