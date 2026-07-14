@@ -252,7 +252,7 @@ frontend/src/
 | Слой | Где | Команда | Покрытие |
 |---|---|---|---|
 | Backend (pytest) | `backend/tests/` | `pytest` | 213 тестов — 125 Planning Poker (комнаты, голосование, issues, права, WS-интеграция) + 88 Retro Board (доски, карточки, голосование, таймер, группировка, реакции, WS) |
-| Frontend e2e (Playwright) | `frontend/tests/e2e/` | `npm run test:e2e` | 67 тестов — 50 Planning Poker (лендинг/FAQ, создание/голосование, reveal+stats, два игрока, мобильные флоу, throw-reaction, UI-анимации и др.) + 17 Retro Board |
+| Frontend e2e (Playwright) | `frontend/tests/e2e/` | `npm run test:e2e` | 69 тестов — 50 Planning Poker (лендинг/FAQ, создание/голосование, reveal+stats, два игрока, мобильные флоу, throw-reaction, UI-анимации и др.) + 19 Retro Board |
 
 CI: GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) гоняет оба слоя на каждый push в `main`/`dev` и на каждый PR. При падении e2e — артефакты (видео, скриншоты) аплоадятся.
 

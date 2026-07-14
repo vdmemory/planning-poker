@@ -221,7 +221,8 @@ frontend/src/
 ├── components/
 │   ├── RetroTemplatePicker.tsx выбор из 3 preset-шаблонов колонок
 │   ├── RetroColumn.tsx         одна колонка: рендерит стопки (head+children), форма добавления
-│   ├── RetroCardItem.tsx       одна карточка: inline-edit, vote, drag-grip, ungroup, reactions
+│   ├── RetroCardItem.tsx       ОДНА (never-grouped) карточка: inline-edit, vote, drag-grip, reactions
+│   ├── RetroCardStack.tsx      смёрженная карточка: тексты через "---", один общий голос/автор, undo
 │   ├── RetroCardReactionBar.tsx Phase 2 — click-по-триггеру попап из 6 эмодзи для react_to_card
 │   └── RetroTimer.tsx          idle/running/paused UI таймера, live-countdown на клиенте
 ├── hooks/

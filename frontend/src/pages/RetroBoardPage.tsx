@@ -93,8 +93,17 @@ function RetroBoard({ boardId, nickname, storedParticipantId }: {
     nickname,
     onCardReactionMessage: handleCardReactionMessage,
   });
+  // Issue #62 Phase 2 follow-up — merging is destructive-feeling enough
+  // (cards visually fold into one) that it's gated by a confirmation
+  // instead of firing straight from the drop, the same pattern already used
+  // for kick/close below.
+  const [pendingMerge, setPendingMerge] = useState<{ sourceId: string; targetId: string; sourceText: string; targetText: string } | null>(null);
   const { draggingId, overId, startDrag, moveDrag, endDrag } = useRetroCardDrag(
-    (sourceCardId, targetCardId) => send({ type: "group_cards", source_card_id: sourceCardId, target_card_id: targetCardId })
+    (sourceCardId, targetCardId) => {
+      const sourceText = state?.cards.find((c) => c.id === sourceCardId)?.text ?? "";
+      const targetText = state?.cards.find((c) => c.id === targetCardId)?.text ?? "";
+      setPendingMerge({ sourceId: sourceCardId, targetId: targetCardId, sourceText, targetText });
+    }
   );
 
   const avatarSyncedRef = useRef(false);
@@ -311,6 +320,20 @@ function RetroBoard({ boardId, nickname, storedParticipantId }: {
         confirmLabel="Close board"
         onConfirm={() => { send({ type: "close_board" }); setShowCloseConfirm(false); }}
         onCancel={() => setShowCloseConfirm(false)}
+      />
+
+      <ConfirmModal
+        open={pendingMerge !== null}
+        icon="🔗"
+        title="Merge these cards?"
+        message={pendingMerge ? `"${pendingMerge.sourceText}" will be merged into "${pendingMerge.targetText}". You can undo this from the merged card afterward.` : ""}
+        confirmLabel="Merge"
+        variant="primary"
+        onConfirm={() => {
+          if (pendingMerge) send({ type: "group_cards", source_card_id: pendingMerge.sourceId, target_card_id: pendingMerge.targetId });
+          setPendingMerge(null);
+        }}
+        onCancel={() => setPendingMerge(null)}
       />
 
       <ConfirmModal

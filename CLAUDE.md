@@ -49,7 +49,7 @@ pytest                   # 213 tests (125 Planning Poker + 88 Retro Board), ~0.1
 cd frontend
 npm install
 npx playwright install chromium
-npm run test:e2e         # 67 tests (50 Planning Poker + 17 Retro Board), ~1.5 min
+npm run test:e2e         # 69 tests (50 Planning Poker + 19 Retro Board), ~1.5 min
 ```
 
 Test naming reads as the spec (`test_facilitator_cannot_become_spectator`). When adding business logic, add the test **and** update `docs/BUSINESS_LOGIC.md` in the same PR — see `docs/RULES.md` rule 13 (Definition of Done for new business logic). This is non-negotiable; "later" doesn't work.
@@ -119,7 +119,8 @@ frontend/src/
 ├── components/
 │   ├── RetroTemplatePicker.tsx
 │   ├── RetroColumn.tsx           # renders card "stacks" (head + grouped children)
-│   ├── RetroCardItem.tsx         # inline-edit, vote, drag grip, ungroup, reactions
+│   ├── RetroCardItem.tsx         # ONE never-grouped card: inline-edit, vote, drag grip, reactions
+│   ├── RetroCardStack.tsx        # merged card: texts joined by "---", one shared vote/author, undo
 │   ├── RetroCardReactionBar.tsx  # Phase 2 — click-triggered emoji popover per card
 │   └── RetroTimer.tsx
 └── hooks/
@@ -150,7 +151,7 @@ Full architecture writeup: `docs/ARCHITECTURE.md` → "Retro Board".
 
 **Throw reactions** (issue #51): `room.fun_features_enabled` (facilitator-only, off by default, set via `update_room`) gates `throw_reaction` — a reaction aimed at a specific player's card, hover/tap-triggered from `ThrowReactionBar` on `PlayerCard`. Purely ephemeral relay like `reaction`/`draw_*`/`countdown`, not stored on `Room`. Distinct from the issue #32 self-reaction system (`reaction` type, `ReactionsPanel`/`ReactionFloater`) — both exist side by side.
 
-**Retro Board cards are never hidden** (issue #62): unlike Planning Poker's `revealed` gate, retro cards and vote counts are visible to everyone immediately — no per-viewer `public_state()` needed. **Anonymous mode is display-only**: `author_id` always stays on the wire for permission checks; the frontend just hides the nickname label for non-authors when `anonymous_mode` is on. **Timer uses an absolute deadline** (`timer_ends_at`), not a server tick — clients compute their own live countdown, avoiding a new per-board background task. **Card grouping (Phase 2)** uses `RetroCard.group_id` (one hop max: a head's own `group_id` is always `None`) and Pointer Events on the frontend (`onPointerDown` + `setPointerCapture`), not HTML5 drag-and-drop, since that API doesn't fire on touch devices. **Card reactions (Phase 2)** are a pure ephemeral relay (`react_to_card` → `card_reaction`), nothing persisted, same pattern as `reaction`/`throw_reaction`. Full rules: `docs/RETRO_BUSINESS_LOGIC.md`.
+**Retro Board cards are never hidden** (issue #62): unlike Planning Poker's `revealed` gate, retro cards and vote counts are visible to everyone immediately — no per-viewer `public_state()` needed. **Anonymous mode is display-only**: `author_id` always stays on the wire for permission checks; the frontend just hides the nickname label for non-authors when `anonymous_mode` is on. **Timer uses an absolute deadline** (`timer_ends_at`), not a server tick — clients compute their own live countdown, avoiding a new per-board background task. **Card grouping (Phase 2)** uses `RetroCard.group_id` (one hop max: a head's own `group_id` is always `None`) and Pointer Events on the frontend (`onPointerDown` + `setPointerCapture`), not HTML5 drag-and-drop, since that API doesn't fire on touch devices. Merging shows a confirm dialog before sending, and merged cards render as `RetroCardStack` — ONE card with each original text separated by "---", one shared vote (union of voters) and author (the head's), and a persistent undo button that calls `ungroup_card`. **Card reactions (Phase 2)** are a pure ephemeral relay (`react_to_card` → `card_reaction`), nothing persisted, same pattern as `reaction`/`throw_reaction`. Full rules: `docs/RETRO_BUSINESS_LOGIC.md`.
 
 ## WebSocket Protocol
 
