@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { RetroCard, RetroParticipant } from "../types";
 import { RetroCardReactionBar } from "./RetroCardReactionBar";
 import type { CardReactionOverlay } from "../hooks/useRetroCardReactions";
@@ -54,10 +54,21 @@ export function RetroCardItem({
 }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(card.text);
+  const [showReactions, setShowReactions] = useState(false);
+  const reactionsRef = useRef<HTMLDivElement>(null);
   const canManage = isMine || isFacilitator;
   const hasVoted = card.votes.includes(myParticipantId);
   const showAuthor = !anonymousMode || isMine;
   const isGrouped = isGroupChild || groupChildCount > 0;
+
+  useEffect(() => {
+    if (!showReactions) return;
+    function handler(e: MouseEvent) {
+      if (reactionsRef.current && !reactionsRef.current.contains(e.target as Node)) setShowReactions(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showReactions]);
 
   function saveEdit() {
     const trimmed = draft.trim();
@@ -70,7 +81,7 @@ export function RetroCardItem({
       data-testid="retro-card"
       data-card-id={card.id}
       data-group-id={card.group_id ?? ""}
-      className={`relative group bg-[var(--c-panel)] border rounded-xl p-3 shadow-sm transition-all ${
+      className={`relative bg-[var(--c-panel)] border rounded-xl p-3 shadow-sm transition-all ${
         isGroupChild ? "ml-3 border-l-4" : ""
       } ${
         isDropTarget ? "border-accent ring-2 ring-accent" : "border-[var(--c-border)]"
@@ -195,6 +206,38 @@ export function RetroCardItem({
                   </button>
                 </>
               )}
+              {/* Reaction trigger — click-to-open popover anchored to this
+                  button, not a hover-reveal overlay: retro cards stack with
+                  only an 8px gap (unlike Planning Poker's player cards on a
+                  spaced-out oval table), so a floating bar has nowhere to
+                  sit without covering the card's own text. A click-triggered
+                  popover also sidesteps touch devices having no hover state
+                  at all — it works identically with mouse or finger. */}
+              <div className="relative" ref={reactionsRef}>
+                <button
+                  data-testid="retro-card-reaction-trigger"
+                  onClick={() => setShowReactions((v) => !v)}
+                  title="React"
+                  className="text-slate-500 hover:text-white p-1 rounded transition-colors"
+                >
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                    <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.4"/>
+                    <path d="M5.5 9.5s.9 1.5 2.5 1.5 2.5-1.5 2.5-1.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+                    <circle cx="5.8" cy="6.3" r="0.9" fill="currentColor"/>
+                    <circle cx="10.2" cy="6.3" r="0.9" fill="currentColor"/>
+                  </svg>
+                </button>
+                {showReactions && (
+                  // Opens downward, not upward: the trigger sits in the
+                  // card's last row, so `bottom-full` would land the popover
+                  // right on top of the card's own text above it. `top-full`
+                  // spills into the gap below instead — the same convention
+                  // ThrowReactionBar's "+" picker uses in Planning Poker.
+                  <div className="absolute top-full right-0 mt-2 z-30">
+                    <RetroCardReactionBar onReact={(emoji) => { onReact(emoji); setShowReactions(false); }} />
+                  </div>
+                )}
+              </div>
               <button
                 data-testid="retro-card-vote"
                 data-voted={hasVoted}
@@ -210,18 +253,6 @@ export function RetroCardItem({
                 👍 {card.votes.length}
               </button>
             </div>
-          </div>
-
-          {/* Reaction trigger — hover-reveal on real pointers, always
-              visible on touch (no hover state to reveal it there), same
-              convention as Planning Poker's ThrowReactionBar (issue #51). */}
-          <div
-            className="absolute -top-2 right-2 z-20 transition-opacity
-                       opacity-100 pointer-events-auto
-                       [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:pointer-events-none
-                       [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-hover:pointer-events-auto"
-          >
-            <RetroCardReactionBar onReact={onReact} />
           </div>
         </>
       )}

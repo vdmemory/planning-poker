@@ -237,7 +237,15 @@ class RetroService:
         return card.group_id or card.id
 
     def group_cards(self, board_id: str, participant_id: str, source_card_id: str, target_card_id: str) -> None:
-        """Merge `source_card_id`'s whole stack into `target_card_id`'s stack.
+        """Drag `source_card_id` onto `target_card_id`.
+
+        What moves depends on what you dragged — matches "you drag what you
+        clicked" rather than always moving a whole stack:
+        - Dragging a **child** card moves just that one card into the
+          target's stack; the rest of its former stack is untouched.
+        - Dragging a **head** card (the visual top of a stack, possibly with
+          its own children) carries the whole stack along — this is how two
+          stacks merge into one.
 
         Any participant can group cards — unlike edit/delete, this isn't
         ownership-gated (clustering similar thoughts is a team activity).
@@ -256,16 +264,21 @@ class RetroService:
         if source.column_id != target.column_id:
             raise RetroError("Cannot group cards from different columns")
 
-        source_head = self._group_head_id(board, source)
         new_head = self._group_head_id(board, target)
-        if source_head == new_head:
-            raise RetroError("Cards are already in the same group")
 
-        # Re-point the whole source stack (its head, plus anything already
-        # pointing at that head) at the new head in one pass.
-        for c in board.cards.values():
-            if c.id == source_head or c.group_id == source_head:
-                c.group_id = new_head
+        if source.group_id is not None:
+            if source.group_id == new_head:
+                raise RetroError("Cards are already in the same group")
+            source.group_id = new_head
+        else:
+            source_head = source.id
+            if source_head == new_head:
+                raise RetroError("Cards are already in the same group")
+            # Re-point the whole source stack (its head, plus anything
+            # already pointing at that head) at the new head in one pass.
+            for c in board.cards.values():
+                if c.id == source_head or c.group_id == source_head:
+                    c.group_id = new_head
         self.store.save(board)
 
     def ungroup_card(self, board_id: str, participant_id: str, card_id: str) -> None:

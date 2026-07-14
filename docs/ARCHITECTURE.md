@@ -222,7 +222,7 @@ frontend/src/
 │   ├── RetroTemplatePicker.tsx выбор из 3 preset-шаблонов колонок
 │   ├── RetroColumn.tsx         одна колонка: рендерит стопки (head+children), форма добавления
 │   ├── RetroCardItem.tsx       одна карточка: inline-edit, vote, drag-grip, ungroup, reactions
-│   ├── RetroCardReactionBar.tsx Phase 2 — hover/tap-панель из 6 эмодзи для react_to_card
+│   ├── RetroCardReactionBar.tsx Phase 2 — click-по-триггеру попап из 6 эмодзи для react_to_card
 │   └── RetroTimer.tsx          idle/running/paused UI таймера, live-countdown на клиенте
 ├── hooks/
 │   ├── useRetroSocket.ts       WS с авто-реконнектом, аналог useRoomSocket

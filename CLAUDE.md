@@ -43,13 +43,13 @@ Two layers, both treated as executable documentation (`docs/TESTING.md`):
 ```bash
 # Backend (pytest + FastAPI TestClient + WebSocket)
 cd backend && source .venv/bin/activate && pip install -r requirements-dev.txt
-pytest                   # 211 tests (125 Planning Poker + 86 Retro Board), ~0.1s
+pytest                   # 213 tests (125 Planning Poker + 88 Retro Board), ~0.1s
 
 # Frontend e2e (Playwright + Chromium)
 cd frontend
 npm install
 npx playwright install chromium
-npm run test:e2e         # 64 tests (50 Planning Poker + 14 Retro Board), ~1.5 min
+npm run test:e2e         # 66 tests (50 Planning Poker + 16 Retro Board), ~1.5 min
 ```
 
 Test naming reads as the spec (`test_facilitator_cannot_become_spectator`). When adding business logic, add the test **and** update `docs/BUSINESS_LOGIC.md` in the same PR — see `docs/RULES.md` rule 13 (Definition of Done for new business logic). This is non-negotiable; "later" doesn't work.
@@ -120,7 +120,7 @@ frontend/src/
 │   ├── RetroTemplatePicker.tsx
 │   ├── RetroColumn.tsx           # renders card "stacks" (head + grouped children)
 │   ├── RetroCardItem.tsx         # inline-edit, vote, drag grip, ungroup, reactions
-│   ├── RetroCardReactionBar.tsx  # Phase 2 — hover/tap emoji panel per card
+│   ├── RetroCardReactionBar.tsx  # Phase 2 — click-triggered emoji popover per card
 │   └── RetroTimer.tsx
 └── hooks/
     ├── useRetroSocket.ts
