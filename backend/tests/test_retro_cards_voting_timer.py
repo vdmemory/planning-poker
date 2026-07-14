@@ -1,6 +1,8 @@
 """Retro board cards, voting, timer, and room-wide settings (issue #62, Phase 1)."""
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
 from app.retro_models import RetroTemplate
@@ -231,3 +233,33 @@ def test_timer_actions_require_facilitator(retro_service):
         retro_service.resume_timer(board.id, bob.id)
     with pytest.raises(RetroError, match="Only facilitator"):
         retro_service.reset_timer(board.id, bob.id)
+
+
+# ---------- Timer auto-expiry ("Time's up") ----------
+
+def test_expire_timer_if_due_is_a_noop_before_the_deadline(retro_service):
+    board, alice = _board(retro_service)
+    retro_service.start_timer(board.id, alice.id, 300)
+    fresh = retro_service.get_board(board.id)
+    assert retro_service.expire_timer_if_due(fresh) is False
+    assert fresh.timer_running is True
+    assert fresh.timer_remaining_seconds is None
+
+
+def test_expire_timer_if_due_auto_pauses_at_zero_once_the_deadline_passes(retro_service):
+    board, alice = _board(retro_service)
+    retro_service.start_timer(board.id, alice.id, 300)
+    fresh = retro_service.get_board(board.id)
+    # Simulate time passing instead of sleeping in the test.
+    fresh.timer_ends_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+
+    assert retro_service.expire_timer_if_due(fresh) is True
+    assert fresh.timer_running is False
+    assert fresh.timer_remaining_seconds == 0
+    assert fresh.timer_ends_at is None
+
+
+def test_expire_timer_if_due_is_a_noop_when_no_timer_is_running(retro_service):
+    board, _ = _board(retro_service)
+    fresh = retro_service.get_board(board.id)
+    assert retro_service.expire_timer_if_due(fresh) is False

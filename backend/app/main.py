@@ -16,6 +16,7 @@ from .retro_store import store as retro_store
 from .retro_ws_manager import (
     cleanup_disconnected_participants,
     cleanup_expired_boards,
+    expire_finished_timers,
     manager as retro_manager,
 )
 from .services import RoomError, RoomService
@@ -33,6 +34,7 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(cleanup_expired_rooms(service)),
         asyncio.create_task(cleanup_disconnected_participants(retro_service)),
         asyncio.create_task(cleanup_expired_boards(retro_service)),
+        asyncio.create_task(expire_finished_timers(retro_service)),
     ]
     yield
     for t in tasks:

@@ -306,3 +306,59 @@ def test_close_board_broadcasts_board_closed(client):
 
     r = client.get(f"/api/retro-boards/{data['board_id']}")
     assert r.status_code == 404
+
+
+# ---------- Background: timer auto-expiry ("Time's up") ----------
+
+@pytest.mark.asyncio
+async def test_expire_finished_timers_task_auto_pauses_and_broadcasts(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The background task `expire_finished_timers` should, once a running
+    timer's deadline has passed: flip it to a paused, zero-remaining state
+    (same shape as a manual pause at zero) and broadcast the fresh
+    `board_state` — this is what lets the frontend's "Time's up" badge and
+    hidden Pause/Resume controls stay correct for every connected client,
+    not just the one whose own countdown reached zero first.
+    """
+    import asyncio
+    from datetime import timedelta
+
+    from app import retro_ws_manager as retro_ws_manager_module
+    from app.retro_models import RetroTemplate
+    from app.retro_service import RetroService
+    from app.retro_store import InMemoryRetroBoardStore
+
+    store = InMemoryRetroBoardStore()
+    svc = RetroService(store)
+    monkeypatch.setattr(retro_ws_manager_module, "TIMER_EXPIRY_CHECK_INTERVAL_SECONDS", 0.05)
+    monkeypatch.setattr(retro_ws_manager_module, "store", store)
+
+    broadcasts: list[tuple[str, dict]] = []
+
+    async def spy_broadcast(board_id: str, message: dict) -> None:
+        broadcasts.append((board_id, message))
+
+    monkeypatch.setattr(retro_ws_manager_module.manager, "broadcast", spy_broadcast)
+
+    board, alice = svc.create_board("X", RetroTemplate.MAD_SAD_GLAD, "alice")
+    svc.start_timer(board.id, alice.id, 300)
+    board.timer_ends_at = board.timer_ends_at - timedelta(seconds=301)  # already past due
+
+    task = asyncio.create_task(retro_ws_manager_module.expire_finished_timers(svc))
+    try:
+        await asyncio.sleep(0.2)
+    finally:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    fresh = store.get(board.id)
+    assert fresh.timer_running is False
+    assert fresh.timer_remaining_seconds == 0
+    assert fresh.timer_ends_at is None
+
+    matching = [b for b in broadcasts if b[0] == board.id and b[1]["type"] == "board_state"]
+    assert len(matching) >= 1
+    assert matching[0][1]["state"]["timer_running"] is False
+    assert matching[0][1]["state"]["timer_remaining_seconds"] == 0

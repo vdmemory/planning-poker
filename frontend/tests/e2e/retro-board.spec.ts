@@ -128,6 +128,28 @@ test("facilitator can start, pause, and reset the timer", async ({ page }) => {
   await expect(page.getByTestId("retro-timer-start")).toBeVisible({ timeout: 10_000 });
 });
 
+test("timer shows a pulsing \"Time's up!\" badge once it reaches zero, hiding pause/resume", async ({ page }) => {
+  await createRetroBoard(page, "Timer expiry retro");
+
+  await page.getByTestId("retro-timer-start").click();
+  await page.getByTestId("retro-timer-preset").first().click(); // 3 min preset
+  const display = page.getByTestId("retro-timer-display");
+  await expect(display).toBeVisible({ timeout: 10_000 });
+  await expect(display).toHaveAttribute("data-expired", "false");
+
+  // Fast-forward the browser's clock past the 3-minute deadline instead of
+  // waiting real wall-clock time — the countdown is computed client-side
+  // from an absolute deadline, so this is enough to flip it.
+  await page.clock.install();
+  await page.clock.fastForward("03:01");
+
+  await expect(display).toHaveAttribute("data-expired", "true", { timeout: 10_000 });
+  await expect(display).toHaveText(/time's up/i);
+  await expect(page.getByTestId("retro-timer-pause")).toHaveCount(0);
+  await expect(page.getByTestId("retro-timer-resume")).toHaveCount(0);
+  await expect(page.getByTestId("retro-timer-reset")).toBeVisible();
+});
+
 test("facilitator kicks a participant, who lands on the removed overlay", async ({ browser }) => {
   const aliceCtx = await browser.newContext();
   const bobCtx = await browser.newContext();
