@@ -7,14 +7,27 @@ import { useCallback, useRef, useState } from "react";
  * the same handle keeps receiving move/up events regardless of where the
  * pointer physically travels — no document-level listeners needed.
  *
- * Cross-column drops are rejected client-side (silently — no highlight, no
- * WS message) rather than round-tripping to the server and surfacing a
- * full-page error: `RetroService.group_cards` also rejects them, but that
- * error path is meant for genuine bugs, not routine mis-drops.
+ * Cross-column drops, and drops onto a card already in the same stack (its
+ * own head, or a sibling child), are rejected client-side (silently — no
+ * highlight, no WS message) rather than round-tripping to the server and
+ * surfacing a full-page error: `RetroService.group_cards` also rejects
+ * these, but that error path is meant for genuine bugs, not routine
+ * mis-drops — and a stack's head sits directly above its children, so
+ * dropping back onto one of them is an easy, everyday accident.
  */
 interface DragStart {
   cardId: string;
   columnId: string;
+}
+
+// Resolves a card's stack head straight from the DOM (`data-group-id`,
+// written by RetroCardItem from `card.group_id`) rather than threading
+// board state through this hook — cheap, and always reflects whatever just
+// rendered, including updates that land mid-drag.
+function resolveHeadFromDom(cardId: string): string | null {
+  const el = document.querySelector(`[data-testid='retro-card'][data-card-id='${cardId}']`);
+  if (!el) return null;
+  return el.getAttribute("data-group-id") || cardId;
 }
 
 export function useRetroCardDrag(onGroup: (sourceCardId: string, targetCardId: string) => void) {
@@ -35,7 +48,8 @@ export function useRetroCardDrag(onGroup: (sourceCardId: string, targetCardId: s
     const targetId = cardEl?.getAttribute("data-card-id") ?? null;
     const columnEl = el?.closest("[data-column-id]") as HTMLElement | null;
     const targetColumnId = columnEl?.getAttribute("data-column-id") ?? null;
-    const valid = !!targetId && targetId !== start.cardId && targetColumnId === start.columnId;
+    const sameStack = !!targetId && resolveHeadFromDom(start.cardId) === resolveHeadFromDom(targetId);
+    const valid = !!targetId && targetId !== start.cardId && targetColumnId === start.columnId && !sameStack;
     setOverId(valid ? targetId : null);
   }, []);
 

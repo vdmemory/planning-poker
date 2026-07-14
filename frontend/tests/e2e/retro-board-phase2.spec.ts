@@ -75,6 +75,41 @@ test("dragging an already-grouped child moves only that card, not its whole form
   await expect(headCard.getByTestId("retro-card-group-badge")).toHaveCount(0);
 });
 
+test("dragging a card back onto its own stack is a no-op, not a crash", async ({ page }) => {
+  // Regression: dropping a stack's head onto one of its own children (or a
+  // child onto its own head, or a sibling onto a sibling) sent group_cards
+  // for two cards already in the same group. The server correctly rejects
+  // that with RetroError("Cards are already in the same group"), but
+  // nothing filtered it client-side, so the error took over the WHOLE page
+  // (RetroBoardPage renders a full-screen "Something went wrong" for any
+  // `error` message) — extremely easy to trigger by accident, since a
+  // stack's children render directly beneath their head.
+  await createRetroBoard(page, "Same-stack drag retro");
+  await addCard(page, "Mad", "Head card");
+  await addCard(page, "Mad", "Child one");
+  await addCard(page, "Mad", "Child two");
+
+  await dragCardOnto(page, "Child one", "Head card");
+  await dragCardOnto(page, "Child two", "Head card");
+  const headCard = page.getByTestId("retro-card").filter({ hasText: "Head card" });
+  await expect(headCard.getByTestId("retro-card-group-badge")).toHaveText(/3/, { timeout: 10_000 });
+
+  // Head onto its own child.
+  await dragCardOnto(page, "Head card", "Child one");
+  await expect(page.getByText("Something went wrong")).toHaveCount(0);
+  await expect(headCard.getByTestId("retro-card-group-badge")).toHaveText(/3/);
+
+  // Child onto its own head.
+  await dragCardOnto(page, "Child one", "Head card");
+  await expect(page.getByText("Something went wrong")).toHaveCount(0);
+  await expect(headCard.getByTestId("retro-card-group-badge")).toHaveText(/3/);
+
+  // Sibling onto sibling.
+  await dragCardOnto(page, "Child one", "Child two");
+  await expect(page.getByText("Something went wrong")).toHaveCount(0);
+  await expect(headCard.getByTestId("retro-card-group-badge")).toHaveText(/3/);
+});
+
 test("reacting to a card shows an overlay on both clients", async ({ browser }) => {
   const aliceCtx = await browser.newContext();
   const bobCtx = await browser.newContext();

@@ -8,7 +8,7 @@
 | Уровень | Где | Технология | Скорость |
 |---|---|---|---|
 | Backend service + WS | `backend/tests/` | pytest + FastAPI TestClient | 213 тестов (125 Planning Poker + 88 Retro Board), <0.1s |
-| Frontend e2e | `frontend/tests/e2e/` | Playwright + Chromium | 66 тестов (50 Planning Poker + 16 Retro Board), ~1.5 мин |
+| Frontend e2e | `frontend/tests/e2e/` | Playwright + Chromium | 67 тестов (50 Planning Poker + 17 Retro Board), ~1.5 мин |
 
 ## Backend (pytest)
 
@@ -103,7 +103,7 @@ Bob, потом ws закрылся, потом второй WS пришёл с 
 | `drawing-toggle-and-fade.spec.ts` | Toggle рисования по клику/ESC; штрих исчезает через ~5s; Issue #50 — вершина-«кончик» карандашного курсора рендерится строго на позиции мыши (`getBoundingClientRect` временного SVG-маркера), а «ластик» — выше и левее (наклон вправо, не строго вертикально) |
 | `animations.spec.ts` | Issue #5 — UI-анимации: карта переворачивается (`card-flip`) ровно на момент `revealed: false→true` и класс снимается сам через ~400ms; новая карточка игрока получает `player-fade-in`; kick-нутый игрок рендерится ghost'ом с `player-fade-out` (`data-testid="player-card-ghost"`) и исчезает после анимации; stats-панель в центре стола получает `stats-slide-in` при reveal; issue-строки несут `data-issue-id` (нужен FLIP-хуку в `IssueSidebar.tsx`) и reorder («Move to top») по-прежнему меняет порядок |
 | `retro-board.spec.ts` | Issue #62 (Phase 1) — создание доски + дефолтные колонки шаблона; два участника видят карточки/голоса друг друга живьём; vote-бюджет enforced по всем карточкам сразу (`max_votes_per_person`), unvote освобождает бюджет; автор редактирует/удаляет свою карточку; `anonymous_mode` скрывает имя автора у остальных, но не у самого автора; таймер start/pause/reset; kick участника → overlay `retro-inactive-overlay[data-reason=kicked]`; close board → overlay `[data-reason=closed]`; неизвестный board id → overlay `[data-reason=not_found]` |
-| `retro-board-phase2.spec.ts` | Issue #62 (Phase 2) — drag (реальный `page.mouse`, не scripted `dispatchEvent`) одной карточки на другую группирует их (бейдж `🗂 N`); drop в другую колонку не группирует (клиент отклоняет молча); ungroup ребёнка отвязывает только его, остальная стопка цела; **регрессия**: перетаскивание уже сгруппированного ребёнка двигает только его, а не всю бывшую стопку; card-reaction оверлей всплывает у ОБОИХ клиентов; **регрессия**: reaction-попап никогда не перекрывает текст карточки (geometric bounding-box check, не просто `toBeVisible()`); мобильный viewport (375×667, `hasTouch`) — ручка и триггер реакций видны без hover, голос и реакция работают через `tap()` |
+| `retro-board-phase2.spec.ts` | Issue #62 (Phase 2) — drag (реальный `page.mouse`, не scripted `dispatchEvent`) одной карточки на другую группирует их (бейдж `🗂 N`); drop в другую колонку не группирует (клиент отклоняет молча); ungroup ребёнка отвязывает только его, остальная стопка цела; **регрессия**: перетаскивание уже сгруппированного ребёнка двигает только его, а не всю бывшую стопку; **регрессия**: drop головы на своего же ребёнка / ребёнка на свою же голову / сиблинга на сиблинга внутри одной стопки — no-op, а не full-page `"Something went wrong"`; card-reaction оверлей всплывает у ОБОИХ клиентов; **регрессия**: reaction-попап никогда не перекрывает текст карточки (geometric bounding-box check, не просто `toBeVisible()`); мобильный viewport (375×667, `hasTouch`) — ручка и триггер реакций видны без hover, голос и реакция работают через `tap()` |
 
 ### Helpers (`tests/e2e/helpers.ts`)
 
