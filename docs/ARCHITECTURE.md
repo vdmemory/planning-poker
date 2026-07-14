@@ -224,15 +224,23 @@ frontend/src/
 │   ├── RetroCardItem.tsx       ОДНА (never-grouped) карточка: inline-edit, vote, drag-grip, reactions
 │   ├── RetroCardStack.tsx      смёрженная карточка: тексты через "---", один общий голос/автор, undo
 │   ├── RetroCardReactionBar.tsx Phase 2 — click-по-триггеру попап из 6 эмодзи для react_to_card
-│   └── RetroTimer.tsx          idle/running/paused UI таймера, live-countdown на клиенте
+│   ├── RetroTimer.tsx          idle/running/paused UI таймера, live-countdown на клиенте
+│   ├── RetroSettingsModal.tsx  follow-up — клон GameSettingsModal (полноэкранный модал,
+│   │                           открывается кликом по имени доски); заменил старый
+│   │                           RetroSettingsDropdown (якорный дропдаун, удалён)
+│   └── RetroProfileMenu.tsx    follow-up — клон ProfileMenu без spectator-тумблера;
+│                               открывается кликом по аватарке участника
 ├── hooks/
-│   ├── useRetroSocket.ts       WS с авто-реконнектом, аналог useRoomSocket
+│   ├── useRetroSocket.ts       WS с авто-реконнектом, аналог useRoomSocket; onDrawMessage —
+│   │                           follow-up, роутит draw_stroke/draw_cursor/draw_clear
 │   ├── useRetroCardDrag.ts     Phase 2 — Pointer Events drag-to-merge state (не HTML5 DnD)
 │   └── useRetroCardReactions.ts Phase 2 — on-card оверлей для card_reaction, упрощённый
 │                               аналог useReactionAnimations (без floater'ов)
 └── types.ts                     + RetroTemplate, RetroColumnDef, RetroParticipant,
                                   RetroCard (+ group_id), RetroBoardState
 ```
+
+Компонент рисования (`DrawingCanvas.tsx`, `frontend/src/components/`) **не дублируется** — переиспользуется напрямую из Planning Poker без изменений: он уже был написан domain-agnostic, единственное требование — что входящие relay-сообщения несут поле `player_id` (не `participant_id`), поэтому это единственный шов между двумя доменами.
 
 ### Роуты фронта (добавлено в `main.tsx`)
 
@@ -252,9 +260,9 @@ frontend/src/
 
 ### WebSocket
 
-**Client → Server**: `add_card`, `edit_card`, `delete_card`, `vote_card`, `unvote_card`, `group_cards`, `ungroup_card`, `react_to_card`, `start_timer`, `pause_timer`, `resume_timer`, `reset_timer`, `update_board`, `update_nickname`, `update_avatar_color`, `kick_participant`, `close_board`.
+**Client → Server**: `add_card`, `edit_card`, `delete_card`, `vote_card`, `unvote_card`, `group_cards`, `ungroup_card`, `react_to_card`, `start_timer`, `pause_timer`, `resume_timer`, `reset_timer`, `update_board`, `update_nickname`, `update_avatar_color`, `kick_participant`, `close_board`, `draw_stroke`, `draw_cursor`, `draw_clear`.
 
-**Server → Client**: `joined`, `board_state`, `card_reaction`, `kicked`, `board_closed`, `board_expired`, `board_inactive`, `error`.
+**Server → Client**: `joined`, `board_state`, `card_reaction`, `kicked`, `board_closed`, `board_expired`, `board_inactive`, `draw_*` (relay), `error`.
 
 Полный протокол и семантика каждого сообщения — `docs/RETRO_BUSINESS_LOGIC.md`.
 
@@ -267,6 +275,8 @@ frontend/src/
 - **Реакции на карточки — чистый relay** (Phase 2), как `reaction`/`throw_reaction` в Planning Poker — ничего не пишется в `RetroCard`, только validate + broadcast.
 - **`ConnectionManager` переиспользуется** напрямую (domain-agnostic), но cleanup-задачи — отдельные функции (ссылаются на разные имена полей `Room`/`RetroBoard`).
 - **Нет `close_on_facilitator_leave`** — упрощённый facilitator-handoff без опт-аута, сознательный scope-trim для Phase 1.
+- **Header переведён на двухуровневую схему Planning Poker** (follow-up к issue #62): клик по имени доски (фасилитатор) → `RetroSettingsModal` (клон `GameSettingsModal`, batched-save по кнопке); клик по аватарке → `RetroProfileMenu` (клон `ProfileMenu` без spectator). Старый гибрид «инлайн-рен + шестерёнка-дропдаун» удалён целиком.
+- **Рисование переиспользует `DrawingCanvas` 1-в-1** — бэкенд-релей просто транслирует `draw_stroke`/`draw_cursor`/`draw_clear` всем, кроме отправителя, подставляя `player_id: participant_id`; ничего не хранится на `RetroBoard`.
 
 ## Невидимые ограничения (важно держать в голове)
 

@@ -208,6 +208,7 @@ async def retro_ws_endpoint(websocket: WebSocket, board_id: str, participant_id:
         retro_manager.disconnect(board_id, participant_id)
         was_in_board = retro_service.mark_disconnected(board_id, participant_id)
         if was_in_board:
+            await retro_manager.broadcast(board_id, {"type": "draw_clear", "player_id": participant_id, "nickname": ""})
             board = retro_store.get(board_id)
             if board:
                 await retro_manager.broadcast(
@@ -378,6 +379,19 @@ async def handle_retro_message(board_id: str, participant_id: str, data: dict) -
             retro_service.update_nickname(board_id, participant_id, data["nickname"])
         elif msg_type == "update_avatar_color":
             retro_service.update_avatar_color(board_id, participant_id, data["color"])
+        elif msg_type in ("draw_stroke", "draw_cursor", "draw_clear"):
+            # Drawing feature (issue #62 follow-up) — mirrors Planning
+            # Poker's relay in handle_message exactly: pure relay to
+            # everyone except the sender, not stored on the board.
+            board = retro_store.get(board_id)
+            participant = board.participants.get(participant_id) if board else None
+            nickname = participant.nickname if participant else ""
+            await retro_manager.broadcast_except(board_id, participant_id, {
+                **data,
+                "player_id": participant_id,
+                "nickname": nickname,
+            })
+            return
         elif msg_type == "kick_participant":
             target_id = data["target_id"]
             await retro_manager.send_to(board_id, target_id, {"type": "kicked"})

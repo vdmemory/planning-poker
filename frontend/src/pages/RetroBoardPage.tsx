@@ -1,16 +1,24 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useRetroSocket } from "../hooks/useRetroSocket";
 import { useRetroCardDrag } from "../hooks/useRetroCardDrag";
 import { useRetroCardReactions } from "../hooks/useRetroCardReactions";
+import { useTheme } from "../hooks/useTheme";
+import { useAccent } from "../hooks/useAccent";
 import { RetroColumn } from "../components/RetroColumn";
 import { RetroTimer } from "../components/RetroTimer";
 import { ConfirmModal } from "../components/ConfirmModal";
+import { RetroProfileMenu } from "../components/RetroProfileMenu";
+import { RetroSettingsModal } from "../components/RetroSettingsModal";
+import { DrawingCanvas, DRAW_COLORS } from "../components/DrawingCanvas";
 import type { RetroParticipant } from "../types";
 
 const AVATAR_COLORS = ["#3b82f6", "#8b5cf6", "#ec4899", "#ef4444", "#f97316", "#eab308", "#22c55e", "#06b6d4"];
 function getAvatarColor() {
   return localStorage.getItem("pp:avatar-color") || AVATAR_COLORS[0];
+}
+function saveAvatarColor(c: string) {
+  localStorage.setItem("pp:avatar-color", c);
 }
 
 export default function RetroBoardPage() {
@@ -87,12 +95,17 @@ function RetroBoard({ boardId, nickname, storedParticipantId }: {
 }) {
   const navigate = useNavigate();
   const { cardReactionOverlays, handleCardReactionMessage } = useRetroCardReactions();
+  const drawHandlerRef = useRef<((msg: object) => void) | null>(null);
+  const handleDrawMessage = useCallback((msg: object) => { drawHandlerRef.current?.(msg); }, []);
   const { state, myParticipantId, connected, send, error, boardInactive } = useRetroSocket({
     boardId,
     participantId: storedParticipantId,
     nickname,
     onCardReactionMessage: handleCardReactionMessage,
+    onDrawMessage: handleDrawMessage,
   });
+  const { theme, setTheme } = useTheme();
+  const { accent, setAccent } = useAccent();
   // Issue #62 Phase 2 follow-up — merging is destructive-feeling enough
   // (cards visually fold into one) that it's gated by a confirmation
   // instead of firing straight from the drop, the same pattern already used
@@ -115,11 +128,71 @@ function RetroBoard({ boardId, nickname, storedParticipantId }: {
   }, [myParticipantId, connected]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [showInvite, setShowInvite] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [showBoardSettings, setShowBoardSettings] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [pendingKick, setPendingKick] = useState<{ id: string; nickname: string } | null>(null);
-  const [renaming, setRenaming] = useState(false);
-  const [nameDraft, setNameDraft] = useState("");
+  const [avatarColor, setAvatarColorState] = useState(getAvatarColor);
+  const [currentNickname, setCurrentNickname] = useState(nickname);
+
+  // Drawing mode — mirrors RoomPage's exactly.
+  const [isDrawingMode, setIsDrawingMode] = useState(false);
+  const [drawColor, setDrawColor] = useState(DRAW_COLORS[4]);
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [cursorPos, setCursorPos] = useState({ x: -100, y: -100 });
+  const colorPickerRef = useRef<HTMLDivElement>(null);
+
+  function exitDrawing() {
+    setIsDrawingMode(false);
+    setShowColorPicker(false);
+  }
+
+  function handleLeaveBoard() {
+    if (state?.facilitator_id === myParticipantId) {
+      setShowCloseConfirm(true);
+    } else {
+      navigate("/");
+    }
+  }
+
+  function handleAvatarColorChange(color: string) {
+    saveAvatarColor(color);
+    setAvatarColorState(color);
+    send({ type: "update_avatar_color", color });
+  }
+
+  function handleNicknameChange(name: string) {
+    setCurrentNickname(name);
+    localStorage.setItem(`retro:${boardId}:nickname`, name);
+    send({ type: "update_nickname", nickname: name });
+  }
+
+  // ESC exits drawing mode
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") exitDrawing(); }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Track cursor position for the local name label
+  useEffect(() => {
+    if (!isDrawingMode) return;
+    function onMove(e: MouseEvent) { setCursorPos({ x: e.clientX, y: e.clientY }); }
+    document.addEventListener("mousemove", onMove);
+    return () => document.removeEventListener("mousemove", onMove);
+  }, [isDrawingMode]);
+
+  // Close color picker on click outside
+  useEffect(() => {
+    if (!showColorPicker) return;
+    function handler(e: MouseEvent) {
+      if (colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) {
+        setShowColorPicker(false);
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showColorPicker]);
 
   if (error) {
     return (
@@ -173,6 +246,7 @@ function RetroBoard({ boardId, nickname, storedParticipantId }: {
   }
 
   const isFacilitator = state.facilitator_id === myParticipantId;
+  const me = state.participants.find((p) => p.id === myParticipantId);
   const participantsById: Record<string, RetroParticipant> = Object.fromEntries(
     state.participants.map((p) => [p.id, p])
   );
@@ -184,26 +258,16 @@ function RetroBoard({ boardId, nickname, storedParticipantId }: {
       <header className="flex items-center justify-between px-3 sm:px-6 py-3 border-b border-[var(--c-border)] shrink-0 gap-2 flex-wrap">
         <div className="flex items-center gap-2 min-w-0">
           <div className="w-7 h-7 sm:w-8 sm:h-8 bg-accent rounded-full flex items-center justify-center text-sm shrink-0">📝</div>
-          {renaming ? (
-            <input
-              autoFocus
-              className="bg-transparent border-b border-accent text-white font-bold text-base sm:text-lg focus:outline-none min-w-0"
-              value={nameDraft}
-              onChange={(e) => setNameDraft(e.target.value)}
-              onBlur={() => { send({ type: "update_board", name: nameDraft }); setRenaming(false); }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") { send({ type: "update_board", name: nameDraft }); setRenaming(false); }
-                if (e.key === "Escape") setRenaming(false);
-              }}
-            />
-          ) : (
-            <h1
-              className={`font-bold text-white text-base sm:text-lg truncate ${isFacilitator ? "cursor-pointer hover:text-accent" : ""}`}
-              title={isFacilitator ? "Click to rename" : state.name}
-              onClick={() => { if (isFacilitator) { setNameDraft(state.name); setRenaming(true); } }}
+          {isFacilitator ? (
+            <button
+              onClick={() => setShowBoardSettings(true)}
+              className="font-bold text-white hover:text-accent transition-colors truncate max-w-[120px] sm:max-w-none text-base sm:text-lg"
+              title="Board settings"
             >
               {state.name}
-            </h1>
+            </button>
+          ) : (
+            <h1 className="font-bold text-white text-base sm:text-lg truncate">{state.name}</h1>
           )}
           <span className={`w-2 h-2 rounded-full shrink-0 ${connected ? "bg-green-500" : "bg-amber-500"}`} />
         </div>
@@ -245,6 +309,38 @@ function RetroBoard({ boardId, nickname, storedParticipantId }: {
             ))}
           </div>
 
+          {/* Profile avatar (mirrors RoomPage) */}
+          <div className="relative">
+            <button
+              onClick={() => setShowProfileMenu((o) => !o)}
+              title="Profile"
+              className="flex items-center gap-1.5 bg-[var(--c-panel)] rounded-full px-2 sm:px-3 py-1.5 hover:bg-[var(--c-panel2)] transition-colors"
+            >
+              <div
+                className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
+                style={{ backgroundColor: avatarColor }}
+              >
+                {(me?.nickname ?? currentNickname ?? "?")[0].toUpperCase()}
+              </div>
+              <span className="text-sm text-slate-300 hidden sm:block">{me?.nickname ?? currentNickname}</span>
+            </button>
+            {showProfileMenu && (
+              <RetroProfileMenu
+                nickname={me?.nickname ?? currentNickname}
+                avatarColor={avatarColor}
+                theme={theme}
+                accent={accent}
+                isFacilitator={isFacilitator}
+                onNicknameChange={handleNicknameChange}
+                onAvatarColorChange={handleAvatarColorChange}
+                onThemeChange={setTheme}
+                onAccentChange={setAccent}
+                onLeaveBoard={handleLeaveBoard}
+                onClose={() => setShowProfileMenu(false)}
+              />
+            )}
+          </div>
+
           <button
             onClick={() => setShowInvite(true)}
             className="text-xs sm:text-sm bg-accent hover:bg-accent-hover text-accent-fg font-semibold px-3 py-1.5 rounded-lg transition-colors"
@@ -252,27 +348,50 @@ function RetroBoard({ boardId, nickname, storedParticipantId }: {
             Invite
           </button>
 
-          {isFacilitator && (
-            <div className="relative">
-              <button
-                onClick={() => setShowSettings((v) => !v)}
-                title="Board settings"
-                className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-[var(--c-panel2)] transition-colors"
+          {/* Drawing mode button — mirrors RoomPage's toggle + color swatch. */}
+          <div className="relative flex items-center gap-1 z-50">
+            <button
+              data-testid="drawing-toggle"
+              data-active={isDrawingMode ? "true" : "false"}
+              onClick={() => {
+                if (isDrawingMode) { exitDrawing(); }
+                else { setIsDrawingMode(true); setShowColorPicker(false); }
+              }}
+              title={isDrawingMode ? "Stop drawing (ESC)" : "Draw on screen"}
+              className={`p-2 rounded-lg border transition-colors ${
+                isDrawingMode
+                  ? "border-yellow-500 text-yellow-400 bg-yellow-500/10"
+                  : "border-[var(--c-border)] text-slate-400 hover:bg-[var(--c-panel2)]"
+              }`}
+            >
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <path d="M13 2.5l2.5 2.5-9.5 9.5H3.5V12L13 2.5z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M11.5 4l2.5 2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+            </button>
+            <button
+              data-testid="drawing-color-picker-toggle"
+              onClick={() => setShowColorPicker((v) => !v)}
+              title="Choose drawing color"
+              className="w-7 h-7 rounded-full ring-2 ring-[var(--c-border)] hover:ring-white/60 transition-shadow shrink-0"
+              style={{ backgroundColor: drawColor }}
+            />
+            {showColorPicker && (
+              <div
+                ref={colorPickerRef}
+                className="absolute top-full right-0 mt-2 bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl p-2.5 shadow-2xl z-50 flex gap-2"
               >
-                ⚙️
-              </button>
-              {showSettings && (
-                <RetroSettingsDropdown
-                  anonymousMode={state.anonymous_mode}
-                  maxVotes={state.max_votes_per_person}
-                  onClose={() => setShowSettings(false)}
-                  onChangeAnonymous={(v) => send({ type: "update_board", anonymous_mode: v })}
-                  onChangeMaxVotes={(v) => send({ type: "update_board", max_votes_per_person: v })}
-                  onCloseBoard={() => { setShowSettings(false); setShowCloseConfirm(true); }}
-                />
-              )}
-            </div>
-          )}
+                {DRAW_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    onClick={() => { setDrawColor(color); setShowColorPicker(false); }}
+                    className="w-7 h-7 rounded-full transition-transform hover:scale-125 shadow-md ring-2 ring-transparent hover:ring-white/40"
+                    style={{ backgroundColor: color }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -348,70 +467,50 @@ function RetroBoard({ boardId, nickname, storedParticipantId }: {
         }}
         onCancel={() => setPendingKick(null)}
       />
-    </div>
-  );
-}
 
-function RetroSettingsDropdown({
-  anonymousMode, maxVotes, onClose, onChangeAnonymous, onChangeMaxVotes, onCloseBoard,
-}: {
-  anonymousMode: boolean;
-  maxVotes: number;
-  onClose: () => void;
-  onChangeAnonymous: (v: boolean) => void;
-  onChangeMaxVotes: (v: number) => void;
-  onCloseBoard: () => void;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [onClose]);
-
-  return (
-    <div
-      ref={ref}
-      data-testid="retro-settings-dropdown"
-      className="absolute top-full mt-2 right-0 bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl shadow-2xl p-4 z-30 w-64 space-y-4"
-    >
-      <label className="flex items-center justify-between gap-3 cursor-pointer">
-        <div>
-          <div className="text-sm text-white font-medium">Anonymous cards</div>
-          <div className="text-xs text-slate-400">Hide who wrote each card</div>
-        </div>
-        <button
-          data-testid="retro-anonymous-toggle"
-          onClick={() => onChangeAnonymous(!anonymousMode)}
-          className={`w-11 h-6 rounded-full transition-colors relative shrink-0 ${anonymousMode ? "bg-accent" : "bg-[var(--c-border)]"}`}
-        >
-          <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${anonymousMode ? "translate-x-5" : "translate-x-0"}`} />
-        </button>
-      </label>
-
-      <div>
-        <label className="text-sm text-white font-medium block mb-1">Votes per person</label>
-        <input
-          data-testid="retro-max-votes-input"
-          type="number"
-          min={1}
-          value={maxVotes}
-          onChange={(e) => {
-            const v = parseInt(e.target.value, 10);
-            if (!isNaN(v) && v >= 1) onChangeMaxVotes(v);
-          }}
-          className="w-full bg-[var(--c-bg)] border border-[var(--c-border-hi)] rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-accent"
+      {/* Drawing canvas — always mounted so others' strokes are visible */}
+      {myParticipantId && (
+        <DrawingCanvas
+          myPlayerId={myParticipantId}
+          myNickname={me?.nickname ?? currentNickname}
+          isActive={isDrawingMode}
+          activeColor={drawColor}
+          send={send}
+          onRegister={(handler) => { drawHandlerRef.current = handler; }}
         />
-      </div>
+      )}
 
-      <button
-        onClick={onCloseBoard}
-        className="w-full text-left text-sm text-red-400 hover:text-red-300 font-medium pt-2 border-t border-[var(--c-border)]"
-      >
-        Close board for everyone
-      </button>
+      {/* Local pencil cursor when in drawing mode */}
+      {isDrawingMode && (
+        <div
+          className="fixed z-50 pointer-events-none select-none"
+          style={{ left: cursorPos.x, top: cursorPos.y }}
+        >
+          <svg
+            width="22" height="22" viewBox="0 0 22 22" fill="none"
+            style={{ position: "absolute", left: -20, top: -6, transform: "rotate(100deg)", transformOrigin: "20px 6px" }}
+          >
+            <path d="M16 2l4 4-11 11H5v-4L16 2z" fill={drawColor} stroke="white" strokeWidth="1" strokeLinejoin="round"/>
+            <path d="M13 5l4 4" stroke="white" strokeWidth="0.8" strokeLinecap="round"/>
+          </svg>
+          <span
+            className="absolute text-xs font-bold text-white px-1.5 py-0.5 rounded shadow-md whitespace-nowrap"
+            style={{ backgroundColor: drawColor, left: 14, top: -28 }}
+          >
+            {me?.nickname ?? currentNickname}
+          </span>
+        </div>
+      )}
+
+      {showBoardSettings && (
+        <RetroSettingsModal
+          state={state}
+          isFacilitator={isFacilitator}
+          onSave={(patch) => send({ type: "update_board", ...patch })}
+          onCloseBoard={() => setShowCloseConfirm(true)}
+          onClose={() => setShowBoardSettings(false)}
+        />
+      )}
     </div>
   );
 }

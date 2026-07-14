@@ -10,6 +10,8 @@ interface UseRetroSocketArgs {
   // changing the handler doesn't tear down the WS, same convention as
   // useRoomSocket's onReactionMessage.
   onCardReactionMessage?: (msg: object) => void;
+  // Drawing feature (follow-up) — mirrors useRoomSocket's onDrawMessage.
+  onDrawMessage?: (msg: object) => void;
 }
 
 interface UseRetroSocketResult {
@@ -24,7 +26,7 @@ interface UseRetroSocketResult {
   boardInactive: "expired" | "not_found" | "closed" | "kicked" | null;
 }
 
-export function useRetroSocket({ boardId, participantId, nickname, onCardReactionMessage }: UseRetroSocketArgs): UseRetroSocketResult {
+export function useRetroSocket({ boardId, participantId, nickname, onCardReactionMessage, onDrawMessage }: UseRetroSocketArgs): UseRetroSocketResult {
   const [state, setState] = useState<RetroBoardState | null>(null);
   const [myParticipantId, setMyParticipantId] = useState<string | null>(participantId);
   const [connected, setConnected] = useState(false);
@@ -33,6 +35,8 @@ export function useRetroSocket({ boardId, participantId, nickname, onCardReactio
   const wsRef = useRef<WebSocket | null>(null);
   const onCardReactionMessageRef = useRef(onCardReactionMessage);
   useEffect(() => { onCardReactionMessageRef.current = onCardReactionMessage; });
+  const onDrawMessageRef = useRef(onDrawMessage);
+  useEffect(() => { onDrawMessageRef.current = onDrawMessage; });
   const reconnectTimeoutRef = useRef<number | null>(null);
   const shouldReconnectRef = useRef(true);
   const myParticipantIdRef = useRef<string | null>(participantId);
@@ -72,6 +76,8 @@ export function useRetroSocket({ boardId, participantId, nickname, onCardReactio
         setState(msg.state);
       } else if (msg.type === "card_reaction") {
         onCardReactionMessageRef.current?.(msg);
+      } else if (msg.type === "draw_stroke" || msg.type === "draw_cursor" || msg.type === "draw_clear") {
+        onDrawMessageRef.current?.(msg);
       } else if (msg.type === "kicked") {
         shouldReconnectRef.current = false;
         setBoardInactive("kicked");

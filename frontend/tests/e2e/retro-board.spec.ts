@@ -45,9 +45,8 @@ test("vote budget is enforced across all cards", async ({ page }) => {
   await page.getByTitle("Board settings").click();
   const maxVotesInput = page.getByTestId("retro-max-votes-input");
   await maxVotesInput.fill("2");
-  await page.keyboard.press("Tab");
+  await page.getByRole("button", { name: /^save$/i }).click();
   await expect(page.getByText(/votes left:\s*2\s*\/\s*2/i)).toBeVisible({ timeout: 10_000 });
-  await page.keyboard.press("Escape");
 
   await addCard(page, "Mad", "Card one");
   await addCard(page, "Mad", "Card two");
@@ -101,7 +100,7 @@ test("anonymous mode hides the author name for other participants", async ({ bro
 
   await alice.getByTitle("Board settings").click();
   await alice.getByTestId("retro-anonymous-toggle").click();
-  await alice.keyboard.press("Escape");
+  await alice.getByRole("button", { name: /^save$/i }).click();
 
   const bobCard = bob.getByTestId("retro-card").filter({ hasText: "A candid note" });
   await expect(bobCard.getByText("Anonymous")).toBeVisible({ timeout: 10_000 });

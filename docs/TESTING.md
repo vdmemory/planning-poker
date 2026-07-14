@@ -7,8 +7,8 @@
 
 | Уровень | Где | Технология | Скорость |
 |---|---|---|---|
-| Backend service + WS | `backend/tests/` | pytest + FastAPI TestClient | 213 тестов (125 Planning Poker + 88 Retro Board), <0.1s |
-| Frontend e2e | `frontend/tests/e2e/` | Playwright + Chromium | 69 тестов (50 Planning Poker + 19 Retro Board), ~1.5 мин |
+| Backend service + WS | `backend/tests/` | pytest + FastAPI TestClient | 214 тестов (125 Planning Poker + 89 Retro Board), <0.1s |
+| Frontend e2e | `frontend/tests/e2e/` | Playwright + Chromium | 75 тестов (50 Planning Poker + 25 Retro Board), ~2 мин |
 
 ## Backend (pytest)
 
@@ -16,7 +16,7 @@
 cd backend
 source .venv/bin/activate
 pip install -r requirements-dev.txt   # один раз
-pytest                                # все 213 тестов
+pytest                                # все 214 тестов
 pytest tests/test_voting_and_stats.py # один файл
 pytest -k "facilitator"               # все тесты со словом "facilitator"
 ```
@@ -41,7 +41,7 @@ pytest -k "facilitator"               # все тесты со словом "fac
 | `test_websocket.py` | REST + WS интеграция: auto-join по URL, broadcast, error reply, countdown/draw relay, kick закрывает соединение, room_closed | 16 |
 | `test_retro_boards_and_participants.py` | Retro Board (issue #62) — создание доски по каждому из 3 шаблонов, facilitator-handoff, join/kick/close, disconnect grace, обновление ника/цвета | 24 |
 | `test_retro_cards_voting_timer.py` | Retro Board — add/edit/delete карточек с permission-проверками (автор/фасилитатор/чужой), vote/unvote с enforced бюджетом, `update_board` (rename, anonymous_mode, лимит голосов), полный жизненный цикл таймера | 27 |
-| `test_retro_websocket.py` | Retro Board — REST bootstrap, WS auto-join/reconnect, `board_inactive`, broadcast карточек, error-пути, таймер по WS, kick + `board_closed`, group_cards/react_to_card broadcast | 18 |
+| `test_retro_websocket.py` | Retro Board — REST bootstrap, WS auto-join/reconnect, `board_inactive`, broadcast карточек, error-пути, таймер по WS, kick + `board_closed`, group_cards/react_to_card broadcast, draw_stroke relay всем кроме отправителя | 19 |
 | `test_retro_grouping_and_reactions.py` | Retro Board (issue #62 Phase 2) — group_cards (drag-a-child moves only that card, drag-a-head carries its children, cross-column rejection, resolve-to-head), ungroup_card (child vs head dissolve), delete_card promotes first child as new head, react_to_card relay + validation | 19 |
 
 Бизнес-правила Retro Board — в `docs/RETRO_BUSINESS_LOGIC.md`.
@@ -104,6 +104,7 @@ Bob, потом ws закрылся, потом второй WS пришёл с 
 | `animations.spec.ts` | Issue #5 — UI-анимации: карта переворачивается (`card-flip`) ровно на момент `revealed: false→true` и класс снимается сам через ~400ms; новая карточка игрока получает `player-fade-in`; kick-нутый игрок рендерится ghost'ом с `player-fade-out` (`data-testid="player-card-ghost"`) и исчезает после анимации; stats-панель в центре стола получает `stats-slide-in` при reveal; issue-строки несут `data-issue-id` (нужен FLIP-хуку в `IssueSidebar.tsx`) и reorder («Move to top») по-прежнему меняет порядок |
 | `retro-board.spec.ts` | Issue #62 (Phase 1) — создание доски + дефолтные колонки шаблона; два участника видят карточки/голоса друг друга живьём; vote-бюджет enforced по всем карточкам сразу (`max_votes_per_person`), unvote освобождает бюджет; автор редактирует/удаляет свою карточку; `anonymous_mode` скрывает имя автора у остальных, но не у самого автора; таймер start/pause/reset; kick участника → overlay `retro-inactive-overlay[data-reason=kicked]`; close board → overlay `[data-reason=closed]`; неизвестный board id → overlay `[data-reason=not_found]` |
 | `retro-board-phase2.spec.ts` | Issue #62 (Phase 2) — drag (реальный `page.mouse`, не scripted `dispatchEvent`) одной карточки на другую показывает диалог подтверждения `"Merge these cards?"`, confirm сливает обе карточки в ОДНУ с `---`-разделителем (бейдж `🗂 N`); cancel оставляет обе карточки раздельными; drop в другую колонку не показывает диалог и не группирует (клиент отклоняет молча); добавление третьей карточки в существующий merge расширяет ту же карточку; кнопка undo (`retro-card-unmerge`) распускает merge обратно в отдельные карточки; голос, поставленный до merge, переживает unmerge (остаётся на той конкретной подкарточке, куда был реально записан); **регрессия**: drop смёрженной карточки сама на себя — no-op, а не full-page `"Something went wrong"`; card-reaction оверлей всплывает у ОБОИХ клиентов; **регрессия**: reaction-попап никогда не перекрывает текст карточки (geometric bounding-box check, не просто `toBeVisible()`); мобильный viewport (375×667, `hasTouch`) — ручка и триггер реакций видны без hover, голос и реакция работают через `tap()` |
+| `retro-header-redesign.spec.ts` | Issue #62 follow-up — клик по имени доски (фасилитатор) открывает `RetroSettingsModal` и переименовывает доску; не-фасилитатор видит обычный текст без кнопки настроек; клик по аватарке открывает `RetroProfileMenu`, смена ника там же отражается у другого участника живьём (title аватарки-участника); кнопка «Close board for everyone» из `RetroProfileMenu` закрывает доску для всех; pencil-toggle переключает режим рисования (`drawing-toggle` data-active) и гасится по ESC; штрих, нарисованный одним участником, долетает вторым через `drawing-canvas`'s `data-stroke-count` (тот же `DrawingCanvas`, что в Planning Poker, просто подключённый к retro WS) |
 
 ### Helpers (`tests/e2e/helpers.ts`)
 

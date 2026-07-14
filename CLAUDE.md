@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Real-time Planning Poker tool for agile teams. Guest mode (no registration), WebSocket-based voting. All state is in-memory — no database, no persistence between restarts.
 
-**Retro Board** (issue #62) is a second, fully independent product on the same site — a WebSocket-based retrospective board (Mad/Sad/Glad, Start/Stop/Continue, 4Ls templates). It shares no code with Planning Poker's `Room`/`RoomService` beyond the domain-agnostic `ConnectionManager`. Phase 1 shipped the core board (cards, voting, timer, moderation); Phase 2 added drag-to-merge card grouping, emoji reactions on cards, and mobile adaptation. See `docs/RETRO_BUSINESS_LOGIC.md` for business logic and the "Retro Board" subsection below for architecture.
+**Retro Board** (issue #62) is a second, fully independent product on the same site — a WebSocket-based retrospective board (Mad/Sad/Glad, Start/Stop/Continue, 4Ls templates). It shares no code with Planning Poker's `Room`/`RoomService` beyond the domain-agnostic `ConnectionManager`. Phase 1 shipped the core board (cards, voting, timer, moderation); Phase 2 added drag-to-merge card grouping, emoji reactions on cards, and mobile adaptation; a follow-up brought the header UI to parity with Planning Poker (board settings modal, participant profile menu) and added the on-screen drawing tool. See `docs/RETRO_BUSINESS_LOGIC.md` for business logic and the "Retro Board" subsection below for architecture.
 
 ## Running Locally
 
@@ -43,13 +43,13 @@ Two layers, both treated as executable documentation (`docs/TESTING.md`):
 ```bash
 # Backend (pytest + FastAPI TestClient + WebSocket)
 cd backend && source .venv/bin/activate && pip install -r requirements-dev.txt
-pytest                   # 213 tests (125 Planning Poker + 88 Retro Board), ~0.1s
+pytest                   # 214 tests (125 Planning Poker + 89 Retro Board), ~0.1s
 
 # Frontend e2e (Playwright + Chromium)
 cd frontend
 npm install
 npx playwright install chromium
-npm run test:e2e         # 69 tests (50 Planning Poker + 19 Retro Board), ~1.5 min
+npm run test:e2e         # 75 tests (50 Planning Poker + 25 Retro Board), ~2 min
 ```
 
 Test naming reads as the spec (`test_facilitator_cannot_become_spectator`). When adding business logic, add the test **and** update `docs/BUSINESS_LOGIC.md` in the same PR — see `docs/RULES.md` rule 13 (Definition of Done for new business logic). This is non-negotiable; "later" doesn't work.
@@ -122,12 +122,16 @@ frontend/src/
 │   ├── RetroCardItem.tsx         # ONE never-grouped card: inline-edit, vote, drag grip, reactions
 │   ├── RetroCardStack.tsx        # merged card: texts joined by "---", one shared vote/author, undo
 │   ├── RetroCardReactionBar.tsx  # Phase 2 — click-triggered emoji popover per card
-│   └── RetroTimer.tsx
+│   ├── RetroTimer.tsx
+│   ├── RetroSettingsModal.tsx    # follow-up — clone of GameSettingsModal, opened by clicking the board name (facilitator only), replaced the old RetroSettingsDropdown
+│   └── RetroProfileMenu.tsx      # follow-up — clone of ProfileMenu minus the spectator toggle, opened by clicking the participant's avatar
 └── hooks/
     ├── useRetroSocket.ts
     ├── useRetroCardDrag.ts        # Phase 2 — Pointer Events drag-to-merge (not HTML5 DnD)
     └── useRetroCardReactions.ts   # Phase 2 — on-card reaction overlay, no floaters
 ```
+
+Drawing (follow-up): `DrawingCanvas` (`frontend/src/components/DrawingCanvas.tsx`) is reused as-is from Planning Poker — no fork. The only integration point is the backend relay in `handle_retro_message`, which forwards `draw_stroke`/`draw_cursor`/`draw_clear` to everyone except the sender via `ConnectionManager.broadcast_except`, aliasing `player_id: participant_id` on the wire since that's the field name `DrawingCanvas` expects.
 
 Full architecture writeup: `docs/ARCHITECTURE.md` → "Retro Board".
 

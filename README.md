@@ -33,7 +33,7 @@ Real-time инструмент для оценки задач agile-команд
 - Дружелюбные full-screen overlay'и для всех «room is no longer available» сценариев: истёкший таймер (⌛), закрытие фасилитатором (🚪, issue #19), кик участника (👋, issue #37), неверный URL (🔗) — везде кнопка «Back to home»
 - Авто-закрытие комнаты через 24h (timer expiration), full-screen уведомление для участников
 - Маркетинговые страницы (issue #22): `/` — лендинг (hero, «как это работает», фичи, скриншот комнаты в обеих темах), `/faq`. Форма создания комнаты переехала на `/new`
-- **Retro Board** (issue #62): второй независимый продукт на том же сайте — доска для ретроспектив через WebSocket. 3 preset-шаблона колонок (Mad/Sad/Glad, Start/Stop/Continue, 4Ls), карточки видны сразу всем (без reveal), голосование с общим бюджетом на участника, anonymous mode, таймер, kick/close (Phase 1) + drag-to-merge группировка карточек, эмодзи-реакции на карточки, мобильная адаптация (Phase 2) — см. `docs/RETRO_BUSINESS_LOGIC.md`. Вход с лендинга или напрямую на `/retro/new`
+- **Retro Board** (issue #62): второй независимый продукт на том же сайте — доска для ретроспектив через WebSocket. 3 preset-шаблона колонок (Mad/Sad/Glad, Start/Stop/Continue, 4Ls), карточки видны сразу всем (без reveal), голосование с общим бюджетом на участника, anonymous mode, таймер, kick/close (Phase 1) + drag-to-merge группировка карточек, эмодзи-реакции на карточки, мобильная адаптация (Phase 2) + настройки доски и профиль участника в стиле Planning Poker (клик по имени доски → `RetroSettingsModal`, клик по аватарке → `RetroProfileMenu`) и рисование по экрану, тот же `DrawingCanvas` (follow-up) — см. `docs/RETRO_BUSINESS_LOGIC.md`. Вход с лендинга или напрямую на `/retro/new`
 
 ## Запуск локально
 
@@ -251,8 +251,8 @@ frontend/src/
 
 | Слой | Где | Команда | Покрытие |
 |---|---|---|---|
-| Backend (pytest) | `backend/tests/` | `pytest` | 213 тестов — 125 Planning Poker (комнаты, голосование, issues, права, WS-интеграция) + 88 Retro Board (доски, карточки, голосование, таймер, группировка, реакции, WS) |
-| Frontend e2e (Playwright) | `frontend/tests/e2e/` | `npm run test:e2e` | 69 тестов — 50 Planning Poker (лендинг/FAQ, создание/голосование, reveal+stats, два игрока, мобильные флоу, throw-reaction, UI-анимации и др.) + 19 Retro Board |
+| Backend (pytest) | `backend/tests/` | `pytest` | 214 тестов — 125 Planning Poker (комнаты, голосование, issues, права, WS-интеграция) + 89 Retro Board (доски, карточки, голосование, таймер, группировка, реакции, drawing relay, WS) |
+| Frontend e2e (Playwright) | `frontend/tests/e2e/` | `npm run test:e2e` | 75 тестов — 50 Planning Poker (лендинг/FAQ, создание/голосование, reveal+stats, два игрока, мобильные флоу, throw-reaction, UI-анимации и др.) + 25 Retro Board |
 
 CI: GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) гоняет оба слоя на каждый push в `main`/`dev` и на каждый PR. При падении e2e — артефакты (видео, скриншоты) аплоадятся.
 

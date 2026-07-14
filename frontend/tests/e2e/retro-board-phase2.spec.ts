@@ -49,7 +49,7 @@ test("cancelling the merge confirmation leaves both cards separate", async ({ pa
   await page.mouse.up();
 
   await expect(page.getByText(/merge these cards\?/i)).toBeVisible({ timeout: 10_000 });
-  await page.getByRole("button", { name: /cancel/i }).click();
+  await page.getByTestId("confirm-modal-cancel").click();
 
   await expect(page.getByTestId("retro-card")).toHaveCount(2);
   await expect(page.getByTestId("retro-card-group-badge")).toHaveCount(0);
