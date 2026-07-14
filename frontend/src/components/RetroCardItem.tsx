@@ -3,6 +3,10 @@ import type { RetroCard, RetroParticipant } from "../types";
 import { RetroCardReactionBar } from "./RetroCardReactionBar";
 import type { CardReactionOverlay } from "../hooks/useRetroCardReactions";
 
+// Issue #62 Phase 2 follow-up — this renders only STANDALONE (never-grouped)
+// cards. A card that's part of a merge renders through `RetroCardStack`
+// instead (single card, texts joined by "---", one shared vote/author) —
+// see that component for the grouped case.
 interface Props {
   card: RetroCard;
   author: RetroParticipant | undefined;
@@ -15,10 +19,6 @@ interface Props {
   onUnvote: () => void;
   onEdit: (text: string) => void;
   onDelete: () => void;
-  // Issue #62 Phase 2 — grouping (drag-to-merge).
-  isGroupChild: boolean;
-  groupChildCount: number;
-  onUngroup: () => void;
   isDragging: boolean;
   isDropTarget: boolean;
   onDragStart: () => void;
@@ -41,9 +41,6 @@ export function RetroCardItem({
   onUnvote,
   onEdit,
   onDelete,
-  isGroupChild,
-  groupChildCount,
-  onUngroup,
   isDragging,
   isDropTarget,
   onDragStart,
@@ -59,7 +56,6 @@ export function RetroCardItem({
   const canManage = isMine || isFacilitator;
   const hasVoted = card.votes.includes(myParticipantId);
   const showAuthor = !anonymousMode || isMine;
-  const isGrouped = isGroupChild || groupChildCount > 0;
 
   useEffect(() => {
     if (!showReactions) return;
@@ -80,10 +76,8 @@ export function RetroCardItem({
     <div
       data-testid="retro-card"
       data-card-id={card.id}
-      data-group-id={card.group_id ?? ""}
+      data-group-id=""
       className={`relative bg-[var(--c-panel)] border rounded-xl p-3 shadow-sm transition-all ${
-        isGroupChild ? "ml-3 border-l-4" : ""
-      } ${
         isDropTarget ? "border-accent ring-2 ring-accent" : "border-[var(--c-border)]"
       } ${isDragging ? "opacity-40" : ""}`}
     >
@@ -156,31 +150,10 @@ export function RetroCardItem({
             <p className="text-sm text-white whitespace-pre-wrap break-words flex-1">{card.text}</p>
           </div>
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-slate-500 truncate flex items-center gap-1.5">
+            <span className="text-xs text-slate-500 truncate">
               {showAuthor ? (author?.nickname ?? "Unknown") : "Anonymous"}
-              {groupChildCount > 0 && (
-                <span
-                  data-testid="retro-card-group-badge"
-                  title={`${groupChildCount + 1} cards grouped together`}
-                  className="inline-flex items-center gap-0.5 bg-[var(--c-panel2)] text-slate-400 rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
-                >
-                  🗂 {groupChildCount + 1}
-                </span>
-              )}
             </span>
             <div className="flex items-center gap-1 shrink-0">
-              {isGrouped && (
-                <button
-                  data-testid="retro-card-ungroup"
-                  onClick={onUngroup}
-                  title="Ungroup"
-                  className="text-slate-500 hover:text-white p-1 rounded transition-colors"
-                >
-                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-                    <path d="M6 4L2 8l4 4M10 4l4 4-4 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </button>
-              )}
               {canManage && (
                 <>
                   <button

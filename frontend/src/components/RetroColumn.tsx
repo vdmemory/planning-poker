@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { RetroCard, RetroColumnDef, RetroParticipant } from "../types";
 import { RetroCardItem } from "./RetroCardItem";
+import { RetroCardStack } from "./RetroCardStack";
 import type { CardReactionOverlay } from "../hooks/useRetroCardReactions";
 
 interface Props {
@@ -75,23 +76,19 @@ export function RetroColumn({
       <div className="flex-1 bg-[var(--c-panel2)] rounded-b-xl p-2 space-y-2 min-h-[120px]">
         {heads.map((head) => {
           const children = childrenOf(head.id);
-          return (
-            <div key={head.id} className="space-y-2">
-              <RetroCardItem
-                card={head}
+          if (children.length > 0) {
+            return (
+              <RetroCardStack
+                key={head.id}
+                head={head}
+                childCards={children}
                 author={participants[head.author_id]}
-                isMine={head.author_id === myParticipantId}
-                isFacilitator={isFacilitator}
                 anonymousMode={anonymousMode}
                 myParticipantId={myParticipantId}
                 votesLeft={votesLeft}
-                onVote={() => onVote(head.id)}
-                onUnvote={() => onUnvote(head.id)}
-                onEdit={(text) => onEditCard(head.id, text)}
-                onDelete={() => onDeleteCard(head.id)}
-                isGroupChild={false}
-                groupChildCount={children.length}
-                onUngroup={() => onUngroupCard(head.id)}
+                onVote={onVote}
+                onUnvote={onUnvote}
+                onUnmergeAll={() => onUngroupCard(head.id)}
                 isDragging={draggingId === head.id}
                 isDropTarget={overId === head.id}
                 onDragStart={() => onDragStart(head.id, column.id)}
@@ -100,33 +97,30 @@ export function RetroColumn({
                 reactionOverlay={cardReactionOverlays[head.id] ?? null}
                 onReact={(value) => onReactToCard(head.id, value)}
               />
-              {children.map((child) => (
-                <RetroCardItem
-                  key={child.id}
-                  card={child}
-                  author={participants[child.author_id]}
-                  isMine={child.author_id === myParticipantId}
-                  isFacilitator={isFacilitator}
-                  anonymousMode={anonymousMode}
-                  myParticipantId={myParticipantId}
-                  votesLeft={votesLeft}
-                  onVote={() => onVote(child.id)}
-                  onUnvote={() => onUnvote(child.id)}
-                  onEdit={(text) => onEditCard(child.id, text)}
-                  onDelete={() => onDeleteCard(child.id)}
-                  isGroupChild={true}
-                  groupChildCount={0}
-                  onUngroup={() => onUngroupCard(child.id)}
-                  isDragging={draggingId === child.id}
-                  isDropTarget={overId === child.id}
-                  onDragStart={() => onDragStart(child.id, column.id)}
-                  onDragMove={onDragMove}
-                  onDragEnd={onDragEnd}
-                  reactionOverlay={cardReactionOverlays[child.id] ?? null}
-                  onReact={(value) => onReactToCard(child.id, value)}
-                />
-              ))}
-            </div>
+            );
+          }
+          return (
+            <RetroCardItem
+              key={head.id}
+              card={head}
+              author={participants[head.author_id]}
+              isMine={head.author_id === myParticipantId}
+              isFacilitator={isFacilitator}
+              anonymousMode={anonymousMode}
+              myParticipantId={myParticipantId}
+              votesLeft={votesLeft}
+              onVote={() => onVote(head.id)}
+              onUnvote={() => onUnvote(head.id)}
+              onEdit={(text) => onEditCard(head.id, text)}
+              onDelete={() => onDeleteCard(head.id)}
+              isDragging={draggingId === head.id}
+              isDropTarget={overId === head.id}
+              onDragStart={() => onDragStart(head.id, column.id)}
+              onDragMove={onDragMove}
+              onDragEnd={onDragEnd}
+              reactionOverlay={cardReactionOverlays[head.id] ?? null}
+              onReact={(value) => onReactToCard(head.id, value)}
+            />
           );
         })}
 

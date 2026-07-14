@@ -48,7 +48,11 @@ export async function addCard(page: Page, columnTitle: string, text: string): Pr
  * scripted `dispatchEvent`, so this exercises the same `onPointerDown` /
  * `setPointerCapture` path a real user's drag would — issue #62 Phase 2
  * groups cards this way instead of native HTML5 drag-and-drop, which
- * doesn't fire on touch devices).
+ * doesn't fire on touch devices). A valid drop opens a "Merge these cards?"
+ * confirmation — this helper confirms it, so callers that just want the
+ * end state don't all need to repeat that step. If the drop was rejected
+ * client-side (cross-column, same-stack), no modal appears and this is a
+ * no-op past the mouse-up.
  */
 export async function dragCardOnto(page: Page, sourceText: string, targetText: string): Promise<void> {
   const sourceCard = page.getByTestId("retro-card").filter({ hasText: sourceText }).first();
@@ -63,4 +67,9 @@ export async function dragCardOnto(page: Page, sourceText: string, targetText: s
   await page.mouse.down();
   await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 5 });
   await page.mouse.up();
+
+  const confirmButton = page.getByRole("button", { name: /^merge$/i });
+  if (await confirmButton.isVisible({ timeout: 1_000 }).catch(() => false)) {
+    await confirmButton.click();
+  }
 }
