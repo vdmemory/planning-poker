@@ -1,4 +1,6 @@
+import { useEffect, useRef, useState } from "react";
 import type { RetroCard, RetroParticipant } from "../types";
+import { RetroCardCommentThread } from "./RetroCardCommentThread";
 
 /**
  * Issue #62 Phase 2 follow-up — merged cards render as ONE card with each
@@ -18,6 +20,8 @@ interface Props {
   head: RetroCard;
   childCards: RetroCard[];
   author: RetroParticipant | undefined;
+  participants: Record<string, RetroParticipant>;
+  isFacilitator: boolean;
   anonymousMode: boolean;
   myParticipantId: string;
   votesLeft: number;
@@ -29,12 +33,18 @@ interface Props {
   onDragStart: () => void;
   onDragMove: (clientX: number, clientY: number) => void;
   onDragEnd: () => void;
+  // Issue #65 — comments are summed across every card in the stack; new
+  // ones are written to the head, same convention as voting.
+  onAddComment: (cardId: string, text: string) => void;
+  onDeleteComment: (cardId: string, commentId: string) => void;
 }
 
 export function RetroCardStack({
   head,
   childCards,
   author,
+  participants,
+  isFacilitator,
   anonymousMode,
   myParticipantId,
   votesLeft,
@@ -46,12 +56,35 @@ export function RetroCardStack({
   onDragStart,
   onDragMove,
   onDragEnd,
+  onAddComment,
+  onDeleteComment,
 }: Props) {
+  const [showComments, setShowComments] = useState(false);
+  const commentsRef = useRef<HTMLDivElement>(null);
   const all = [head, ...childCards];
   const showAuthor = !anonymousMode;
   const voters = new Set<string>();
   for (const card of all) for (const v of card.votes) voters.add(v);
   const hasVoted = voters.has(myParticipantId);
+  const allComments = all.flatMap((c) => c.comments).sort((a, b) => a.created_at.localeCompare(b.created_at));
+
+  useEffect(() => {
+    if (!showComments) return;
+    function handler(e: MouseEvent) {
+      if (commentsRef.current && !commentsRef.current.contains(e.target as Node)) setShowComments(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showComments]);
+
+  function handleAddComment(text: string) {
+    onAddComment(head.id, text);
+  }
+
+  function handleDeleteComment(commentId: string) {
+    const owner = all.find((c) => c.comments.some((cm) => cm.id === commentId));
+    if (owner) onDeleteComment(owner.id, commentId);
+  }
 
   function handleVoteClick() {
     if (hasVoted) {
@@ -141,6 +174,39 @@ export function RetroCardStack({
           >
             👍 {voters.size}
           </button>
+          <div className="relative" ref={commentsRef}>
+            <button
+              data-testid="retro-card-comment-trigger"
+              onClick={() => setShowComments((v) => !v)}
+              title="Comments"
+              className="relative text-slate-500 hover:text-white p-1 rounded transition-colors"
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                <path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h9A1.5 1.5 0 0 1 14 3.5v6A1.5 1.5 0 0 1 12.5 11H6l-2.5 2.5V11H3.5A1.5 1.5 0 0 1 2 9.5v-6z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
+              </svg>
+              {allComments.length > 0 && (
+                <span
+                  data-testid="retro-card-comment-count"
+                  className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[14px] h-[14px] px-0.5 bg-accent text-accent-fg rounded-full text-[9px] font-semibold leading-none"
+                >
+                  {allComments.length}
+                </span>
+              )}
+            </button>
+            {showComments && (
+              <div className="absolute top-full right-0 mt-2 z-30">
+                <RetroCardCommentThread
+                  comments={allComments}
+                  participants={participants}
+                  anonymousMode={anonymousMode}
+                  myParticipantId={myParticipantId}
+                  isFacilitator={isFacilitator}
+                  onAddComment={handleAddComment}
+                  onDeleteComment={handleDeleteComment}
+                />
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

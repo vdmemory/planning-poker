@@ -431,6 +431,8 @@ function RetroBoard({ boardId, nickname, storedParticipantId }: {
               onDragStart={startDrag}
               onDragMove={moveDrag}
               onDragEnd={endDrag}
+              onAddComment={(cardId, text) => send({ type: "add_comment", card_id: cardId, text })}
+              onDeleteComment={(cardId, commentId) => send({ type: "delete_comment", card_id: cardId, comment_id: commentId })}
             />
           ))}
         </div>

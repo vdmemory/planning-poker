@@ -7,7 +7,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from .retro_models import RETRO_TEMPLATES, RetroBoard, RetroCard, RetroParticipant, RetroTemplate
+from .retro_models import RETRO_TEMPLATES, RetroBoard, RetroCard, RetroComment, RetroParticipant, RetroTemplate
 from .retro_store import RetroBoardStore
 
 # Тот же дефолт, что и ROOM_LIFETIME в services.py — модуль-level, чтобы тесты
@@ -229,6 +229,36 @@ class RetroService:
         if participant_id in card.votes:
             card.votes.remove(participant_id)
             self.store.save(board)
+
+    # ---------- Comments (issue #65) ----------
+
+    def add_comment(self, board_id: str, participant_id: str, card_id: str, text: str) -> RetroComment:
+        board = self.get_board(board_id)
+        if participant_id not in board.participants:
+            raise RetroError("Participant not in board")
+        card = board.cards.get(card_id)
+        if not card:
+            raise RetroError("Card not found")
+        text = text.strip()
+        if not text:
+            raise RetroError("Comment text cannot be empty")
+        comment = RetroComment(author_id=participant_id, text=text)
+        card.comments.append(comment)
+        self.store.save(board)
+        return comment
+
+    def delete_comment(self, board_id: str, participant_id: str, card_id: str, comment_id: str) -> None:
+        board = self.get_board(board_id)
+        card = board.cards.get(card_id)
+        if not card:
+            raise RetroError("Card not found")
+        comment = next((c for c in card.comments if c.id == comment_id), None)
+        if not comment:
+            raise RetroError("Comment not found")
+        if comment.author_id != participant_id and board.facilitator_id != participant_id:
+            raise RetroError("Only the comment's author or the facilitator can do this")
+        card.comments.remove(comment)
+        self.store.save(board)
 
     # ---------- Grouping (issue #62 Phase 2 — drag-to-merge) ----------
 

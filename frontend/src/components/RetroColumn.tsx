@@ -24,6 +24,9 @@ interface Props {
   onDragStart: (cardId: string, columnId: string) => void;
   onDragMove: (clientX: number, clientY: number) => void;
   onDragEnd: () => void;
+  // Issue #65 — text comments on a card.
+  onAddComment: (cardId: string, text: string) => void;
+  onDeleteComment: (cardId: string, commentId: string) => void;
 }
 
 export function RetroColumn({
@@ -45,6 +48,8 @@ export function RetroColumn({
   onDragStart,
   onDragMove,
   onDragEnd,
+  onAddComment,
+  onDeleteComment,
 }: Props) {
   const [draft, setDraft] = useState("");
 
@@ -78,6 +83,8 @@ export function RetroColumn({
                 head={head}
                 childCards={children}
                 author={participants[head.author_id]}
+                participants={participants}
+                isFacilitator={isFacilitator}
                 anonymousMode={anonymousMode}
                 myParticipantId={myParticipantId}
                 votesLeft={votesLeft}
@@ -89,6 +96,8 @@ export function RetroColumn({
                 onDragStart={() => onDragStart(head.id, column.id)}
                 onDragMove={onDragMove}
                 onDragEnd={onDragEnd}
+                onAddComment={onAddComment}
+                onDeleteComment={onDeleteComment}
               />
             );
           }
@@ -97,6 +106,7 @@ export function RetroColumn({
               key={head.id}
               card={head}
               author={participants[head.author_id]}
+              participants={participants}
               isMine={head.author_id === myParticipantId}
               isFacilitator={isFacilitator}
               anonymousMode={anonymousMode}
@@ -111,6 +121,8 @@ export function RetroColumn({
               onDragStart={() => onDragStart(head.id, column.id)}
               onDragMove={onDragMove}
               onDragEnd={onDragEnd}
+              onAddComment={(text) => onAddComment(head.id, text)}
+              onDeleteComment={(commentId) => onDeleteComment(head.id, commentId)}
             />
           );
         })}

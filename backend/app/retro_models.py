@@ -74,6 +74,13 @@ class RetroParticipant(BaseModel):
     avatar_color: str = "#3b82f6"
 
 
+class RetroComment(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    author_id: str
+    text: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
 class RetroCard(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid4()))
     column_id: str
@@ -89,6 +96,10 @@ class RetroCard(BaseModel):
     # card's id. Only one level deep: a head's own `group_id` is always None,
     # so resolving a card's head never needs to chase more than one hop.
     group_id: Optional[str] = None
+    # Issue #65 — text comment thread. Same wire-visibility rule as `votes`:
+    # `author_id` always travels on the wire, `anonymous_mode` is a frontend
+    # display concern, not server-side secrecy.
+    comments: list[RetroComment] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 

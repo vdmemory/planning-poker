@@ -351,6 +351,10 @@ async def handle_retro_message(board_id: str, participant_id: str, data: dict) -
             retro_service.vote_card(board_id, participant_id, data["card_id"])
         elif msg_type == "unvote_card":
             retro_service.unvote_card(board_id, participant_id, data["card_id"])
+        elif msg_type == "add_comment":
+            retro_service.add_comment(board_id, participant_id, data["card_id"], data["text"])
+        elif msg_type == "delete_comment":
+            retro_service.delete_comment(board_id, participant_id, data["card_id"], data["comment_id"])
         elif msg_type == "group_cards":
             retro_service.group_cards(board_id, participant_id, data["source_card_id"], data["target_card_id"])
         elif msg_type == "ungroup_card":

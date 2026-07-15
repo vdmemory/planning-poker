@@ -84,6 +84,13 @@ export interface RetroParticipant {
   avatar_color: string;
 }
 
+export interface RetroComment {
+  id: string;
+  author_id: string;
+  text: string;
+  created_at: string;
+}
+
 export interface RetroCard {
   id: string;
   column_id: string;
@@ -93,6 +100,8 @@ export interface RetroCard {
   // Issue #62 Phase 2 — drag-to-merge grouping. `null` means standalone (or
   // this card IS the group's head); otherwise points at the head card's id.
   group_id: string | null;
+  // Issue #65 — text comment thread on the card.
+  comments: RetroComment[];
   created_at: string;
 }
 
