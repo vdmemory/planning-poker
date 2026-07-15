@@ -19,7 +19,7 @@ Issue #62 ссылался на EasyRetro как референс. Сайт бы
 |---|---|---|
 | `id` | string (10 hex) | идентификатор доски, используется в URL |
 | `name` | string | название доски |
-| `template` | `mad_sad_glad`\|`start_stop_continue`\|`four_ls` | какой набор колонок выбран при создании |
+| `template` | `went_well_extended`\|`went_well_actions`\|`mad_sad_glad`\|`start_stop_continue`\|`four_ls` | какой набор колонок выбран при создании |
 | `columns` | list[RetroColumn] | колонки — стабильные строковые id (`"mad"`, `"sad"`, ...), не UUID |
 | `cards` | dict[id, RetroCard] | все карточки доски |
 | `participants` | dict[id, RetroParticipant] | участники |
@@ -49,15 +49,17 @@ Issue #62 ссылался на EasyRetro как референс. Сайт бы
 | `text` | содержимое |
 | `votes` | `list[participant_id]` — кто проголосовал за эту карточку |
 
-## 3 preset-шаблона (`RETRO_TEMPLATES`)
+## 5 preset-шаблонов (`RETRO_TEMPLATES`)
 
 | Template | Колонки |
 |---|---|
+| `went_well_extended` **(дефолт)** | What went well (зелёный) / To improve (жёлтый) / Risks (красный) / Action items (синий) / How do you find the team's processes? (фиолетовый) |
+| `went_well_actions` | What went well (зелёный) / To improve (жёлтый) / Action items (синий) |
 | `mad_sad_glad` | Mad (красный) / Sad (жёлтый) / Glad (зелёный) |
 | `start_stop_continue` | Start (зелёный) / Stop (красный) / Continue (синий) |
 | `four_ls` | Liked (зелёный) / Learned (синий) / Lacked (красный) / Longed for (фиолетовый) |
 
-Выбирается один раз при создании доски (`RetroTemplatePicker.tsx` на `/retro/new`), после — не меняется.
+Выбирается один раз при создании доски (`RetroTemplatePicker.tsx` на `/retro/new`), после — не меняется. Порядок в `RETRO_TEMPLATE_OPTIONS` (фронт) и в enum `RetroTemplate` (бэк) совпадает: расширенный 5-колоночный шаблон — первый в списке и выбран по умолчанию (`RetroNewPage.tsx`'s `useState`, и REST-уровня дефолт `CreateRetroBoardRequest.template` в `main.py`, на случай если клиент вызывает API напрямую без поля `template`) — issue #67.
 
 ## Роли
 

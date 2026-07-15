@@ -289,9 +289,13 @@ frontend/src/
 
 | Шаблон | Колонки |
 |---|---|
+| `went_well_extended` **(дефолт)** | What went well, To improve, Risks, Action items, How do you find the team's processes? |
+| `went_well_actions` | What went well, To improve, Action items |
 | `mad_sad_glad` | Mad, Sad, Glad |
 | `start_stop_continue` | Start, Stop, Continue |
 | `four_ls` | Liked, Learned, Lacked, Longed for |
+
+Расширенный 5-колоночный шаблон — первый в списке `RetroTemplatePicker.tsx` и выбран по умолчанию на `/retro/new` (issue #67); тот же дефолт продублирован на REST-уровне (`CreateRetroBoardRequest.template` в `main.py`) на случай прямого вызова API без поля `template`.
 
 Id колонок — стабильные строки (`mad`, `sad`, …), а не uuid: в Phase 1 нет переупорядочивания/кастомизации колонок, поэтому ссылки на них в `add_card` остаются осмысленными на весь срок жизни доски.
 

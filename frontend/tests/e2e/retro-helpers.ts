@@ -8,11 +8,18 @@ async function waitForWsOpen(page: Page): Promise<void> {
  * Create a retro board from `/retro/new`, complete the display-name dialog,
  * and wait for the board screen to finish connecting. Mirrors
  * `helpers.ts:createRoom` for Planning Poker.
+ *
+ * Explicitly picks the "Mad / Sad / Glad" template — the rest of this suite
+ * hardcodes those column names, and issue #67 changed the *picker's* default
+ * to the new "extended" template, so callers that don't care about templates
+ * need this to keep getting Mad/Sad/Glad rather than whatever's selected by
+ * default.
  */
 export async function createRetroBoard(page: Page, boardName = "Sprint 42 Retro",
                                        facilitatorNick = "Alice"): Promise<string> {
   await page.goto("/retro/new");
   await page.getByPlaceholder("Sprint 42 Retro").fill(boardName);
+  await page.getByText("Mad / Sad / Glad").click();
   await page.getByRole("button", { name: /create board/i }).click();
   // Excludes "new" so this doesn't false-match the page we're already on.
   await page.waitForURL(/\/retro\/(?!new$)[a-z0-9]+$/);

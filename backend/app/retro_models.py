@@ -15,6 +15,10 @@ from pydantic import BaseModel, Field
 
 
 class RetroTemplate(str, Enum):
+    # Issue #67 — the extended template comes first in the enum (and in
+    # RETRO_TEMPLATE_OPTIONS on the frontend) since it's the new default.
+    WENT_WELL_EXTENDED = "went_well_extended"
+    WENT_WELL_ACTIONS = "went_well_actions"
     MAD_SAD_GLAD = "mad_sad_glad"
     START_STOP_CONTINUE = "start_stop_continue"
     FOUR_LS = "four_ls"
@@ -30,6 +34,18 @@ class RetroColumn(BaseModel):
 # `add_card` payloads referencing e.g. "mad" stay meaningful across a board's
 # lifetime — there's no reorder/customize-columns feature in Phase 1.
 RETRO_TEMPLATES: dict[RetroTemplate, list[RetroColumn]] = {
+    RetroTemplate.WENT_WELL_EXTENDED: [
+        RetroColumn(id="went_well", title="What went well", color="#22c55e"),
+        RetroColumn(id="to_improve", title="To improve", color="#eab308"),
+        RetroColumn(id="risks", title="Risks", color="#ef4444"),
+        RetroColumn(id="action_items", title="Action items", color="#3b82f6"),
+        RetroColumn(id="team_process", title="How do you find the team's processes?", color="#8b5cf6"),
+    ],
+    RetroTemplate.WENT_WELL_ACTIONS: [
+        RetroColumn(id="went_well", title="What went well", color="#22c55e"),
+        RetroColumn(id="to_improve", title="To improve", color="#eab308"),
+        RetroColumn(id="action_items", title="Action items", color="#3b82f6"),
+    ],
     RetroTemplate.MAD_SAD_GLAD: [
         RetroColumn(id="mad", title="Mad", color="#ef4444"),
         RetroColumn(id="sad", title="Sad", color="#eab308"),

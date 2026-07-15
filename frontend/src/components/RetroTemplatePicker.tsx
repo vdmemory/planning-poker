@@ -2,6 +2,28 @@ import type { RetroTemplate } from "../types";
 
 export const RETRO_TEMPLATE_OPTIONS: { value: RetroTemplate; name: string; columns: { title: string; color: string }[] }[] = [
   {
+    // Issue #67 — the extended template is listed first and is the default
+    // selection on RetroNewPage.
+    value: "went_well_extended",
+    name: "What went well / To improve / Risks / Action items / Team's processes",
+    columns: [
+      { title: "What went well", color: "#22c55e" },
+      { title: "To improve", color: "#eab308" },
+      { title: "Risks", color: "#ef4444" },
+      { title: "Action items", color: "#3b82f6" },
+      { title: "How do you find the team's processes?", color: "#8b5cf6" },
+    ],
+  },
+  {
+    value: "went_well_actions",
+    name: "What went well / To improve / Action items",
+    columns: [
+      { title: "What went well", color: "#22c55e" },
+      { title: "To improve", color: "#eab308" },
+      { title: "Action items", color: "#3b82f6" },
+    ],
+  },
+  {
     value: "mad_sad_glad",
     name: "Mad / Sad / Glad",
     columns: [

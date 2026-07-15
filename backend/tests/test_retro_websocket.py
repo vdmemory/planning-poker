@@ -21,6 +21,19 @@ def test_post_retro_boards_returns_board_participant_state(client):
     assert [c["id"] for c in state["columns"]] == ["mad", "sad", "glad"]
 
 
+def test_post_retro_boards_defaults_to_extended_template_when_omitted(client):
+    # Issue #67 — the extended template is the new default, both in the
+    # frontend's picker and in the REST layer itself when a caller omits
+    # `template` from the request body entirely.
+    r = client.post("/api/retro-boards", json={"name": "X", "facilitator_nickname": "alice"})
+    assert r.status_code == 200
+    state = r.json()["state"]
+    assert state["template"] == "went_well_extended"
+    assert [c["title"] for c in state["columns"]] == [
+        "What went well", "To improve", "Risks", "Action items", "How do you find the team's processes?",
+    ]
+
+
 def test_get_retro_board_returns_public_state(client):
     data = create_retro_board_via_api(client)
     r = client.get(f"/api/retro-boards/{data['board_id']}")
