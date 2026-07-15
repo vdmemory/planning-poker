@@ -269,6 +269,18 @@ Facilitator-only: `start_timer { seconds }`, `pause_timer`, `resume_timer`, `res
 
 Фронт: `useRetroCardReactions` — упрощённый вариант `useReactionAnimations` (issue #32), только on-card оверлей (`reactions-overlay-pop`, переиспользуется CSS-анимация 1-в-1), без «плавающих» иконок в углу экрана — для реакции на карточку нет единого «угла отправителя», как у реакции на игрока. Оверлей живёт 3 секунды, затем сам скрывается.
 
+## Реакции в шапке (self-reaction, issue #68)
+
+Отдельная от «Реакции на карточки» (выше) фича: панель быстрых эмодзи-реакций в хедере доски — аналог Planning Poker's `ReactionsPanel` (issue #32), но **только эмодзи**, без переключателя в режим time-value ("capacity gut-check" — специфика Planning Poker, к ретроспективе не относится). Не привязана ни к какой карточке — в отличие от `react_to_card`/`card_reaction`, здесь нет `card_id` вовсе.
+
+**WS**: `{ type: "reaction", value }` → сервер валидирует (участник в доске, `value` не пустой) и broadcast'ит `{ type: "reaction", from_participant_id, from_nickname, avatar_color, value }` **всем клиентам, включая отправителя** (тот же паттерн relay, что и `card_reaction`).
+
+Фронт: `RetroReactionsPanel` — клон `ReactionsPanel` без mode-toggle (та же конвенция, что и у `RetroProfileMenu`/`RetroSettingsModal`: клон, а не расширение с условным пропом). Переиспользует `REACTION_EMOJIS`/`REACTION_THROTTLE_MS`/`REACTION_FLOATER_MS` и Lottie-ассеты из `ReactionsPanel.tsx` — это просто данные/константы, привязанные к файлам в `public/reactions-lottie/`, а не Planning-Poker-специфичная UI-логика (та же граница reuse-vs-clone, что уже применена к `DrawingCanvas`). Throttle — те же 600мс, что и в Planning Poker, по той же причине (не дать одному участнику засыпать остальных реакциями).
+
+Анимация — `useRetroReactions`, урезанный клон `useReactionAnimations`: только очередь «всплывающих» floater'ов в левом нижнем углу (переиспользует `ReactionFloater` как есть — компонент уже общий, без Planning-Poker-специфичных пропов). **On-card оверлей не портирован** — у Retro Board нет аналога `PlayerCard`, к которому можно было бы привязать оверлей, поэтому единственный визуальный эффект — floater, в отличие от Planning Poker, где реакция показывается и как оверлей на карточке игрока, и как floater.
+
+Расположение в хедере (`RetroBoardPage.tsx`) — между «Invite» и кнопкой рисования, зеркалируя порядок `RoomPage.tsx`.
+
 ## Мобильная адаптация (issue #62 Phase 2)
 
 Ручка перетаскивания (`data-testid="retro-card-grip"`) и реакции — обычные элементы в собственном layout'е карточки (не floating-оверлеи), поэтому не требуют никакой capability-based hover-логики (`@media(hover:hover)` и т.п.) — они одинаково работают что мышью, что пальцем, без специального кейса под тач-устройства.

@@ -362,6 +362,12 @@ async def handle_retro_message(board_id: str, participant_id: str, data: dict) -
             msg = retro_service.react_to_card(board_id, participant_id, data["card_id"], data.get("value", ""))
             await retro_manager.broadcast(board_id, msg)
             return
+        elif msg_type == "reaction":
+            # Issue #68 — header self-reaction, not tied to a card. Same
+            # broadcast-to-everyone-including-sender pattern as react_to_card.
+            msg = retro_service.react(board_id, participant_id, data.get("value", ""))
+            await retro_manager.broadcast(board_id, msg)
+            return
         elif msg_type == "start_timer":
             retro_service.start_timer(board_id, participant_id, data["seconds"])
         elif msg_type == "pause_timer":
