@@ -420,10 +420,10 @@ function RetroBoard({ boardId, nickname, storedParticipantId }: {
               anonymousMode={state!.anonymous_mode}
               myParticipantId={myParticipantId}
               votesLeft={votesLeft}
-              onAddCard={(text) => send({ type: "add_card", column_id: column.id, text })}
+              onAddCard={(text, imageUrl) => send({ type: "add_card", column_id: column.id, text, image_url: imageUrl })}
               onVote={(cardId) => send({ type: "vote_card", card_id: cardId })}
               onUnvote={(cardId) => send({ type: "unvote_card", card_id: cardId })}
-              onEditCard={(cardId, text) => send({ type: "edit_card", card_id: cardId, text })}
+              onEditCard={(cardId, text, imageUrl) => send({ type: "edit_card", card_id: cardId, text, image_url: imageUrl })}
               onDeleteCard={(cardId) => send({ type: "delete_card", card_id: cardId })}
               onUngroupCard={(cardId) => send({ type: "ungroup_card", card_id: cardId })}
               draggingId={draggingId}

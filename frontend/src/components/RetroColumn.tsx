@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { RetroCard, RetroColumnDef, RetroParticipant } from "../types";
 import { RetroCardItem } from "./RetroCardItem";
 import { RetroCardStack } from "./RetroCardStack";
+import { RetroCardAttachmentPicker } from "./RetroCardAttachmentPicker";
+import { insertTextAtCursor } from "../lib/insertTextAtCursor";
 
 interface Props {
   column: RetroColumnDef;
@@ -11,10 +13,10 @@ interface Props {
   anonymousMode: boolean;
   myParticipantId: string;
   votesLeft: number;
-  onAddCard: (text: string) => void;
+  onAddCard: (text: string, imageUrl: string | null) => void;
   onVote: (cardId: string) => void;
   onUnvote: (cardId: string) => void;
-  onEditCard: (cardId: string, text: string) => void;
+  onEditCard: (cardId: string, text: string, imageUrl: string | null) => void;
   onDeleteCard: (cardId: string) => void;
   // Issue #62 Phase 2 — grouping, lifted to the board so drag state is
   // shared across columns.
@@ -52,12 +54,28 @@ export function RetroColumn({
   onDeleteComment,
 }: Props) {
   const [draft, setDraft] = useState("");
+  const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null);
+  const [showAttachmentPicker, setShowAttachmentPicker] = useState(false);
+  const addCardTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const attachmentPickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showAttachmentPicker) return;
+    function handler(e: MouseEvent) {
+      if (attachmentPickerRef.current && !attachmentPickerRef.current.contains(e.target as Node)) {
+        setShowAttachmentPicker(false);
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showAttachmentPicker]);
 
   function submit() {
     const trimmed = draft.trim();
     if (!trimmed) return;
-    onAddCard(trimmed);
+    onAddCard(trimmed, pendingImageUrl);
     setDraft("");
+    setPendingImageUrl(null);
   }
 
   // Issue #62 Phase 2 — a "stack" is a head card (group_id === null) plus any
@@ -114,7 +132,7 @@ export function RetroColumn({
               votesLeft={votesLeft}
               onVote={() => onVote(head.id)}
               onUnvote={() => onUnvote(head.id)}
-              onEdit={(text) => onEditCard(head.id, text)}
+              onEdit={(text, imageUrl) => onEditCard(head.id, text, imageUrl)}
               onDelete={() => onDeleteCard(head.id)}
               isDragging={draggingId === head.id}
               isDropTarget={overId === head.id}
@@ -127,7 +145,26 @@ export function RetroColumn({
           );
         })}
 
+        {pendingImageUrl && (
+          <div className="relative">
+            <img
+              data-testid="retro-add-card-image-preview"
+              src={pendingImageUrl}
+              alt=""
+              className="h-24 rounded-lg object-cover w-full bg-[var(--c-panel2)]"
+            />
+            <button
+              data-testid="retro-add-card-image-remove"
+              onClick={() => setPendingImageUrl(null)}
+              title="Remove image"
+              className="absolute top-1 right-1 w-5 h-5 bg-black/60 hover:bg-black/80 text-white rounded-full flex items-center justify-center text-xs leading-none"
+            >
+              ✕
+            </button>
+          </div>
+        )}
         <textarea
+          ref={addCardTextareaRef}
           data-testid="retro-add-card-input"
           className="w-full bg-[var(--c-panel)] border border-[var(--c-border)] rounded-lg px-2.5 py-2 text-sm text-white placeholder-slate-500 resize-none focus:outline-none focus:border-accent"
           rows={2}
@@ -138,6 +175,24 @@ export function RetroColumn({
             if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); }
           }}
         />
+        <div className="relative" ref={attachmentPickerRef}>
+          <button
+            data-testid="retro-add-card-attachment-trigger"
+            onClick={() => setShowAttachmentPicker((v) => !v)}
+            title="Add emoji, GIF, or image"
+            className="text-xs text-slate-400 hover:text-white p-1 rounded transition-colors"
+          >
+            😀 +
+          </button>
+          {showAttachmentPicker && (
+            <div className="absolute top-full left-0 mt-2 z-30">
+              <RetroCardAttachmentPicker
+                onPickEmoji={(emoji) => insertTextAtCursor(addCardTextareaRef, draft, emoji, setDraft)}
+                onPickImage={(url) => { setPendingImageUrl(url); setShowAttachmentPicker(false); }}
+              />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

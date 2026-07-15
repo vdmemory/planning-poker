@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { RetroCard, RetroParticipant } from "../types";
 import { RetroCardCommentThread } from "./RetroCardCommentThread";
+import { RetroCardAttachmentPicker } from "./RetroCardAttachmentPicker";
+import { insertTextAtCursor } from "../lib/insertTextAtCursor";
 
 // Issue #62 Phase 2 follow-up — this renders only STANDALONE (never-grouped)
 // cards. A card that's part of a merge renders through `RetroCardStack`
@@ -17,7 +19,7 @@ interface Props {
   votesLeft: number;
   onVote: () => void;
   onUnvote: () => void;
-  onEdit: (text: string) => void;
+  onEdit: (text: string, imageUrl: string | null) => void;
   onDelete: () => void;
   isDragging: boolean;
   isDropTarget: boolean;
@@ -52,8 +54,12 @@ export function RetroCardItem({
 }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(card.text);
+  const [draftImageUrl, setDraftImageUrl] = useState<string | null>(card.image_url);
   const [showComments, setShowComments] = useState(false);
+  const [showEditAttachmentPicker, setShowEditAttachmentPicker] = useState(false);
   const commentsRef = useRef<HTMLDivElement>(null);
+  const editAttachmentPickerRef = useRef<HTMLDivElement>(null);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const canManage = isMine || isFacilitator;
   const hasVoted = card.votes.includes(myParticipantId);
   const showAuthor = !anonymousMode || isMine;
@@ -67,9 +73,26 @@ export function RetroCardItem({
     return () => document.removeEventListener("mousedown", handler);
   }, [showComments]);
 
+  useEffect(() => {
+    if (!showEditAttachmentPicker) return;
+    function handler(e: MouseEvent) {
+      if (editAttachmentPickerRef.current && !editAttachmentPickerRef.current.contains(e.target as Node)) {
+        setShowEditAttachmentPicker(false);
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showEditAttachmentPicker]);
+
+  function startEdit() {
+    setDraft(card.text);
+    setDraftImageUrl(card.image_url);
+    setEditing(true);
+  }
+
   function saveEdit() {
     const trimmed = draft.trim();
-    if (trimmed && trimmed !== card.text) onEdit(trimmed);
+    if (trimmed && (trimmed !== card.text || draftImageUrl !== card.image_url)) onEdit(trimmed, draftImageUrl);
     setEditing(false);
   }
 
@@ -84,7 +107,26 @@ export function RetroCardItem({
     >
       {editing ? (
         <div className="space-y-2">
+          {draftImageUrl && (
+            <div className="relative">
+              <img
+                data-testid="retro-card-edit-image-preview"
+                src={draftImageUrl}
+                alt=""
+                className="h-24 rounded-lg object-cover w-full bg-[var(--c-panel2)]"
+              />
+              <button
+                data-testid="retro-card-edit-image-remove"
+                onClick={() => setDraftImageUrl(null)}
+                title="Remove image"
+                className="absolute top-1 right-1 w-5 h-5 bg-black/60 hover:bg-black/80 text-white rounded-full flex items-center justify-center text-xs leading-none"
+              >
+                ✕
+              </button>
+            </div>
+          )}
           <textarea
+            ref={editTextareaRef}
             autoFocus
             className="w-full bg-[var(--c-bg)] border border-[var(--c-border-hi)] rounded-lg px-2.5 py-2 text-sm text-white resize-none focus:outline-none focus:border-accent"
             rows={3}
@@ -92,12 +134,30 @@ export function RetroCardItem({
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveEdit(); }
-              if (e.key === "Escape") { setDraft(card.text); setEditing(false); }
+              if (e.key === "Escape") { setDraft(card.text); setDraftImageUrl(card.image_url); setEditing(false); }
             }}
           />
+          <div className="relative" ref={editAttachmentPickerRef}>
+            <button
+              data-testid="retro-card-edit-attachment-trigger"
+              onClick={() => setShowEditAttachmentPicker((v) => !v)}
+              title="Add emoji, GIF, or image"
+              className="text-xs text-slate-400 hover:text-white p-1 rounded transition-colors"
+            >
+              😀 +
+            </button>
+            {showEditAttachmentPicker && (
+              <div className="absolute top-full left-0 mt-2 z-30">
+                <RetroCardAttachmentPicker
+                  onPickEmoji={(emoji) => insertTextAtCursor(editTextareaRef, draft, emoji, setDraft)}
+                  onPickImage={(url) => { setDraftImageUrl(url); setShowEditAttachmentPicker(false); }}
+                />
+              </div>
+            )}
+          </div>
           <div className="flex gap-2">
             <button
-              onClick={() => { setDraft(card.text); setEditing(false); }}
+              onClick={() => { setDraft(card.text); setDraftImageUrl(card.image_url); setEditing(false); }}
               className="flex-1 text-xs border border-[var(--c-border)] text-slate-300 py-1.5 rounded-lg hover:bg-[var(--c-panel2)] transition-colors"
             >
               Cancel
@@ -137,6 +197,15 @@ export function RetroCardItem({
             </span>
             <p className="text-sm text-white whitespace-pre-wrap break-words flex-1">{card.text}</p>
           </div>
+          {card.image_url && (
+            <img
+              data-testid="retro-card-image"
+              src={card.image_url}
+              alt=""
+              className="max-h-32 rounded-lg object-cover w-full mb-2"
+              onError={(e) => { e.currentTarget.style.display = "none"; }}
+            />
+          )}
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs text-slate-500 truncate">
               {showAuthor ? (author?.nickname ?? "Unknown") : "Anonymous"}
@@ -146,7 +215,7 @@ export function RetroCardItem({
                 <>
                   <button
                     data-testid="retro-card-edit"
-                    onClick={() => setEditing(true)}
+                    onClick={startEdit}
                     title="Edit"
                     className="text-slate-500 hover:text-white p-1 rounded transition-colors"
                   >

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+from urllib.parse import urlparse
 
 from .retro_models import RETRO_TEMPLATES, RetroBoard, RetroCard, RetroComment, RetroParticipant, RetroTemplate
 from .retro_store import RetroBoardStore
@@ -163,7 +164,8 @@ class RetroService:
 
     # ---------- Cards ----------
 
-    def add_card(self, board_id: str, participant_id: str, column_id: str, text: str) -> RetroCard:
+    def add_card(self, board_id: str, participant_id: str, column_id: str, text: str,
+                 image_url: Optional[str] = None) -> RetroCard:
         board = self.get_board(board_id)
         if participant_id not in board.participants:
             raise RetroError("Participant not in board")
@@ -172,12 +174,16 @@ class RetroService:
         text = text.strip()
         if not text:
             raise RetroError("Card text cannot be empty")
-        card = RetroCard(column_id=column_id, author_id=participant_id, text=text)
+        card = RetroCard(
+            column_id=column_id, author_id=participant_id, text=text,
+            image_url=self._validate_image_url(image_url),
+        )
         board.cards[card.id] = card
         self.store.save(board)
         return card
 
-    def edit_card(self, board_id: str, participant_id: str, card_id: str, text: str) -> None:
+    def edit_card(self, board_id: str, participant_id: str, card_id: str, text: str,
+                  image_url: Optional[str] = None) -> None:
         board = self.get_board(board_id)
         card = board.cards.get(card_id)
         if not card:
@@ -187,6 +193,10 @@ class RetroService:
         if not text:
             raise RetroError("Card text cannot be empty")
         card.text = text
+        # No partial-update semantics here (unlike `update_board`'s optional
+        # fields) — the frontend always resends the card's current image_url
+        # alongside every edit, so omitting it here means "remove the image".
+        card.image_url = self._validate_image_url(image_url)
         self.store.save(board)
 
     def delete_card(self, board_id: str, participant_id: str, card_id: str) -> None:
@@ -427,3 +437,18 @@ class RetroService:
     def _require_card_owner_or_facilitator(board: RetroBoard, participant_id: str, card: RetroCard) -> None:
         if card.author_id != participant_id and board.facilitator_id != participant_id:
             raise RetroError("Only the card's author or the facilitator can do this")
+
+    @staticmethod
+    def _validate_image_url(image_url: Optional[str]) -> Optional[str]:
+        """Issue #66 — not a content/antivirus check, just enough to reject
+        garbage (`javascript:`, bare filenames) before it lands on the wire.
+        """
+        if image_url is None:
+            return None
+        image_url = image_url.strip()
+        if not image_url:
+            return None
+        parsed = urlparse(image_url)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            raise RetroError("image_url must be a valid http(s) URL")
+        return image_url

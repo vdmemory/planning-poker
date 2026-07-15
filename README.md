@@ -193,6 +193,7 @@ frontend/src/
 - Таймер с абсолютным дедлайном (`timer_ends_at`, пресеты 3/5/10 минут); по достижении нуля — пульсирующий бейдж «Time's up!» на клиенте мгновенно + автопауза на сервере через фоновую задачу `expire_finished_timers`
 - Drag-to-merge группировка карточек (Pointer Events, не HTML5 Drag-and-Drop — работает и мышью, и пальцем) с confirm-диалогом перед слиянием и кнопкой undo; смёрженные карточки рендерятся как одна карточка с текстами через «---», один общий голос и автор
 - Текстовые комментарии к карточке (issue #65) — кнопка сразу после голоса, попап-тред снизу карточки; добавить может любой участник, удалить — только автор комментария или фасилитатор
+- Эмодзи-пикер, GIF-поиск (через GIPHY, серверный прокси без API-ключа на клиенте) и вставка картинки по прямой ссылке при создании/редактировании карточки (issue #66) — только внешний URL, без загрузки файлов на свой сервер
 - Панель быстрых реакций в шапке (issue #68) — эмодзи-only клон Planning Poker's ReactionsPanel (без time-value режима), рисует floater в левом нижнем углу у всех участников; throttle 600ms
 - Kick участника фасилитатором, закрытие доски для всех
 - Настройки доски (`RetroSettingsModal`, открывается кликом по имени доски — только фасилитатор) и профиль участника (`RetroProfileMenu`, открывается кликом по аватарке) — клоны `GameSettingsModal`/`ProfileMenu` из Planning Poker
@@ -213,8 +214,9 @@ backend/app/
 ├── retro_ws_manager.py  # переиспользует ConnectionManager + свои фоновые задачи:
 │                        # cleanup_disconnected_participants (5s), cleanup_expired_boards (60s),
 │                        # expire_finished_timers (1s, автопауза истёкшего таймера)
-└── main.py              # + REST POST/GET /api/retro-boards, WS /ws/retro/{board_id},
-                         # handle_retro_message — параллельный диспетчер сообщений
+├── gif_client.py        # issue #66 — прокси к GIPHY search API, держит GIPHY_API_KEY на сервере
+└── main.py              # + REST POST/GET /api/retro-boards, GET /api/retro-boards/gif-search,
+                         # WS /ws/retro/{board_id}, handle_retro_message — параллельный диспетчер сообщений
 
 frontend/src/
 ├── pages/
@@ -226,14 +228,17 @@ frontend/src/
 │   ├── RetroCardItem.tsx       # одна (never-grouped) карточка: inline-edit, vote, drag, comments
 │   ├── RetroCardStack.tsx      # смёрженная карточка: тексты через "---", общий голос/автор, undo
 │   ├── RetroCardCommentThread.tsx # issue #65 — попап-тред комментариев, общий для Item/Stack
+│   ├── RetroCardAttachmentPicker.tsx # issue #66 — эмодзи-грид + GIF-поиск + прямой URL
 │   ├── RetroReactionsPanel.tsx  # issue #68 — клон ReactionsPanel, эмодзи-only, в шапке
 │   ├── RetroTimer.tsx          # + бейдж "Time's up!"
 │   ├── RetroSettingsModal.tsx  # клон GameSettingsModal
 │   └── RetroProfileMenu.tsx    # клон ProfileMenu без spectator-тумблера
-└── hooks/
-    ├── useRetroSocket.ts       # WebSocket с авто-реконнектом, аналог useRoomSocket
-    ├── useRetroCardDrag.ts     # Pointer Events drag-to-merge state
-    └── useRetroReactions.ts     # issue #68 — floater-очередь для header self-reaction
+├── hooks/
+│   ├── useRetroSocket.ts       # WebSocket с авто-реконнектом, аналог useRoomSocket
+│   ├── useRetroCardDrag.ts     # Pointer Events drag-to-merge state
+│   └── useRetroReactions.ts     # issue #68 — floater-очередь для header self-reaction
+└── lib/
+    └── insertTextAtCursor.ts    # issue #66 — вставка эмодзи в позицию курсора textarea
 ```
 
 Подробности архитектуры — `docs/ARCHITECTURE.md` → «Retro Board», полная бизнес-логика — `docs/RETRO_BUSINESS_LOGIC.md`.
@@ -243,6 +248,7 @@ frontend/src/
 | Method | Path | Описание |
 |---|---|---|
 | `POST` | `/api/retro-boards` | Создать доску. Body: `{ name, template, facilitator_nickname }`. Возвращает `board_id`, `participant_id`, `state`. |
+| `GET`  | `/api/retro-boards/gif-search` | GIF-поиск (issue #66), query `?q=`. Проксирует к GIPHY, ключ `GIPHY_API_KEY` не покидает сервер. Возвращает `{ results: [{ id, preview_url, url, title }] }`; `503` если ключ не настроен или апстрим недоступен. **Зарегистрирован ДО `{board_id}` ниже** — иначе Starlette матчил бы `gif-search` как id доски. |
 | `GET`  | `/api/retro-boards/{board_id}` | Текущее состояние доски. |
 
 ### WebSocket-протокол
@@ -255,8 +261,8 @@ frontend/src/
 
 | Type | Payload | Кто может |
 |---|---|---|
-| `add_card` | `{ column_id, text }` | любой участник |
-| `edit_card` | `{ card_id, text }` | автор карточки или фасилитатор |
+| `add_card` | `{ column_id, text, image_url? }` | любой участник; `image_url` опционален (issue #66) |
+| `edit_card` | `{ card_id, text, image_url? }` | автор карточки или фасилитатор; опустить `image_url` = убрать картинку, нет partial-update (issue #66) |
 | `delete_card` | `{ card_id }` | автор карточки или фасилитатор |
 | `vote_card` / `unvote_card` | `{ card_id }` | любой участник, в рамках бюджета голосов |
 | `group_cards` | `{ source_card_id, target_card_id }` | автор исходной карточки или фасилитатор |
@@ -387,8 +393,8 @@ Id колонок — стабильные строки (`mad`, `sad`, …), а 
 
 | Слой | Где | Команда | Покрытие |
 |---|---|---|---|
-| Backend (pytest) | `backend/tests/` | `pytest` | 231 тестов — 125 Planning Poker (комнаты, голосование, issues, права, WS-интеграция) + 106 Retro Board (доски, карточки, голосование, таймер + auto-expiry, группировка, drawing relay, header self-reaction, комментарии, WS) |
-| Frontend e2e (Playwright) | `frontend/tests/e2e/` | `npm run test:e2e` | 86 тестов — 52 Planning Poker/общие (лендинг с обоими продуктами, FAQ, создание/голосование, reveal+stats, два игрока, мобильные флоу, throw-reaction, UI-анимации и др.) + 34 Retro Board |
+| Backend (pytest) | `backend/tests/` | `pytest` | 243 тестов — 125 Planning Poker (комнаты, голосование, issues, права, WS-интеграция) + 118 Retro Board (доски, карточки, голосование, таймер + auto-expiry, группировка, drawing relay, header self-reaction, комментарии, вложения/GIF-поиск, WS) |
+| Frontend e2e (Playwright) | `frontend/tests/e2e/` | `npm run test:e2e` | 91 тестов — 52 Planning Poker/общие (лендинг с обоими продуктами, FAQ, создание/голосование, reveal+stats, два игрока, мобильные флоу, throw-reaction, UI-анимации и др.) + 39 Retro Board |
 
 CI: GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) гоняет оба слоя на каждый push в `main`/`dev` и на каждый PR. При падении e2e — артефакты (видео, скриншоты) аплоадятся.
 

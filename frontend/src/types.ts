@@ -102,6 +102,8 @@ export interface RetroCard {
   group_id: string | null;
   // Issue #65 — text comment thread on the card.
   comments: RetroComment[];
+  // Issue #66 — optional GIF/image attachment, external URL only.
+  image_url: string | null;
   created_at: string;
 }
 
