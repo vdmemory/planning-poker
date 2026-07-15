@@ -225,6 +225,31 @@ def test_reaction_broadcasts_to_all_including_sender(client):
             assert "card_id" not in msg
 
 
+def test_add_comment_broadcasts_board_state_with_comment(client):
+    # Issue #65 — comments ride on the card in board_state, no dedicated
+    # message type on the way out (unlike reaction/card_reaction relays).
+    data = create_retro_board_via_api(client)
+    with client.websocket_connect(_ws_url(data["board_id"], data["participant_id"])) as ws_a, \
+         client.websocket_connect(_ws_url(data["board_id"], "x", "bob")) as ws_b:
+        ws_a.receive_json(); ws_a.receive_json()
+        bob_joined = ws_b.receive_json(); ws_b.receive_json()
+        ws_a.receive_json()  # bob join broadcast
+        bob_id = bob_joined["participant_id"]
+
+        ws_a.send_json({"type": "add_card", "column_id": "mad", "text": "text"})
+        msg = ws_a.receive_json(); ws_b.receive_json()
+        card_id = msg["state"]["cards"][0]["id"]
+
+        ws_b.send_json({"type": "add_comment", "card_id": card_id, "text": "nice one"})
+        for ws in (ws_a, ws_b):
+            msg = ws.receive_json()
+            assert msg["type"] == "board_state"
+            comments = msg["state"]["cards"][0]["comments"]
+            assert len(comments) == 1
+            assert comments[0]["text"] == "nice one"
+            assert comments[0]["author_id"] == bob_id
+
+
 # ---------- WS error path ----------
 
 def test_vote_unknown_card_sends_error_to_sender_only(client):

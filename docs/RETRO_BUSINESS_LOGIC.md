@@ -267,6 +267,24 @@ Facilitator-only: `start_timer { seconds }`, `pause_timer`, `resume_timer`, `res
 
 > Карточные реакции (`react_to_card`/`card_reaction`, issue #62 Phase 2 — кнопка-триггер рядом с голосом на самой карточке) были убраны как избыточные после появления этой панели: `RetroCardReactionBar.tsx`, `useRetroCardReactions.ts` и backend `RetroService.react_to_card()` удалены целиком, `RetroCardItem`/`RetroCardStack` больше не принимают `reactionOverlay`/`onReact`.
 
+## Комментарии к карточкам (issue #65)
+
+Текстовые комментарии к карточке — отдельная от голосов и от реакций сущность: `RetroCard.comments: list[RetroComment]`, где `RetroComment = { id, author_id, text, created_at }` (`retro_models.py`). В отличие от `reaction`/`card_reaction` это **не эфемерный relay** — комментарии хранятся на карточке и едут в `board_state` вместе с остальным полем карточки (как `votes`), никакого отдельного WS-типа на приём не нужно.
+
+**WS** (`main.py:handle_retro_message`, оба — обычные ветки, не early-return, поэтому после них как обычно уходит `board_state` всем):
+- `{ type: "add_comment", card_id, text }` — любой участник доски (не author-gated, как и `group_cards` — оставить комментарий может кто угодно).
+- `{ type: "delete_comment", card_id, comment_id }` — только автор комментария или фасилитатор (`RetroService.delete_comment`, тот же паттерн прав, что у `_require_card_owner_or_facilitator`, но проверяет авторство *комментария*, а не карточки).
+
+`author_id` комментария всегда на wire (нужен для permission-проверок и для того, чтобы клиент понял, чья это запись) — `anonymous_mode` лишь скрывает никнейм у не-авторов на фронте, тот же trust model, что и у самой карточки.
+
+### Frontend
+
+- Кнопка `retro-card-comment-trigger` (иконка речевого пузыря) стоит СРАЗУ ПОСЛЕ `retro-card-vote` — самая правая в ряду действий карточки. Бейдж-счётчик (`retro-card-comment-count`) показывается только когда `comments.length > 0`, тем же визуальным языком, что и `retro-card-group-badge`.
+- Клик открывает попап-тред (`RetroCardCommentThread.tsx`), раскрывающийся вниз (`top-full`, не `bottom-full`) по тому же принципу, что и прежний `RetroCardReactionBar` — попап уходит в пустое пространство под карточкой, а не перекрывает её текст. Общий компонент переиспользуется и в `RetroCardItem`, и в `RetroCardStack` — оба просто передают ему свой `comments`/`participants`/колбэки.
+- Каждый комментарий в треде показывает автора (или «Anonymous» под `anonymous_mode`, если смотрящий — не автор), текст, и кнопку удаления — она рендерится, только если `comment.author_id === myParticipantId || isFacilitator`, то есть право на удаление проверяется и на фронте (не только на сервере, который тоже отклонит чужую попытку).
+- **Смёрженные карточки (`RetroCardStack`)**: комментарии суммируются по ВСЕМ карточкам стопки (`all.flatMap(c => c.comments)`, отсортированы по `created_at`), а не только по голове — по рекомендации самого issue («показывать по всем карточкам стопки суммарно»). Новый комментарий всегда пишется в ГОЛОВУ стопки (та же конвенция, что и у голосования: «Voting writes to the head»). Удаление комментария резолвит, какой из подкарточек он реально принадлежит (`all.find(c => c.comments.some(cm => cm.id === commentId))`), поскольку комментарии, оставленные ДО merge, остаются физически на своей исходной подкарточке.
+- Лимита на длину/количество комментариев нет — то же MVP-решение, что и у текста самой карточки (`add_card`/`edit_card`).
+
 **WS**: `{ type: "reaction", value }` → сервер валидирует (участник в доске, `value` не пустой) и broadcast'ит `{ type: "reaction", from_participant_id, from_nickname, avatar_color, value }` **всем клиентам, включая отправителя** — чисто эфемерный relay, ничего не пишется в `RetroBoard`.
 
 Фронт: `RetroReactionsPanel` — клон `ReactionsPanel` без mode-toggle (та же конвенция, что и у `RetroProfileMenu`/`RetroSettingsModal`: клон, а не расширение с условным пропом). Переиспользует `REACTION_EMOJIS`/`REACTION_THROTTLE_MS`/`REACTION_FLOATER_MS` и Lottie-ассеты из `ReactionsPanel.tsx` — это просто данные/константы, привязанные к файлам в `public/reactions-lottie/`, а не Planning-Poker-специфичная UI-логика (та же граница reuse-vs-clone, что уже применена к `DrawingCanvas`). Throttle — те же 600мс, что и в Planning Poker, по той же причине (не дать одному участнику засыпать остальных реакциями).

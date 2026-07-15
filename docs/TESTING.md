@@ -7,8 +7,8 @@
 
 | Уровень | Где | Технология | Скорость |
 |---|---|---|---|
-| Backend service + WS | `backend/tests/` | pytest + FastAPI TestClient | 220 тестов (125 Planning Poker + 95 Retro Board), <0.1s |
-| Frontend e2e | `frontend/tests/e2e/` | Playwright + Chromium | 83 тестов (52 Planning Poker/общие + 31 Retro Board), ~2 мин |
+| Backend service + WS | `backend/tests/` | pytest + FastAPI TestClient | 231 тестов (125 Planning Poker + 106 Retro Board), <0.1s |
+| Frontend e2e | `frontend/tests/e2e/` | Playwright + Chromium | 86 тестов (52 Planning Poker/общие + 34 Retro Board), ~2 мин |
 
 ## Backend (pytest)
 
@@ -16,7 +16,7 @@
 cd backend
 source .venv/bin/activate
 pip install -r requirements-dev.txt   # один раз
-pytest                                # все 220 тестов
+pytest                                # все 231 тестов
 pytest tests/test_voting_and_stats.py # один файл
 pytest -k "facilitator"               # все тесты со словом "facilitator"
 ```
@@ -41,8 +41,9 @@ pytest -k "facilitator"               # все тесты со словом "fac
 | `test_websocket.py` | REST + WS интеграция: auto-join по URL, broadcast, error reply, countdown/draw relay, kick закрывает соединение, room_closed | 16 |
 | `test_retro_boards_and_participants.py` | Retro Board (issue #62) — создание доски по каждому из 5 шаблонов (включая оба новых из issue #67), facilitator-handoff, join/kick/close, disconnect grace, обновление ника/цвета | 26 |
 | `test_retro_cards_voting_timer.py` | Retro Board — add/edit/delete карточек с permission-проверками (автор/фасилитатор/чужой), vote/unvote с enforced бюджетом, `update_board` (rename, anonymous_mode, лимит голосов), полный жизненный цикл таймера + `expire_timer_if_due` (no-op до дедлайна, auto-пауза с `remaining=0` после, no-op если таймер не запущен) | 30 |
-| `test_retro_websocket.py` | Retro Board — REST bootstrap, WS auto-join/reconnect, `board_inactive`, broadcast карточек, error-пути, таймер по WS, kick + `board_closed`, group_cards broadcast, draw_stroke relay всем кроме отправителя, фоновая задача `expire_finished_timers` (monkeypatch интервала на 0.05s, реальный `asyncio.sleep`) auto-паузит истёкший таймер и рассылает `board_state`; POST `/api/retro-boards` без поля `template` в body заводит доску с дефолтным `went_well_extended` (issue #67); header self-reaction (`reaction`) broadcast'ится всем участникам, включая отправителя (issue #68) | 21 |
+| `test_retro_websocket.py` | Retro Board — REST bootstrap, WS auto-join/reconnect, `board_inactive`, broadcast карточек, error-пути, таймер по WS, kick + `board_closed`, group_cards broadcast, draw_stroke relay всем кроме отправителя, фоновая задача `expire_finished_timers` (monkeypatch интервала на 0.05s, реальный `asyncio.sleep`) auto-паузит истёкший таймер и рассылает `board_state`; POST `/api/retro-boards` без поля `template` в body заводит доску с дефолтным `went_well_extended` (issue #67); header self-reaction (`reaction`) broadcast'ится всем участникам, включая отправителя (issue #68); `add_comment` рассылает `board_state` с новым комментарием на карточке всем участникам (issue #65) | 22 |
 | `test_retro_grouping_and_reactions.py` | Retro Board — group_cards (issue #62 Phase 2: drag-a-child moves only that card, drag-a-head carries its children, cross-column rejection, resolve-to-head), ungroup_card (child vs head dissolve), delete_card promotes first child as new head; header self-reaction `react()` relay + non-participant/empty-value validation (issue #68) | 18 |
+| `test_retro_comments.py` | Retro Board — `add_comment` (любой участник может комментировать, отклоняет неизвестную карточку/не-участника/пустой текст), `delete_comment` (автор комментария или фасилитатор; отклоняет чужого не-фасилитатора, неизвестную карточку/комментарий) (issue #65) | 10 |
 
 Бизнес-правила Retro Board — в `docs/RETRO_BUSINESS_LOGIC.md`.
 
@@ -107,6 +108,7 @@ Bob, потом ws закрылся, потом второй WS пришёл с 
 | `retro-header-redesign.spec.ts` | Issue #62 follow-up — клик по имени доски (фасилитатор) открывает `RetroSettingsModal` и переименовывает доску; не-фасилитатор видит обычный текст без кнопки настроек; клик по аватарке открывает `RetroProfileMenu`, смена ника там же отражается у другого участника живьём (title аватарки-участника); кнопка «Close board for everyone» из `RetroProfileMenu` закрывает доску для всех; pencil-toggle переключает режим рисования (`drawing-toggle` data-active) и гасится по ESC; штрих, нарисованный одним участником, долетает вторым через `drawing-canvas`'s `data-stroke-count` (тот же `DrawingCanvas`, что в Planning Poker, просто подключённый к retro WS); invite-модалка показывает/прячет QR-код по кнопке-тумблеру (canvas 200×200, отфильтрован от фонового `drawing-canvas` по testid) |
 | `retro-templates.spec.ts` | Issue #67 — расширенный 5-колоночный шаблон выбран по умолчанию на `/retro/new` и его карточка идёт первой в пикере; создание доски без выбора шаблона заводит все 5 ожидаемых колонок в правильном порядке; ручной выбор 3-колоночного «What went well / To improve / Action items» создаёт доску именно с этими тремя колонками (без «Risks»); порядок карточек в `RetroTemplatePicker` — расширенный шаблон раньше «Mad / Sad / Glad» и остальных старых пресетов |
 | `retro-reactions-panel.spec.ts` | Issue #68 — клик по эмодзи в `retro-reactions-panel` показывает `reaction-floater` у обоих клиентов (переиспользуемый `ReactionFloater`, без on-card оверлея); второй клик в пределах 600мс throttled; негативная проверка — панель эмодзи-only, `reactions-mode-number` и time-value кнопки (`1h`, `3d`) отсутствуют на Retro Board |
+| `retro-card-comments.spec.ts` | Issue #65 — добавленный комментарий появляется у другого участника с корректным счётчиком (`retro-card-comment-count`); автор может удалить свой комментарий; не-фасилитатор/не-автор не видит кнопку удаления чужого комментария, а фасилитатор — видит и может удалить |
 
 ### Helpers (`tests/e2e/helpers.ts`)
 
