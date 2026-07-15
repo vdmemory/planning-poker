@@ -261,19 +261,13 @@ Facilitator-only: `start_timer { seconds }`, `pause_timer`, `resume_timer`, `res
 
 **Регрессия, найденная и исправленная**: изначально клиент фильтровал только cross-column drop — но НЕ фильтровал drop карточки на любую карточку из её же собственной стопки (голова на своего ребёнка, ребёнок на свою голову, сиблинг на сиблинга). Так как дети рендерятся прямо под своей головой (визуально смежно), это была лёгкая, обыденная случайность при перетаскивании — и раз сервер отвечал `RetroError("Cards are already in the same group")`, вся страница обваливалась в полноэкранный `"Something went wrong"`. Исправлено: `useRetroCardDrag` резолвит голову источника и цели прямо из DOM (`data-group-id`, который `RetroCardItem` пишет из `card.group_id`) через `resolveHeadFromDom()` и не подсвечивает/не шлёт WS-сообщение, если головы совпадают — тот же приём, что уже применялся для cross-column.
 
-## Реакции на карточки (issue #62 Phase 2)
-
-Быстрые эмодзи-реакции на конкретную карточку — облегчённый аналог Planning Poker's `reaction`/`throw_reaction` (issue #32/#51): чисто эфемерный relay, **ничего не пишется** в `RetroCard` или `RetroBoard`.
-
-**WS**: `{ type: "react_to_card", card_id, value }` → сервер валидирует (участник в доске, карточка существует, `value` не пустой) и broadcast'ит `{ type: "card_reaction", card_id, from_participant_id, from_nickname, value }` **всем клиентам, включая отправителя** (чтобы его собственный оверлей тоже всплыл).
-
-Фронт: `useRetroCardReactions` — упрощённый вариант `useReactionAnimations` (issue #32), только on-card оверлей (`reactions-overlay-pop`, переиспользуется CSS-анимация 1-в-1), без «плавающих» иконок в углу экрана — для реакции на карточку нет единого «угла отправителя», как у реакции на игрока. Оверлей живёт 3 секунды, затем сам скрывается.
-
 ## Реакции в шапке (self-reaction, issue #68)
 
-Отдельная от «Реакции на карточки» (выше) фича: панель быстрых эмодзи-реакций в хедере доски — аналог Planning Poker's `ReactionsPanel` (issue #32), но **только эмодзи**, без переключателя в режим time-value ("capacity gut-check" — специфика Planning Poker, к ретроспективе не относится). Не привязана ни к какой карточке — в отличие от `react_to_card`/`card_reaction`, здесь нет `card_id` вовсе.
+Панель быстрых эмодзи-реакций в хедере доски — аналог Planning Poker's `ReactionsPanel` (issue #32), но **только эмодзи**, без переключателя в режим time-value ("capacity gut-check" — специфика Planning Poker, к ретроспективе не относится). Не привязана ни к какой карточке — нет `card_id` вовсе.
 
-**WS**: `{ type: "reaction", value }` → сервер валидирует (участник в доске, `value` не пустой) и broadcast'ит `{ type: "reaction", from_participant_id, from_nickname, avatar_color, value }` **всем клиентам, включая отправителя** (тот же паттерн relay, что и `card_reaction`).
+> Карточные реакции (`react_to_card`/`card_reaction`, issue #62 Phase 2 — кнопка-триггер рядом с голосом на самой карточке) были убраны как избыточные после появления этой панели: `RetroCardReactionBar.tsx`, `useRetroCardReactions.ts` и backend `RetroService.react_to_card()` удалены целиком, `RetroCardItem`/`RetroCardStack` больше не принимают `reactionOverlay`/`onReact`.
+
+**WS**: `{ type: "reaction", value }` → сервер валидирует (участник в доске, `value` не пустой) и broadcast'ит `{ type: "reaction", from_participant_id, from_nickname, avatar_color, value }` **всем клиентам, включая отправителя** — чисто эфемерный relay, ничего не пишется в `RetroBoard`.
 
 Фронт: `RetroReactionsPanel` — клон `ReactionsPanel` без mode-toggle (та же конвенция, что и у `RetroProfileMenu`/`RetroSettingsModal`: клон, а не расширение с условным пропом). Переиспользует `REACTION_EMOJIS`/`REACTION_THROTTLE_MS`/`REACTION_FLOATER_MS` и Lottie-ассеты из `ReactionsPanel.tsx` — это просто данные/константы, привязанные к файлам в `public/reactions-lottie/`, а не Planning-Poker-специфичная UI-логика (та же граница reuse-vs-clone, что уже применена к `DrawingCanvas`). Throttle — те же 600мс, что и в Planning Poker, по той же причине (не дать одному участнику засыпать остальных реакциями).
 
@@ -283,9 +277,7 @@ Facilitator-only: `start_timer { seconds }`, `pause_timer`, `resume_timer`, `res
 
 ## Мобильная адаптация (issue #62 Phase 2)
 
-Ручка перетаскивания (`data-testid="retro-card-grip"`) и реакции — обычные элементы в собственном layout'е карточки (не floating-оверлеи), поэтому не требуют никакой capability-based hover-логики (`@media(hover:hover)` и т.п.) — они одинаково работают что мышью, что пальцем, без специального кейса под тач-устройства.
-
-**Регрессия, найденная и исправленная в этом же PR**: первая реализация реакций рендерила `RetroCardReactionBar` как floating-оверлей (`position: absolute`, hover-reveal на десктопе / всегда видимый на тач-устройствах), позиционированный ПОВЕРХ самой карточки. Так как карточки в колонке стоят плотно (`space-y-2` — всего 8px между ними, в отличие от игровых карточек Planning Poker на просторном овальном столе), у оверлея физически не было места, чтобы не перекрыть текст самой карточки — на десктопе текст становился нечитаемым при любом наведении (в том числе при клике на vote/edit/delete, которые требуют навести мышь на карточку), а на тач-устройствах, где hover-состояния не существует, панель реакций перекрывала текст **постоянно**, на 100% времени. Исправлено: реакция теперь — маленькая кнопка-триггер в собственном ряду действий карточки (там же, где edit/delete/vote), по клику открывающая popover эмодзи, который разворачивается **вниз** (`top-full`, а не `bottom-full`) — так popover уходит в пустое пространство под карточкой, а не на её же текст. Регрессионный e2e-тест (`retro-board-phase2.spec.ts` → «reaction popover never overlaps the card's own text») сравнивает bounding box'ы текста и popover'а напрямую, потому что `toBeVisible()` не ловит геометрическое перекрытие.
+Ручка перетаскивания (`data-testid="retro-card-grip"`) — обычный элемент в собственном layout'е карточки (не floating-оверлей), поэтому не требует никакой capability-based hover-логики (`@media(hover:hover)` и т.п.) — она одинаково работает что мышью, что пальцем, без специального кейса под тач-устройства.
 
 Genuine touch-drag группировки не покрыт e2e-тестами (см. `docs/TESTING.md`) — синтетические `TouchEvent`, диспатченные тестом, не транслируются браузером в `PointerEvent` так, как это делает реальное аппаратное прикосновение; e2e использует настоящий `page.mouse` (который Chromium честно транслирует в `PointerEvent`) вместо этого.
 

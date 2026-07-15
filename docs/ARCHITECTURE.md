@@ -224,9 +224,9 @@ frontend/src/
 ├── components/
 │   ├── RetroTemplatePicker.tsx выбор из 3 preset-шаблонов колонок
 │   ├── RetroColumn.tsx         одна колонка: рендерит стопки (head+children), форма добавления
-│   ├── RetroCardItem.tsx       ОДНА (never-grouped) карточка: inline-edit, vote, drag-grip, reactions
+│   ├── RetroCardItem.tsx       ОДНА (never-grouped) карточка: inline-edit, vote, drag-grip
 │   ├── RetroCardStack.tsx      смёрженная карточка: тексты через "---", один общий голос/автор, undo
-│   ├── RetroCardReactionBar.tsx Phase 2 — click-по-триггеру попап из 6 эмодзи для react_to_card
+│   ├── RetroReactionsPanel.tsx issue #68 — клон ReactionsPanel, эмодзи-only, в хедере (не привязана к карточке)
 │   ├── RetroTimer.tsx          idle/running/paused UI таймера, live-countdown на клиенте
 │   ├── RetroSettingsModal.tsx  follow-up — клон GameSettingsModal (полноэкранный модал,
 │   │                           открывается кликом по имени доски); заменил старый
@@ -237,8 +237,8 @@ frontend/src/
 │   ├── useRetroSocket.ts       WS с авто-реконнектом, аналог useRoomSocket; onDrawMessage —
 │   │                           follow-up, роутит draw_stroke/draw_cursor/draw_clear
 │   ├── useRetroCardDrag.ts     Phase 2 — Pointer Events drag-to-merge state (не HTML5 DnD)
-│   └── useRetroCardReactions.ts Phase 2 — on-card оверлей для card_reaction, упрощённый
-│                               аналог useReactionAnimations (без floater'ов)
+│   └── useRetroReactions.ts    issue #68 — floater-очередь для header self-reaction,
+│                               урезанный клон useReactionAnimations (без on-card оверлея)
 └── types.ts                     + RetroTemplate, RetroColumnDef, RetroParticipant,
                                   RetroCard (+ group_id), RetroBoardState
 ```
@@ -263,9 +263,9 @@ frontend/src/
 
 ### WebSocket
 
-**Client → Server**: `add_card`, `edit_card`, `delete_card`, `vote_card`, `unvote_card`, `group_cards`, `ungroup_card`, `react_to_card`, `start_timer`, `pause_timer`, `resume_timer`, `reset_timer`, `update_board`, `update_nickname`, `update_avatar_color`, `kick_participant`, `close_board`, `draw_stroke`, `draw_cursor`, `draw_clear`.
+**Client → Server**: `add_card`, `edit_card`, `delete_card`, `vote_card`, `unvote_card`, `group_cards`, `ungroup_card`, `reaction`, `start_timer`, `pause_timer`, `resume_timer`, `reset_timer`, `update_board`, `update_nickname`, `update_avatar_color`, `kick_participant`, `close_board`, `draw_stroke`, `draw_cursor`, `draw_clear`.
 
-**Server → Client**: `joined`, `board_state`, `card_reaction`, `kicked`, `board_closed`, `board_expired`, `board_inactive`, `draw_*` (relay), `error`.
+**Server → Client**: `joined`, `board_state`, `reaction`, `kicked`, `board_closed`, `board_expired`, `board_inactive`, `draw_*` (relay), `error`.
 
 Полный протокол и семантика каждого сообщения — `docs/RETRO_BUSINESS_LOGIC.md`.
 
@@ -275,7 +275,7 @@ frontend/src/
 - **Anonymous mode — display-only**: `author_id` всегда на wire (нужен для permission-проверок), фронт лишь скрывает никнейм у не-авторов. Не переход на per-connection `send_to()`.
 - **Таймер — абсолютный дедлайн** (`timer_ends_at`), не серверный тик — клиент считает live-countdown сам, никакой новой per-board фоновой задачи.
 - **Группировка через Pointer Events, не HTML5 Drag-and-Drop** (Phase 2) — нативный `draggable` не работает на тач-устройствах; `onPointerDown`/`setPointerCapture` на маленькой ручке карточки работает одинаково с мышью и пальцем без дублирования обработчиков.
-- **Реакции на карточки — чистый relay** (Phase 2), как `reaction`/`throw_reaction` в Planning Poker — ничего не пишется в `RetroCard`, только validate + broadcast.
+- **Header self-reaction (`reaction`, issue #68) — чистый relay**, как `reaction`/`throw_reaction` в Planning Poker — ничего не пишется в `RetroBoard`, только validate + broadcast всем участникам включая отправителя.
 - **`ConnectionManager` переиспользуется** напрямую (domain-agnostic), но cleanup-задачи — отдельные функции (ссылаются на разные имена полей `Room`/`RetroBoard`).
 - **Нет `close_on_facilitator_leave`** — упрощённый facilitator-handoff без опт-аута, сознательный scope-trim для Phase 1.
 - **Header переведён на двухуровневую схему Planning Poker** (follow-up к issue #62): клик по имени доски (фасилитатор) → `RetroSettingsModal` (клон `GameSettingsModal`, batched-save по кнопке); клик по аватарке → `RetroProfileMenu` (клон `ProfileMenu` без spectator). Старый гибрид «инлайн-рен + шестерёнка-дропдаун» удалён целиком.
