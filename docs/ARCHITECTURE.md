@@ -118,12 +118,15 @@ disconnected_at старше 30s? → remove_player
 ```
 frontend/src/
 ├── pages/
-│   ├── LandingPage.tsx   маркетинговый лендинг на `/` (issue #22): hero, «как это работает», фичи, скриншот комнаты
-│   ├── FAQPage.tsx       `/faq`
+│   ├── LandingPage.tsx   маркетинговый лендинг на `/` (issue #22, переработан под оба продукта — follow-up):
+│   │                     общий hero с двумя CTA → 2 quick-nav карточки-якоря → секция Planning Poker
+│   │                     (скриншот, «как это работает», фичи, CTA) → секция Retro Board (свой скриншот,
+│   │                     свои шаги, свои фичи, свой CTA) → общий bottom CTA
+│   ├── FAQPage.tsx       `/faq` — вопросы сгруппированы под заголовками «Planning Poker» / «Retro Board» (follow-up)
 │   ├── Home.tsx          форма создания комнаты (`/new` — до issue #22 была на `/`), POST /api/rooms
 │   └── RoomPage.tsx      игровой экран; всё под одним WS-каналом
 ├── components/
-│   ├── MarketingShell.tsx общий header (лого + nav) / footer для лендинга и FAQ
+│   ├── MarketingShell.tsx общий header (лого + nav, включая ссылку на Retro Board) / footer для лендинга и FAQ
 │   ├── Card.tsx          одна карта (на руке + на столе)
 │   ├── PlayerList.tsx    список игроков с offline-индикатором, аватарами
 │   ├── StatsPanel.tsx    avg / median / distribution / consensus
@@ -142,7 +145,7 @@ frontend/src/
 | `/new` | `Home` | Форма создания комнаты — POST `/api/rooms` |
 | `/room/:roomId` | `RoomPage` | Игровой экран |
 
-Лендинг и FAQ не трогают бэкенд и WS вообще — чисто фронтовый роутинг, общий `MarketingShell` для header/footer. Скриншот комнаты на лендинге переключается между `public/landing/room-dark.png` / `room-light.png` по классу `html.light` (тот же механизм, что и остальная тема приложения — см. `useTheme`), а не по `prefers-color-scheme`, потому что выбор темы в приложении — explicit user choice в `localStorage`, а не всегда совпадает с OS-preference.
+Лендинг и FAQ не трогают бэкенд и WS вообще — чисто фронтовый роутинг, общий `MarketingShell` для header/footer. Оба скриншота на лендинге (Planning Poker: `public/landing/room-dark.png`/`room-light.png`; Retro Board: `retro-dark.png`/`retro-light.png`, follow-up) переключаются между dark/light-версией по классу `html.light` (тот же механизм, что и остальная тема приложения — см. `useTheme`), а не по `prefers-color-scheme`, потому что выбор темы в приложении — explicit user choice в `localStorage`, а не всегда совпадает с OS-preference. Retro-скриншоты сделаны тем же приёмом, что и room-скриншоты, — реальный Playwright-сеанс с несколькими участниками, карточками и голосами, а не мокап.
 
 ### `useRoomSocket`
 
@@ -249,7 +252,7 @@ frontend/src/
 | `/retro/new` | `RetroNewPage` | Форма создания доски — POST `/api/retro-boards` |
 | `/retro/:boardId` | `RetroBoardPage` | Экран доски |
 
-Кнопка-переход на лендинге (`LandingPage.tsx`, `data-testid="landing-retro-cta"`) ведёт на `/retro/new` — hero-секция и отдельный teaser-блок перед bottom CTA.
+Переходы на лендинге (`LandingPage.tsx`) ведут на `/retro/new`: hero CTA (`data-testid="landing-retro-cta"`), quick-nav карточка (`data-testid="landing-retro-nav-card"`, якорь на `#retro-board`), CTA под фичами самой секции Retro Board, и общий bottom CTA — follow-up переработал лендинг так, чтобы Retro Board была полноценной секцией 1-в-1 с Planning Poker, а не подвальным тизером.
 
 ### REST
 
