@@ -10,6 +10,8 @@ services:
     envVars:
       - key: CORS_ORIGINS
         sync: false
+      - key: GIPHY_API_KEY
+        sync: false
       - key: PYTHON_VERSION
         value: 3.12.0
 
@@ -23,6 +25,8 @@ services:
     healthCheckPath: /healthz
     envVars:
       - key: CORS_ORIGINS
+        sync: false
+      - key: GIPHY_API_KEY
         sync: false
       - key: PYTHON_VERSION
         value: 3.12.0
