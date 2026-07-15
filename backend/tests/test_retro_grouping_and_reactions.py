@@ -1,4 +1,4 @@
-"""Retro board card grouping (drag-to-merge) and card reactions (issue #62, Phase 2)."""
+"""Retro board card grouping (drag-to-merge, issue #62 Phase 2) and header reactions (issue #68)."""
 from __future__ import annotations
 
 import pytest
@@ -183,41 +183,6 @@ def test_delete_standalone_card_leaves_other_groups_untouched(retro_service):
     retro_service.delete_card(board.id, alice.id, standalone.id)
     fresh = retro_service.get_board(board.id)
     assert fresh.cards[a.id].group_id == b.id
-
-
-# ---------- Card reactions ----------
-
-def test_react_to_card_returns_relay_payload(retro_service):
-    board, alice = _board(retro_service)
-    card = retro_service.add_card(board.id, alice.id, "mad", "text")
-    msg = retro_service.react_to_card(board.id, alice.id, card.id, "👍")
-    assert msg == {
-        "type": "card_reaction",
-        "card_id": card.id,
-        "from_participant_id": alice.id,
-        "from_nickname": "alice",
-        "value": "👍",
-    }
-
-
-def test_react_to_card_rejects_unknown_card(retro_service):
-    board, alice = _board(retro_service)
-    with pytest.raises(RetroError, match="Card not found"):
-        retro_service.react_to_card(board.id, alice.id, "ghost", "👍")
-
-
-def test_react_to_card_rejects_non_participant(retro_service):
-    board, alice = _board(retro_service)
-    card = retro_service.add_card(board.id, alice.id, "mad", "text")
-    with pytest.raises(RetroError, match="Participant not in board"):
-        retro_service.react_to_card(board.id, "ghost", card.id, "👍")
-
-
-def test_react_to_card_rejects_empty_value(retro_service):
-    board, alice = _board(retro_service)
-    card = retro_service.add_card(board.id, alice.id, "mad", "text")
-    with pytest.raises(RetroError, match="Missing reaction value"):
-        retro_service.react_to_card(board.id, alice.id, card.id, "")
 
 
 # ---------- Header reactions (issue #68) ----------

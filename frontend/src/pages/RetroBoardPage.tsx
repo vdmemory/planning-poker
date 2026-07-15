@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useRetroSocket } from "../hooks/useRetroSocket";
 import { useRetroCardDrag } from "../hooks/useRetroCardDrag";
-import { useRetroCardReactions } from "../hooks/useRetroCardReactions";
 import { useRetroReactions } from "../hooks/useRetroReactions";
 import { useTheme } from "../hooks/useTheme";
 import { useAccent } from "../hooks/useAccent";
@@ -98,7 +97,6 @@ function RetroBoard({ boardId, nickname, storedParticipantId }: {
   boardId: string; nickname: string; storedParticipantId: string | null;
 }) {
   const navigate = useNavigate();
-  const { cardReactionOverlays, handleCardReactionMessage } = useRetroCardReactions();
   const { floaters, handleReactionMessage } = useRetroReactions();
   const drawHandlerRef = useRef<((msg: object) => void) | null>(null);
   const handleDrawMessage = useCallback((msg: object) => { drawHandlerRef.current?.(msg); }, []);
@@ -106,7 +104,6 @@ function RetroBoard({ boardId, nickname, storedParticipantId }: {
     boardId,
     participantId: storedParticipantId,
     nickname,
-    onCardReactionMessage: handleCardReactionMessage,
     onDrawMessage: handleDrawMessage,
     onReactionMessage: handleReactionMessage,
   });
@@ -434,8 +431,6 @@ function RetroBoard({ boardId, nickname, storedParticipantId }: {
               onDragStart={startDrag}
               onDragMove={moveDrag}
               onDragEnd={endDrag}
-              cardReactionOverlays={cardReactionOverlays}
-              onReactToCard={(cardId, value) => send({ type: "react_to_card", card_id: cardId, value })}
             />
           ))}
         </div>

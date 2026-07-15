@@ -2,7 +2,6 @@ import { useState } from "react";
 import type { RetroCard, RetroColumnDef, RetroParticipant } from "../types";
 import { RetroCardItem } from "./RetroCardItem";
 import { RetroCardStack } from "./RetroCardStack";
-import type { CardReactionOverlay } from "../hooks/useRetroCardReactions";
 
 interface Props {
   column: RetroColumnDef;
@@ -17,16 +16,14 @@ interface Props {
   onUnvote: (cardId: string) => void;
   onEditCard: (cardId: string, text: string) => void;
   onDeleteCard: (cardId: string) => void;
-  // Issue #62 Phase 2 — grouping (lifted to the board so drag state is
-  // shared across columns) and reactions.
+  // Issue #62 Phase 2 — grouping, lifted to the board so drag state is
+  // shared across columns.
   onUngroupCard: (cardId: string) => void;
   draggingId: string | null;
   overId: string | null;
   onDragStart: (cardId: string, columnId: string) => void;
   onDragMove: (clientX: number, clientY: number) => void;
   onDragEnd: () => void;
-  cardReactionOverlays: Record<string, CardReactionOverlay>;
-  onReactToCard: (cardId: string, value: string) => void;
 }
 
 export function RetroColumn({
@@ -48,8 +45,6 @@ export function RetroColumn({
   onDragStart,
   onDragMove,
   onDragEnd,
-  cardReactionOverlays,
-  onReactToCard,
 }: Props) {
   const [draft, setDraft] = useState("");
 
@@ -94,8 +89,6 @@ export function RetroColumn({
                 onDragStart={() => onDragStart(head.id, column.id)}
                 onDragMove={onDragMove}
                 onDragEnd={onDragEnd}
-                reactionOverlay={cardReactionOverlays[head.id] ?? null}
-                onReact={(value) => onReactToCard(head.id, value)}
               />
             );
           }
@@ -118,8 +111,6 @@ export function RetroColumn({
               onDragStart={() => onDragStart(head.id, column.id)}
               onDragMove={onDragMove}
               onDragEnd={onDragEnd}
-              reactionOverlay={cardReactionOverlays[head.id] ?? null}
-              onReact={(value) => onReactToCard(head.id, value)}
             />
           );
         })}

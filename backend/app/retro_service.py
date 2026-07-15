@@ -304,36 +304,13 @@ class RetroService:
                 c.group_id = None
         self.store.save(board)
 
-    # ---------- Card reactions (issue #62 Phase 2) ----------
-
-    def react_to_card(self, board_id: str, participant_id: str, card_id: str, value: str) -> dict:
-        """Pure ephemeral relay, like Planning Poker's `reaction`/`throw_reaction`:
-        nothing lands on the board, this just validates and packages the
-        broadcast payload for the WS layer.
-        """
-        board = self.get_board(board_id)
-        participant = board.participants.get(participant_id)
-        if not participant:
-            raise RetroError("Participant not in board")
-        if card_id not in board.cards:
-            raise RetroError("Card not found")
-        if not value:
-            raise RetroError("Missing reaction value")
-        return {
-            "type": "card_reaction",
-            "card_id": card_id,
-            "from_participant_id": participant_id,
-            "from_nickname": participant.nickname,
-            "value": value,
-        }
-
     # ---------- Header reactions (issue #68) ----------
 
     def react(self, board_id: str, participant_id: str, value: str) -> dict:
         """Self-reaction, not tied to any card — the header equivalent of
         Planning Poker's `reaction` (issue #32), emoji-only (no time-value
         mode, that's specific to Planning Poker's capacity gut-check).
-        Same pure-relay shape as `react_to_card`: nothing lands on the board.
+        Pure ephemeral relay: nothing lands on the board.
         """
         board = self.get_board(board_id)
         participant = board.participants.get(participant_id)

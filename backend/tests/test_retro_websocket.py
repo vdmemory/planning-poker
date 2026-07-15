@@ -207,27 +207,6 @@ def test_draw_stroke_is_relayed_to_everyone_except_sender(client):
         assert next_a["type"] == "board_state"
 
 
-def test_react_to_card_broadcasts_to_all_including_sender(client):
-    data = create_retro_board_via_api(client)
-    with client.websocket_connect(_ws_url(data["board_id"], data["participant_id"])) as ws_a, \
-         client.websocket_connect(_ws_url(data["board_id"], "x", "bob")) as ws_b:
-        ws_a.receive_json(); ws_a.receive_json()
-        ws_b.receive_json(); ws_b.receive_json()
-        ws_a.receive_json()  # bob join broadcast
-
-        ws_a.send_json({"type": "add_card", "column_id": "mad", "text": "text"})
-        msg = ws_a.receive_json(); ws_b.receive_json()
-        card_id = msg["state"]["cards"][0]["id"]
-
-        ws_b.send_json({"type": "react_to_card", "card_id": card_id, "value": "👍"})
-        for ws in (ws_a, ws_b):
-            msg = ws.receive_json()
-            assert msg["type"] == "card_reaction"
-            assert msg["card_id"] == card_id
-            assert msg["value"] == "👍"
-            assert msg["from_nickname"] == "bob"
-
-
 def test_reaction_broadcasts_to_all_including_sender(client):
     # Issue #68 — header self-reaction, not tied to a card.
     data = create_retro_board_via_api(client)

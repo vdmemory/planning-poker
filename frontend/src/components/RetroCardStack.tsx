@@ -1,7 +1,4 @@
-import { useEffect, useRef, useState } from "react";
 import type { RetroCard, RetroParticipant } from "../types";
-import { RetroCardReactionBar } from "./RetroCardReactionBar";
-import type { CardReactionOverlay } from "../hooks/useRetroCardReactions";
 
 /**
  * Issue #62 Phase 2 follow-up — merged cards render as ONE card with each
@@ -32,8 +29,6 @@ interface Props {
   onDragStart: () => void;
   onDragMove: (clientX: number, clientY: number) => void;
   onDragEnd: () => void;
-  reactionOverlay: CardReactionOverlay | null;
-  onReact: (emoji: string) => void;
 }
 
 export function RetroCardStack({
@@ -51,21 +46,7 @@ export function RetroCardStack({
   onDragStart,
   onDragMove,
   onDragEnd,
-  reactionOverlay,
-  onReact,
 }: Props) {
-  const [showReactions, setShowReactions] = useState(false);
-  const reactionsRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!showReactions) return;
-    function handler(e: MouseEvent) {
-      if (reactionsRef.current && !reactionsRef.current.contains(e.target as Node)) setShowReactions(false);
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [showReactions]);
-
   const all = [head, ...childCards];
   const showAuthor = !anonymousMode;
   const voters = new Set<string>();
@@ -90,18 +71,6 @@ export function RetroCardStack({
         isDropTarget ? "border-accent ring-2 ring-accent" : "border-[var(--c-border)]"
       } ${isDragging ? "opacity-40" : ""}`}
     >
-      {reactionOverlay && (
-        <div
-          data-testid="retro-card-reaction-overlay"
-          data-reaction-value={reactionOverlay.value}
-          className="absolute top-0 right-2 -translate-y-1/2 pointer-events-none z-10"
-        >
-          <div className="reactions-overlay-pop inline-flex items-center justify-center w-9 h-9 text-2xl leading-none">
-            {reactionOverlay.value}
-          </div>
-        </div>
-      )}
-
       <div className="flex items-start gap-1.5 mb-2">
         <span
           data-testid="retro-card-grip"
@@ -157,27 +126,6 @@ export function RetroCardStack({
               <path d="M13 2v3.5H9.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </button>
-
-          <div className="relative" ref={reactionsRef}>
-            <button
-              data-testid="retro-card-reaction-trigger"
-              onClick={() => setShowReactions((v) => !v)}
-              title="React"
-              className="text-slate-500 hover:text-white p-1 rounded transition-colors"
-            >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.4"/>
-                <path d="M5.5 9.5s.9 1.5 2.5 1.5 2.5-1.5 2.5-1.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-                <circle cx="5.8" cy="6.3" r="0.9" fill="currentColor"/>
-                <circle cx="10.2" cy="6.3" r="0.9" fill="currentColor"/>
-              </svg>
-            </button>
-            {showReactions && (
-              <div className="absolute top-full right-0 mt-2 z-30">
-                <RetroCardReactionBar onReact={(emoji) => { onReact(emoji); setShowReactions(false); }} />
-              </div>
-            )}
-          </div>
 
           <button
             data-testid="retro-card-vote"
