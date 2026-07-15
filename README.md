@@ -193,6 +193,7 @@ frontend/src/
 - Таймер с абсолютным дедлайном (`timer_ends_at`, пресеты 3/5/10 минут); по достижении нуля — пульсирующий бейдж «Time's up!» на клиенте мгновенно + автопауза на сервере через фоновую задачу `expire_finished_timers`
 - Drag-to-merge группировка карточек (Pointer Events, не HTML5 Drag-and-Drop — работает и мышью, и пальцем) с confirm-диалогом перед слиянием и кнопкой undo; смёрженные карточки рендерятся как одна карточка с текстами через «---», один общий голос и автор
 - Эмодзи-реакции на карточки — чистый relay, ничего не сохраняется на сервере
+- Панель быстрых реакций в шапке (issue #68) — эмодзи-only клон Planning Poker's ReactionsPanel (без time-value режима), рисует floater в левом нижнем углу у всех участников; throttle 600ms
 - Kick участника фасилитатором, закрытие доски для всех
 - Настройки доски (`RetroSettingsModal`, открывается кликом по имени доски — только фасилитатор) и профиль участника (`RetroProfileMenu`, открывается кликом по аватарке) — клоны `GameSettingsModal`/`ProfileMenu` из Planning Poker
 - Рисование на экране и live-курсоры — тот же компонент `DrawingCanvas`, что и в Planning Poker, переиспользован без форка
@@ -225,13 +226,15 @@ frontend/src/
 │   ├── RetroCardItem.tsx       # одна (never-grouped) карточка: inline-edit, vote, drag, реакции
 │   ├── RetroCardStack.tsx      # смёрженная карточка: тексты через "---", общий голос/автор, undo
 │   ├── RetroCardReactionBar.tsx
+│   ├── RetroReactionsPanel.tsx  # issue #68 — клон ReactionsPanel, эмодзи-only, в шапке
 │   ├── RetroTimer.tsx          # + бейдж "Time's up!"
 │   ├── RetroSettingsModal.tsx  # клон GameSettingsModal
 │   └── RetroProfileMenu.tsx    # клон ProfileMenu без spectator-тумблера
 └── hooks/
     ├── useRetroSocket.ts       # WebSocket с авто-реконнектом, аналог useRoomSocket
     ├── useRetroCardDrag.ts     # Pointer Events drag-to-merge state
-    └── useRetroCardReactions.ts
+    ├── useRetroCardReactions.ts
+    └── useRetroReactions.ts     # issue #68 — floater-очередь для header self-reaction
 ```
 
 Подробности архитектуры — `docs/ARCHITECTURE.md` → «Retro Board», полная бизнес-логика — `docs/RETRO_BUSINESS_LOGIC.md`.
@@ -260,6 +263,7 @@ frontend/src/
 | `group_cards` | `{ source_card_id, target_card_id }` | автор исходной карточки или фасилитатор |
 | `ungroup_card` | `{ card_id }` | автор карточки или фасилитатор |
 | `react_to_card` | `{ card_id, value }` | любой участник; релей всем включая отправителя |
+| `reaction` | `{ value }` | любой участник; header self-reaction, не привязана к карточке; релей всем включая отправителя (issue #68) |
 | `start_timer` | `{ seconds }` | facilitator |
 | `pause_timer` / `resume_timer` / `reset_timer` | — | facilitator |
 | `update_board` | `{ name?, anonymous_mode?, max_votes_per_person? }` | facilitator |
@@ -276,6 +280,7 @@ frontend/src/
 | `joined` | После успешного подключения. `{ participant_id }` |
 | `board_state` | После любой успешной операции, broadcast всем. `{ state }` |
 | `card_reaction` | Релей `react_to_card` всем, включая отправителя |
+| `reaction` | Релей header self-reaction (`reaction`) всем, включая отправителя (issue #68) |
 | `kicked` | Прилетает кикнутому участнику перед закрытием соединения |
 | `board_closed` | Доска закрыта фасилитатором. `{ reason: "creator_left" }` |
 | `board_expired` | Истёк 24h-таймер доски, шлётся уже подключённым. `{ reason: "timer" }` |
@@ -383,8 +388,8 @@ Id колонок — стабильные строки (`mad`, `sad`, …), а 
 
 | Слой | Где | Команда | Покрытие |
 |---|---|---|---|
-| Backend (pytest) | `backend/tests/` | `pytest` | 218 тестов — 125 Planning Poker (комнаты, голосование, issues, права, WS-интеграция) + 93 Retro Board (доски, карточки, голосование, таймер + auto-expiry, группировка, реакции, drawing relay, WS) |
-| Frontend e2e (Playwright) | `frontend/tests/e2e/` | `npm run test:e2e` | 79 тестов — 52 Planning Poker/общие (лендинг с обоими продуктами, FAQ, создание/голосование, reveal+stats, два игрока, мобильные флоу, throw-reaction, UI-анимации и др.) + 27 Retro Board |
+| Backend (pytest) | `backend/tests/` | `pytest` | 225 тестов — 125 Planning Poker (комнаты, голосование, issues, права, WS-интеграция) + 100 Retro Board (доски, карточки, голосование, таймер + auto-expiry, группировка, реакции, drawing relay, header self-reaction, WS) |
+| Frontend e2e (Playwright) | `frontend/tests/e2e/` | `npm run test:e2e` | 85 тестов — 52 Planning Poker/общие (лендинг с обоими продуктами, FAQ, создание/голосование, reveal+stats, два игрока, мобильные флоу, throw-reaction, UI-анимации и др.) + 33 Retro Board |
 
 CI: GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) гоняет оба слоя на каждый push в `main`/`dev` и на каждый PR. При падении e2e — артефакты (видео, скриншоты) аплоадятся.
 

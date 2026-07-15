@@ -228,6 +228,24 @@ def test_react_to_card_broadcasts_to_all_including_sender(client):
             assert msg["from_nickname"] == "bob"
 
 
+def test_reaction_broadcasts_to_all_including_sender(client):
+    # Issue #68 — header self-reaction, not tied to a card.
+    data = create_retro_board_via_api(client)
+    with client.websocket_connect(_ws_url(data["board_id"], data["participant_id"])) as ws_a, \
+         client.websocket_connect(_ws_url(data["board_id"], "x", "bob")) as ws_b:
+        ws_a.receive_json(); ws_a.receive_json()
+        ws_b.receive_json(); ws_b.receive_json()
+        ws_a.receive_json()  # bob join broadcast
+
+        ws_b.send_json({"type": "reaction", "value": "🎉"})
+        for ws in (ws_a, ws_b):
+            msg = ws.receive_json()
+            assert msg["type"] == "reaction"
+            assert msg["value"] == "🎉"
+            assert msg["from_nickname"] == "bob"
+            assert "card_id" not in msg
+
+
 # ---------- WS error path ----------
 
 def test_vote_unknown_card_sends_error_to_sender_only(client):

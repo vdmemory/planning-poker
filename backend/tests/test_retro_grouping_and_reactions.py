@@ -218,3 +218,29 @@ def test_react_to_card_rejects_empty_value(retro_service):
     card = retro_service.add_card(board.id, alice.id, "mad", "text")
     with pytest.raises(RetroError, match="Missing reaction value"):
         retro_service.react_to_card(board.id, alice.id, card.id, "")
+
+
+# ---------- Header reactions (issue #68) ----------
+
+def test_react_returns_relay_payload(retro_service):
+    board, alice = _board(retro_service)
+    msg = retro_service.react(board.id, alice.id, "🎉")
+    assert msg == {
+        "type": "reaction",
+        "from_participant_id": alice.id,
+        "from_nickname": "alice",
+        "avatar_color": alice.avatar_color,
+        "value": "🎉",
+    }
+
+
+def test_react_rejects_non_participant(retro_service):
+    board, _ = _board(retro_service)
+    with pytest.raises(RetroError, match="Participant not in board"):
+        retro_service.react(board.id, "ghost", "🎉")
+
+
+def test_react_rejects_empty_value(retro_service):
+    board, alice = _board(retro_service)
+    with pytest.raises(RetroError, match="Missing reaction value"):
+        retro_service.react(board.id, alice.id, "")

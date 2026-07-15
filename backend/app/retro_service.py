@@ -327,6 +327,28 @@ class RetroService:
             "value": value,
         }
 
+    # ---------- Header reactions (issue #68) ----------
+
+    def react(self, board_id: str, participant_id: str, value: str) -> dict:
+        """Self-reaction, not tied to any card — the header equivalent of
+        Planning Poker's `reaction` (issue #32), emoji-only (no time-value
+        mode, that's specific to Planning Poker's capacity gut-check).
+        Same pure-relay shape as `react_to_card`: nothing lands on the board.
+        """
+        board = self.get_board(board_id)
+        participant = board.participants.get(participant_id)
+        if not participant:
+            raise RetroError("Participant not in board")
+        if not value:
+            raise RetroError("Missing reaction value")
+        return {
+            "type": "reaction",
+            "from_participant_id": participant_id,
+            "from_nickname": participant.nickname,
+            "avatar_color": participant.avatar_color,
+            "value": value,
+        }
+
     # ---------- Timer ----------
 
     def start_timer(self, board_id: str, participant_id: str, seconds: int) -> None:

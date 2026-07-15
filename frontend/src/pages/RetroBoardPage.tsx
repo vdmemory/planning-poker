@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useRetroSocket } from "../hooks/useRetroSocket";
 import { useRetroCardDrag } from "../hooks/useRetroCardDrag";
 import { useRetroCardReactions } from "../hooks/useRetroCardReactions";
+import { useRetroReactions } from "../hooks/useRetroReactions";
 import { useTheme } from "../hooks/useTheme";
 import { useAccent } from "../hooks/useAccent";
 import { RetroColumn } from "../components/RetroColumn";
@@ -10,6 +11,8 @@ import { RetroTimer } from "../components/RetroTimer";
 import { ConfirmModal } from "../components/ConfirmModal";
 import { RetroProfileMenu } from "../components/RetroProfileMenu";
 import { RetroSettingsModal } from "../components/RetroSettingsModal";
+import { RetroReactionsPanel } from "../components/RetroReactionsPanel";
+import { ReactionFloater } from "../components/ReactionFloater";
 import { DrawingCanvas, DRAW_COLORS } from "../components/DrawingCanvas";
 import type { RetroParticipant } from "../types";
 import QRCode from "qrcode";
@@ -96,6 +99,7 @@ function RetroBoard({ boardId, nickname, storedParticipantId }: {
 }) {
   const navigate = useNavigate();
   const { cardReactionOverlays, handleCardReactionMessage } = useRetroCardReactions();
+  const { floaters, handleReactionMessage } = useRetroReactions();
   const drawHandlerRef = useRef<((msg: object) => void) | null>(null);
   const handleDrawMessage = useCallback((msg: object) => { drawHandlerRef.current?.(msg); }, []);
   const { state, myParticipantId, connected, send, error, boardInactive } = useRetroSocket({
@@ -104,6 +108,7 @@ function RetroBoard({ boardId, nickname, storedParticipantId }: {
     nickname,
     onCardReactionMessage: handleCardReactionMessage,
     onDrawMessage: handleDrawMessage,
+    onReactionMessage: handleReactionMessage,
   });
   const { theme, setTheme } = useTheme();
   const { accent, setAccent } = useAccent();
@@ -349,6 +354,12 @@ function RetroBoard({ boardId, nickname, storedParticipantId }: {
             Invite
           </button>
 
+          {/* Reactions panel (issue #68) — header self-reactions, mirrors
+              RoomPage's ReactionsPanel placement between Invite and drawing. */}
+          <RetroReactionsPanel
+            onReact={(value) => send({ type: "reaction", value })}
+          />
+
           {/* Drawing mode button — mirrors RoomPage's toggle + color swatch. */}
           <div className="relative flex items-center gap-1 z-50">
             <button
@@ -511,6 +522,19 @@ function RetroBoard({ boardId, nickname, storedParticipantId }: {
           onClose={() => setShowBoardSettings(false)}
         />
       )}
+
+      {/* Rising reaction floaters in the lower-left of the screen (#68) —
+          same lane-based animation as Planning Poker's, emoji-only. */}
+      {floaters.map((f) => (
+        <ReactionFloater
+          key={f.id}
+          kind="emoji"
+          value={f.value}
+          nickname={f.nickname}
+          color={f.color}
+          xLane={f.xLane}
+        />
+      ))}
     </div>
   );
 }
