@@ -86,7 +86,7 @@ def get_room(room_id: str):
 
 class CreateRetroBoardRequest(BaseModel):
     name: str
-    template: RetroTemplate = RetroTemplate.MAD_SAD_GLAD
+    template: RetroTemplate = RetroTemplate.WENT_WELL_EXTENDED
     facilitator_nickname: str
 
 

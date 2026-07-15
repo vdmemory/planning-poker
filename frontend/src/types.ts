@@ -62,7 +62,12 @@ export interface Stats {
 
 // ---------- Retro Board (issue #62) ----------
 
-export type RetroTemplate = "mad_sad_glad" | "start_stop_continue" | "four_ls";
+export type RetroTemplate =
+  | "went_well_extended"
+  | "went_well_actions"
+  | "mad_sad_glad"
+  | "start_stop_continue"
+  | "four_ls";
 
 export interface RetroColumnDef {
   id: string;

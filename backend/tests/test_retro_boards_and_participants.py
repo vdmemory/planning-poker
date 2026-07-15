@@ -41,6 +41,10 @@ def test_create_board_assigns_short_id(retro_service):
     (RetroTemplate.MAD_SAD_GLAD, ["Mad", "Sad", "Glad"]),
     (RetroTemplate.START_STOP_CONTINUE, ["Start", "Stop", "Continue"]),
     (RetroTemplate.FOUR_LS, ["Liked", "Learned", "Lacked", "Longed for"]),
+    (RetroTemplate.WENT_WELL_ACTIONS, ["What went well", "To improve", "Action items"]),
+    (RetroTemplate.WENT_WELL_EXTENDED, [
+        "What went well", "To improve", "Risks", "Action items", "How do you find the team's processes?",
+    ]),
 ])
 def test_create_board_seeds_columns_from_template(retro_service, template, expected_columns):
     board, _ = retro_service.create_board("X", template, "alice")

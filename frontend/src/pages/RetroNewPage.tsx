@@ -6,7 +6,7 @@ import { RetroTemplatePicker } from "../components/RetroTemplatePicker";
 export default function RetroNewPage() {
   const navigate = useNavigate();
   const [boardName, setBoardName] = useState("");
-  const [template, setTemplate] = useState<RetroTemplate>("mad_sad_glad");
+  const [template, setTemplate] = useState<RetroTemplate>("went_well_extended");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

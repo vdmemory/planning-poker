@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Real-time Planning Poker tool for agile teams. Guest mode (no registration), WebSocket-based voting. All state is in-memory — no database, no persistence between restarts.
 
-**Retro Board** (issue #62) is a second, fully independent product on the same site — a WebSocket-based retrospective board (Mad/Sad/Glad, Start/Stop/Continue, 4Ls templates). It shares no code with Planning Poker's `Room`/`RoomService` beyond the domain-agnostic `ConnectionManager`. Phase 1 shipped the core board (cards, voting, timer, moderation); Phase 2 added drag-to-merge card grouping, emoji reactions on cards, and mobile adaptation; a follow-up brought the header UI to parity with Planning Poker (board settings modal, participant profile menu) and added the on-screen drawing tool. See `docs/RETRO_BUSINESS_LOGIC.md` for business logic and the "Retro Board" subsection below for architecture.
+**Retro Board** (issue #62) is a second, fully independent product on the same site — a WebSocket-based retrospective board (5 column templates: the extended What went well/To improve/Risks/Action items/Team's processes template — the default, issue #67 — plus a shorter What went well/To improve/Action items variant, Mad/Sad/Glad, Start/Stop/Continue, and 4Ls). It shares no code with Planning Poker's `Room`/`RoomService` beyond the domain-agnostic `ConnectionManager`. Phase 1 shipped the core board (cards, voting, timer, moderation); Phase 2 added drag-to-merge card grouping, emoji reactions on cards, and mobile adaptation; a follow-up brought the header UI to parity with Planning Poker (board settings modal, participant profile menu) and added the on-screen drawing tool; a further follow-up (issue #67) added the two extra templates above. See `docs/RETRO_BUSINESS_LOGIC.md` for business logic and the "Retro Board" subsection below for architecture.
 
 ## Running Locally
 
@@ -43,13 +43,13 @@ Two layers, both treated as executable documentation (`docs/TESTING.md`):
 ```bash
 # Backend (pytest + FastAPI TestClient + WebSocket)
 cd backend && source .venv/bin/activate && pip install -r requirements-dev.txt
-pytest                   # 218 tests (125 Planning Poker + 93 Retro Board), ~0.1s
+pytest                   # 221 tests (125 Planning Poker + 96 Retro Board), ~0.1s
 
 # Frontend e2e (Playwright + Chromium)
 cd frontend
 npm install
 npx playwright install chromium
-npm run test:e2e         # 79 tests (52 Planning Poker/shared + 27 Retro Board), ~2 min
+npm run test:e2e         # 82 tests (52 Planning Poker/shared + 30 Retro Board), ~2 min
 ```
 
 Test naming reads as the spec (`test_facilitator_cannot_become_spectator`). When adding business logic, add the test **and** update `docs/BUSINESS_LOGIC.md` in the same PR — see `docs/RULES.md` rule 13 (Definition of Done for new business logic). This is non-negotiable; "later" doesn't work.
