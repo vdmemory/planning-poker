@@ -4,8 +4,9 @@ test.describe("FAQ page (/faq)", () => {
   test("loads and lists the FAQ questions", async ({ page }) => {
     await page.goto("/faq");
     await expect(page.getByRole("heading", { name: /frequently asked questions/i })).toBeVisible();
-    await expect(page.getByTestId("faq-item")).toHaveCount(6);
+    await expect(page.getByTestId("faq-item")).toHaveCount(12);
     await expect(page.getByText(/what is planning poker/i)).toBeVisible();
+    await expect(page.getByText(/what is retro board/i)).toBeVisible();
   });
 
   test("each question expands to show its answer", async ({ page }) => {

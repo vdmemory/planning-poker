@@ -8,7 +8,7 @@
 | Уровень | Где | Технология | Скорость |
 |---|---|---|---|
 | Backend service + WS | `backend/tests/` | pytest + FastAPI TestClient | 218 тестов (125 Planning Poker + 93 Retro Board), <0.1s |
-| Frontend e2e | `frontend/tests/e2e/` | Playwright + Chromium | 77 тестов (50 Planning Poker + 27 Retro Board), ~2 мин |
+| Frontend e2e | `frontend/tests/e2e/` | Playwright + Chromium | 79 тестов (52 Planning Poker/общие + 27 Retro Board), ~2 мин |
 
 ## Backend (pytest)
 
@@ -93,8 +93,8 @@ Bob, потом ws закрылся, потом второй WS пришёл с 
 | Файл | Флоу |
 |---|---|
 | `home.spec.ts` | Issue #22 — форма создания комнаты (`/new`) рендерится; create-game с пустым именем показывает ошибку, не навигирует |
-| `landing.spec.ts` | Issue #22 — лендинг на `/`: hero/«как это работает»/«фичи» рендерятся; CTA-кнопка ведёт на `/new`; nav-ссылки header'а (FAQ, Create a room) ведут на `/faq` и `/new` |
-| `faq.spec.ts` | Issue #22 — `/faq` рендерится, все 6 вопросов на месте; `<details>` разворачивается по клику на `<summary>` |
+| `landing.spec.ts` | Issue #22, лендинг переработан под оба продукта (follow-up) — hero + две quick-nav карточки-якоря (`landing-poker-nav-card`/`landing-retro-nav-card`) рендерятся и скроллят к `#planning-poker`/`#retro-board`; у каждого продукта своя пара «как это работает»/«фичи» (значит на странице по 2 таких заголовка); обе CTA-кнопки ведут на `/new` и `/retro/new` соответственно; nav-ссылки header'а (FAQ, Retro Board, Create a room) ведут на `/faq`, `/retro/new`, `/new` |
+| `faq.spec.ts` | Issue #22, follow-up — `/faq` рендерится, все 12 вопросов на месте (6 Planning Poker + 6 Retro Board, сгруппированы под своим заголовком); `<details>` разворачивается по клику на `<summary>` |
 | `create-and-vote.spec.ts` | Фасилитатор создаёт комнату → голосует → «Reveal cards» появляется |
 | `reveal-and-stats.spec.ts` | Голосует → Reveal → «Average» + «New round»; New round сбрасывает |
 | `two-players.spec.ts` | Два контекста (две сессии) в одной комнате → видят друг друга → оба голосуют → reveal на одном → обе видят stats |

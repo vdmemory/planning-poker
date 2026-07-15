@@ -25,9 +25,16 @@ export function MarketingShell({ title, children }: Props) {
           </div>
           <span className="font-bold text-white text-lg truncate">Planning Poker</span>
         </Link>
-        <nav className="flex items-center gap-4 sm:gap-6">
+        <nav className="flex items-center gap-3 sm:gap-6">
           <Link to="/faq" className="text-sm text-slate-300 hover:text-white transition-colors hidden sm:inline">
             FAQ
+          </Link>
+          <Link
+            to="/retro/new"
+            data-testid="nav-retro-link"
+            className="text-sm text-slate-300 hover:text-white transition-colors hidden sm:inline"
+          >
+            Retro Board
           </Link>
           <Link
             to="/new"
@@ -42,10 +49,11 @@ export function MarketingShell({ title, children }: Props) {
 
       <footer className="border-t border-[var(--c-border)] px-4 sm:px-6 py-6">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-slate-400">
-          <span>© {new Date().getFullYear()} Planning Poker. Free for everyone.</span>
+          <span>© {new Date().getFullYear()} Planning Poker &amp; Retro Board. Free for everyone.</span>
           <div className="flex items-center gap-4">
             <Link to="/faq" className="hover:text-white transition-colors">FAQ</Link>
-            <Link to="/new" className="hover:text-white transition-colors">Create a room</Link>
+            <Link to="/new" className="hover:text-white transition-colors">Planning Poker</Link>
+            <Link to="/retro/new" className="hover:text-white transition-colors">Retro Board</Link>
             <a
               href="https://github.com/vdmemory/planning-poker"
               target="_blank"

@@ -49,7 +49,7 @@ pytest                   # 218 tests (125 Planning Poker + 93 Retro Board), ~0.1
 cd frontend
 npm install
 npx playwright install chromium
-npm run test:e2e         # 77 tests (50 Planning Poker + 27 Retro Board), ~2 min
+npm run test:e2e         # 79 tests (52 Planning Poker/shared + 27 Retro Board), ~2 min
 ```
 
 Test naming reads as the spec (`test_facilitator_cannot_become_spectator`). When adding business logic, add the test **and** update `docs/BUSINESS_LOGIC.md` in the same PR — see `docs/RULES.md` rule 13 (Definition of Done for new business logic). This is non-negotiable; "later" doesn't work.
@@ -87,12 +87,12 @@ backend/app/
 
 frontend/src/
 ├── pages/
-│   ├── LandingPage.tsx    # Marketing landing page on `/` (issue #22)
-│   ├── FAQPage.tsx        # `/faq`
+│   ├── LandingPage.tsx    # Marketing landing page on `/` (issue #22) — one section per product (follow-up)
+│   ├── FAQPage.tsx        # `/faq` — questions grouped by product (follow-up)
 │   ├── Home.tsx           # Room creation form, now on `/new`
 │   └── RoomPage.tsx       # Main game screen
 ├── components/
-│   ├── MarketingShell.tsx # Shared header/footer for landing + FAQ
+│   ├── MarketingShell.tsx # Shared header/footer for landing + FAQ, links to both products
 │   ├── Card.tsx           # Voting card
 │   ├── PlayerList.tsx     # Players with offline indicator
 │   ├── StatsPanel.tsx     # Average/median/distribution/consensus (shown after reveal)
