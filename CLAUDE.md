@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Real-time Planning Poker tool for agile teams. Guest mode (no registration), WebSocket-based voting. All state is in-memory — no database, no persistence between restarts.
 
-**Retro Board** (issue #62) is a second, fully independent product on the same site — a WebSocket-based retrospective board (5 column templates: the extended What went well/To improve/Risks/Action items/Team's processes template — the default, issue #67 — plus a shorter What went well/To improve/Action items variant, Mad/Sad/Glad, Start/Stop/Continue, and 4Ls). It shares no code with Planning Poker's `Room`/`RoomService` beyond the domain-agnostic `ConnectionManager`. Phase 1 shipped the core board (cards, voting, timer, moderation); Phase 2 added drag-to-merge card grouping, emoji reactions on cards, and mobile adaptation; a follow-up brought the header UI to parity with Planning Poker (board settings modal, participant profile menu) and added the on-screen drawing tool; a further follow-up (issue #67) added the two extra templates above; a further follow-up (issue #68) added a header quick-reactions panel (emoji-only clone of Planning Poker's `ReactionsPanel`), after which the original Phase 2 per-card reaction trigger was removed as redundant; a further follow-up (issue #65) added a text comment thread on each card, opened from a button right after the vote button. See `docs/RETRO_BUSINESS_LOGIC.md` for business logic and the "Retro Board" subsection below for architecture.
+**Retro Board** (issue #62) is a second, fully independent product on the same site — a WebSocket-based retrospective board (5 column templates: the extended What went well/To improve/Risks/Action items/Team's processes template — the default, issue #67 — plus a shorter What went well/To improve/Action items variant, Mad/Sad/Glad, Start/Stop/Continue, and 4Ls). It shares no code with Planning Poker's `Room`/`RoomService` beyond the domain-agnostic `ConnectionManager`. Phase 1 shipped the core board (cards, voting, timer, moderation); Phase 2 added drag-to-merge card grouping, emoji reactions on cards, and mobile adaptation; a follow-up brought the header UI to parity with Planning Poker (board settings modal, participant profile menu) and added the on-screen drawing tool; a further follow-up (issue #67) added the two extra templates above; a further follow-up (issue #68) added a header quick-reactions panel (emoji-only clone of Planning Poker's `ReactionsPanel`), after which the original Phase 2 per-card reaction trigger was removed as redundant; a further follow-up (issue #65) added a text comment thread on each card, opened from a button right after the vote button; a further follow-up (issue #66) added an emoji picker, GIF search (GIPHY proxy), and direct-image-URL attachments when composing or editing a card. See `docs/RETRO_BUSINESS_LOGIC.md` for business logic and the "Retro Board" subsection below for architecture.
 
 ## Running Locally
 
@@ -43,13 +43,13 @@ Two layers, both treated as executable documentation (`docs/TESTING.md`):
 ```bash
 # Backend (pytest + FastAPI TestClient + WebSocket)
 cd backend && source .venv/bin/activate && pip install -r requirements-dev.txt
-pytest                   # 231 tests (125 Planning Poker + 106 Retro Board), ~0.1s
+pytest                   # 243 tests (125 Planning Poker + 118 Retro Board), ~0.1s
 
 # Frontend e2e (Playwright + Chromium)
 cd frontend
 npm install
 npx playwright install chromium
-npm run test:e2e         # 86 tests (52 Planning Poker/shared + 34 Retro Board), ~2 min
+npm run test:e2e         # 91 tests (52 Planning Poker/shared + 39 Retro Board), ~2 min
 ```
 
 Test naming reads as the spec (`test_facilitator_cannot_become_spectator`). When adding business logic, add the test **and** update `docs/BUSINESS_LOGIC.md` in the same PR — see `docs/RULES.md` rule 13 (Definition of Done for new business logic). This is non-negotiable; "later" doesn't work.
@@ -110,7 +110,9 @@ backend/app/
 ├── retro_store.py       # RetroBoardStore Protocol + InMemoryRetroBoardStore
 ├── retro_service.py     # RetroService — all business logic
 ├── retro_ws_manager.py  # reuses ConnectionManager; own cleanup tasks (different field names)
-└── main.py              # + POST/GET /api/retro-boards, WS /ws/retro/{board_id}, handle_retro_message
+├── gif_client.py        # issue #66 — stateless GIPHY search proxy, keeps GIPHY_API_KEY off the client
+└── main.py              # + POST/GET /api/retro-boards, GET /api/retro-boards/gif-search,
+                         # WS /ws/retro/{board_id}, handle_retro_message
 
 frontend/src/
 ├── pages/
@@ -119,17 +121,20 @@ frontend/src/
 ├── components/
 │   ├── RetroTemplatePicker.tsx
 │   ├── RetroColumn.tsx           # renders card "stacks" (head + grouped children)
-│   ├── RetroCardItem.tsx         # ONE never-grouped card: inline-edit, vote, drag grip, comments
+│   ├── RetroCardItem.tsx         # ONE never-grouped card: inline-edit, vote, drag grip, comments, image
 │   ├── RetroCardStack.tsx        # merged card: texts joined by "---", one shared vote/author, undo
 │   ├── RetroCardCommentThread.tsx # issue #65 — comment popover thread, shared by Item/Stack
+│   ├── RetroCardAttachmentPicker.tsx # issue #66 — emoji grid + GIF search + direct URL, shared by Item/Column
 │   ├── RetroReactionsPanel.tsx   # issue #68 — clone of ReactionsPanel, emoji-only, in the header
 │   ├── RetroTimer.tsx
 │   ├── RetroSettingsModal.tsx    # follow-up — clone of GameSettingsModal, opened by clicking the board name (facilitator only), replaced the old RetroSettingsDropdown
 │   └── RetroProfileMenu.tsx      # follow-up — clone of ProfileMenu minus the spectator toggle, opened by clicking the participant's avatar
-└── hooks/
-    ├── useRetroSocket.ts
-    ├── useRetroCardDrag.ts        # Phase 2 — Pointer Events drag-to-merge (not HTML5 DnD)
-    └── useRetroReactions.ts       # issue #68 — floater queue for the header self-reaction
+├── hooks/
+│   ├── useRetroSocket.ts
+│   ├── useRetroCardDrag.ts        # Phase 2 — Pointer Events drag-to-merge (not HTML5 DnD)
+│   └── useRetroReactions.ts       # issue #68 — floater queue for the header self-reaction
+└── lib/
+    └── insertTextAtCursor.ts      # issue #66 — shared emoji-at-cursor helper for add/edit card forms
 ```
 
 Drawing (follow-up): `DrawingCanvas` (`frontend/src/components/DrawingCanvas.tsx`) is reused as-is from Planning Poker — no fork. The only integration point is the backend relay in `handle_retro_message`, which forwards `draw_stroke`/`draw_cursor`/`draw_clear` to everyone except the sender via `ConnectionManager.broadcast_except`, aliasing `player_id: participant_id` on the wire since that's the field name `DrawingCanvas` expects.
@@ -156,7 +161,7 @@ Full architecture writeup: `docs/ARCHITECTURE.md` → "Retro Board".
 
 **Throw reactions** (issue #51): `room.fun_features_enabled` (facilitator-only, off by default, set via `update_room`) gates `throw_reaction` — a reaction aimed at a specific player's card, hover/tap-triggered from `ThrowReactionBar` on `PlayerCard`. Purely ephemeral relay like `reaction`/`draw_*`/`countdown`, not stored on `Room`. Distinct from the issue #32 self-reaction system (`reaction` type, `ReactionsPanel`/`ReactionFloater`) — both exist side by side.
 
-**Retro Board cards are never hidden** (issue #62): unlike Planning Poker's `revealed` gate, retro cards and vote counts are visible to everyone immediately — no per-viewer `public_state()` needed. **Anonymous mode is display-only**: `author_id` always stays on the wire for permission checks; the frontend just hides the nickname label for non-authors when `anonymous_mode` is on. **Timer uses an absolute deadline** (`timer_ends_at`), not a server tick — clients compute their own live countdown, avoiding a new per-board background task. **Card grouping (Phase 2)** uses `RetroCard.group_id` (one hop max: a head's own `group_id` is always `None`) and Pointer Events on the frontend (`onPointerDown` + `setPointerCapture`), not HTML5 drag-and-drop, since that API doesn't fire on touch devices. Merging shows a confirm dialog before sending, and merged cards render as `RetroCardStack` — ONE card with each original text separated by "---", one shared vote (union of voters) and author (the head's), and a persistent undo button that calls `ungroup_card`. **Card comments (issue #65)** are `RetroCard.comments: list[RetroComment]` — unlike `reaction`/`card_reaction`, this is NOT an ephemeral relay: comments persist on the card and ride along in `board_state` like `votes`, so there's no dedicated inbound message type. `add_comment` isn't author-gated (anyone can comment); `delete_comment` requires the comment's own author or the facilitator. In `RetroCardStack`, comments are summed across every underlying card (not just the head) and sorted by `created_at`, since the issue's own recommendation was to show them "summed across the whole stack"; new comments still write to the head (same convention as voting), and deletion resolves which underlying card actually owns a given comment id. **Header self-reactions (issue #68)** are a not-card-bound relay (`reaction`, same message type as Planning Poker's) broadcast to all participants including the sender via `RetroReactionsPanel` — an emoji-only clone of Planning Poker's `ReactionsPanel` (no time-value mode toggle); the frontend renders only a rising floater (`useRetroReactions` + reused `ReactionFloater`), no on-card overlay, since Retro Board has no `PlayerCard` equivalent to anchor one to. (The earlier per-card reaction trigger from Phase 2, `react_to_card`/`card_reaction`, was removed as redundant once this header panel shipped.) Full rules: `docs/RETRO_BUSINESS_LOGIC.md`.
+**Retro Board cards are never hidden** (issue #62): unlike Planning Poker's `revealed` gate, retro cards and vote counts are visible to everyone immediately — no per-viewer `public_state()` needed. **Anonymous mode is display-only**: `author_id` always stays on the wire for permission checks; the frontend just hides the nickname label for non-authors when `anonymous_mode` is on. **Timer uses an absolute deadline** (`timer_ends_at`), not a server tick — clients compute their own live countdown, avoiding a new per-board background task. **Card grouping (Phase 2)** uses `RetroCard.group_id` (one hop max: a head's own `group_id` is always `None`) and Pointer Events on the frontend (`onPointerDown` + `setPointerCapture`), not HTML5 drag-and-drop, since that API doesn't fire on touch devices. Merging shows a confirm dialog before sending, and merged cards render as `RetroCardStack` — ONE card with each original text separated by "---", one shared vote (union of voters) and author (the head's), and a persistent undo button that calls `ungroup_card`. **Card comments (issue #65)** are `RetroCard.comments: list[RetroComment]` — unlike `reaction`/`card_reaction`, this is NOT an ephemeral relay: comments persist on the card and ride along in `board_state` like `votes`, so there's no dedicated inbound message type. `add_comment` isn't author-gated (anyone can comment); `delete_comment` requires the comment's own author or the facilitator. In `RetroCardStack`, comments are summed across every underlying card (not just the head) and sorted by `created_at`, since the issue's own recommendation was to show them "summed across the whole stack"; new comments still write to the head (same convention as voting), and deletion resolves which underlying card actually owns a given comment id. **Header self-reactions (issue #68)** are a not-card-bound relay (`reaction`, same message type as Planning Poker's) broadcast to all participants including the sender via `RetroReactionsPanel` — an emoji-only clone of Planning Poker's `ReactionsPanel` (no time-value mode toggle); the frontend renders only a rising floater (`useRetroReactions` + reused `ReactionFloater`), no on-card overlay, since Retro Board has no `PlayerCard` equivalent to anchor one to. (The earlier per-card reaction trigger from Phase 2, `react_to_card`/`card_reaction`, was removed as redundant once this header panel shipped.) **Card attachments (issue #66)** are `RetroCard.image_url: str | None` — external URL only, never binary upload, to stay inside the in-memory/no-storage philosophy. GIF search proxies to GIPHY server-side (`gif_client.py`, `GET /api/retro-boards/gif-search`) so `GIPHY_API_KEY` never reaches the browser; that route is registered BEFORE `/api/retro-boards/{board_id}` since Starlette matches static paths in registration order and a later `{board_id}` route would otherwise swallow the literal `gif-search` path. The emoji picker and direct-image-URL input need no API key and work with zero backend config. `edit_card` has no partial-update semantics for `image_url` — the frontend always resends the card's current value, so omitting it means "remove the image." `RetroCardStack` shows only the head's image, same convention as vote/author. Full rules: `docs/RETRO_BUSINESS_LOGIC.md`.
 
 ## WebSocket Protocol
 
@@ -233,7 +238,8 @@ Single Blueprint defined in `render.yaml` at the repo root. Both services share 
 
 1. First-time setup: Render Dashboard → Blueprints → New Blueprint Instance → connect GitHub repo. Render reads `render.yaml` and creates both services.
 2. For each service, set `CORS_ORIGINS` in Environment (comma-separated, no trailing slash) to the matching Vercel URL.
-3. Verify: `/healthz` on each service returns `{"status":"ok"}`.
+3. Optional: set `GIPHY_API_KEY` in Environment to enable Retro Board's GIF search (issue #66) — get a free key at [developers.giphy.com](https://developers.giphy.com/). Without it, `GET /api/retro-boards/gif-search` returns `503` and the frontend's GIF tab shows "GIF search is unavailable"; the emoji picker and direct-image-URL attachment still work with no key at all.
+4. Verify: `/healthz` on each service returns `{"status":"ok"}`.
 
 What `render.yaml` defines (per service): `runtime: python`, `PYTHON_VERSION=3.12.0`, `buildCommand: pip install -r requirements.txt`, `startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT`, `healthCheckPath: /healthz`.
 
@@ -265,6 +271,7 @@ In prod/staging, Render reads `CORS_ORIGINS` and restricts to those origins. Aft
 | Render 502 / "Application failed to respond" | Build failure or missing deps | Render → Logs; check `requirements.txt` |
 | `ModuleNotFoundError: No module named 'app'` | `rootDir` not respected | Confirm `render.yaml` has `rootDir: backend` |
 | Frontend "Failed to fetch" on room create | `VITE_API_URL` not set or wrong | Vercel → Settings → Env Vars; redeploy |
+| Retro Board GIF tab always says "unavailable" | `GIPHY_API_KEY` not set on the backend | Render → Environment → add `GIPHY_API_KEY` (optional feature, everything else still works without it) |
 | CORS error in browser | `CORS_ORIGINS` missing Vercel domain | Render → Environment → check `CORS_ORIGINS` has `https://` prefix and no trailing `/` |
 | WebSocket "reconnecting…" loop | `VITE_API_URL` uses `http://` instead of `https://` | WS auto-upgrades to `wss://` only from `https://` origin |
 | Players don't see each other | Using different Vercel URLs (production vs preview) | Use only the production URL, or add preview URLs to `CORS_ORIGINS` |

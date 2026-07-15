@@ -9,6 +9,7 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from .gif_client import GifSearchError, search_gifs
 from .models import DeckType
 from .retro_models import RetroTemplate
 from .retro_service import RetroError, RetroService
@@ -98,6 +99,19 @@ def create_retro_board(req: CreateRetroBoardRequest):
         "participant_id": facilitator.id,
         "state": board.public_state(),
     }
+
+
+@app.get("/api/retro-boards/gif-search")
+def gif_search(q: str = ""):
+    # Registered BEFORE `/api/retro-boards/{board_id}` — Starlette matches
+    # path templates in registration order, so this static path must come
+    # first or `{board_id}` would swallow it (and 404, since "gif-search"
+    # isn't a real board id).
+    try:
+        results = search_gifs(q)
+    except GifSearchError as e:
+        raise HTTPException(503, str(e))
+    return {"results": results}
 
 
 @app.get("/api/retro-boards/{board_id}")
@@ -342,9 +356,9 @@ async def handle_retro_message(board_id: str, participant_id: str, data: dict) -
     msg_type = data.get("type")
     try:
         if msg_type == "add_card":
-            retro_service.add_card(board_id, participant_id, data["column_id"], data["text"])
+            retro_service.add_card(board_id, participant_id, data["column_id"], data["text"], data.get("image_url"))
         elif msg_type == "edit_card":
-            retro_service.edit_card(board_id, participant_id, data["card_id"], data["text"])
+            retro_service.edit_card(board_id, participant_id, data["card_id"], data["text"], data.get("image_url"))
         elif msg_type == "delete_card":
             retro_service.delete_card(board_id, participant_id, data["card_id"])
         elif msg_type == "vote_card":

@@ -210,8 +210,10 @@ backend/app/
 │                        (cleanup_disconnected_participants, cleanup_expired_boards) —
 │                        не общие с room-версиями, т.к. ссылаются на поля RetroBoard
 │                        (participants) вместо Room (players)
-└── main.py              + REST POST/GET /api/retro-boards, WS /ws/retro/{board_id},
-                         handle_retro_message dispatcher — параллельно room-роутам
+├── gif_client.py        issue #66 — стейтлес-прокси к GIPHY search API, держит
+│                        GIPHY_API_KEY на сервере
+└── main.py              + REST POST/GET /api/retro-boards, GET /api/retro-boards/gif-search,
+                         WS /ws/retro/{board_id}, handle_retro_message dispatcher — параллельно room-роутам
 ```
 
 ### Структура фронта
@@ -227,6 +229,7 @@ frontend/src/
 │   ├── RetroCardItem.tsx       ОДНА (never-grouped) карточка: inline-edit, vote, drag-grip, comments
 │   ├── RetroCardStack.tsx      смёрженная карточка: тексты через "---", один общий голос/автор, undo
 │   ├── RetroCardCommentThread.tsx issue #65 — попап-тред комментариев, общий для Item/Stack
+│   ├── RetroCardAttachmentPicker.tsx issue #66 — эмодзи-грид + GIF-поиск + прямой URL, общий для Item/Column
 │   ├── RetroReactionsPanel.tsx issue #68 — клон ReactionsPanel, эмодзи-only, в хедере (не привязана к карточке)
 │   ├── RetroTimer.tsx          idle/running/paused UI таймера, live-countdown на клиенте
 │   ├── RetroSettingsModal.tsx  follow-up — клон GameSettingsModal (полноэкранный модал,
@@ -260,11 +263,12 @@ frontend/src/
 | Method | Path | Body | Response |
 |---|---|---|---|
 | `POST` | `/api/retro-boards` | `{ name, template, facilitator_nickname }` | `{ board_id, participant_id, state }` |
+| `GET`  | `/api/retro-boards/gif-search` | — (query `?q=`) | `{ results: [{ id, preview_url, url, title }] }` — issue #66, proxies GIPHY, registered before `{board_id}` below |
 | `GET`  | `/api/retro-boards/{board_id}` | — | `{ state }` |
 
 ### WebSocket
 
-**Client → Server**: `add_card`, `edit_card`, `delete_card`, `vote_card`, `unvote_card`, `group_cards`, `ungroup_card`, `add_comment`, `delete_comment`, `reaction`, `start_timer`, `pause_timer`, `resume_timer`, `reset_timer`, `update_board`, `update_nickname`, `update_avatar_color`, `kick_participant`, `close_board`, `draw_stroke`, `draw_cursor`, `draw_clear`.
+**Client → Server**: `add_card` (+ optional `image_url`), `edit_card` (+ optional `image_url`), `delete_card`, `vote_card`, `unvote_card`, `group_cards`, `ungroup_card`, `add_comment`, `delete_comment`, `reaction`, `start_timer`, `pause_timer`, `resume_timer`, `reset_timer`, `update_board`, `update_nickname`, `update_avatar_color`, `kick_participant`, `close_board`, `draw_stroke`, `draw_cursor`, `draw_clear`.
 
 **Server → Client**: `joined`, `board_state`, `reaction`, `kicked`, `board_closed`, `board_expired`, `board_inactive`, `draw_*` (relay), `error`.
 
@@ -282,6 +286,7 @@ frontend/src/
 - **Нет `close_on_facilitator_leave`** — упрощённый facilitator-handoff без опт-аута, сознательный scope-trim для Phase 1.
 - **Header переведён на двухуровневую схему Planning Poker** (follow-up к issue #62): клик по имени доски (фасилитатор) → `RetroSettingsModal` (клон `GameSettingsModal`, batched-save по кнопке); клик по аватарке → `RetroProfileMenu` (клон `ProfileMenu` без spectator). Старый гибрид «инлайн-рен + шестерёнка-дропдаун» удалён целиком.
 - **Рисование переиспользует `DrawingCanvas` 1-в-1** — бэкенд-релей просто транслирует `draw_stroke`/`draw_cursor`/`draw_clear` всем, кроме отправителя, подставляя `player_id: participant_id`; ничего не хранится на `RetroBoard`.
+- **Карточные вложения (issue #66) — только внешний URL, никогда бинарные данные**: `RetroCard.image_url`, GIF-поиск через серверный прокси к GIPHY (`gif_client.py`), держащий API-ключ вне клиента. Полноценная загрузка файлов сознательно не делается — конфликтует с in-memory/no-storage философией проекта.
 
 ## Невидимые ограничения (важно держать в голове)
 

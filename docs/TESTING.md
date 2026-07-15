@@ -7,8 +7,8 @@
 
 | Уровень | Где | Технология | Скорость |
 |---|---|---|---|
-| Backend service + WS | `backend/tests/` | pytest + FastAPI TestClient | 231 тестов (125 Planning Poker + 106 Retro Board), <0.1s |
-| Frontend e2e | `frontend/tests/e2e/` | Playwright + Chromium | 86 тестов (52 Planning Poker/общие + 34 Retro Board), ~2 мин |
+| Backend service + WS | `backend/tests/` | pytest + FastAPI TestClient | 243 тестов (125 Planning Poker + 118 Retro Board), <0.1s |
+| Frontend e2e | `frontend/tests/e2e/` | Playwright + Chromium | 91 тестов (52 Planning Poker/общие + 39 Retro Board), ~2 мин |
 
 ## Backend (pytest)
 
@@ -16,7 +16,7 @@
 cd backend
 source .venv/bin/activate
 pip install -r requirements-dev.txt   # один раз
-pytest                                # все 231 тестов
+pytest                                # все 243 тестов
 pytest tests/test_voting_and_stats.py # один файл
 pytest -k "facilitator"               # все тесты со словом "facilitator"
 ```
@@ -44,6 +44,7 @@ pytest -k "facilitator"               # все тесты со словом "fac
 | `test_retro_websocket.py` | Retro Board — REST bootstrap, WS auto-join/reconnect, `board_inactive`, broadcast карточек, error-пути, таймер по WS, kick + `board_closed`, group_cards broadcast, draw_stroke relay всем кроме отправителя, фоновая задача `expire_finished_timers` (monkeypatch интервала на 0.05s, реальный `asyncio.sleep`) auto-паузит истёкший таймер и рассылает `board_state`; POST `/api/retro-boards` без поля `template` в body заводит доску с дефолтным `went_well_extended` (issue #67); header self-reaction (`reaction`) broadcast'ится всем участникам, включая отправителя (issue #68); `add_comment` рассылает `board_state` с новым комментарием на карточке всем участникам (issue #65) | 22 |
 | `test_retro_grouping_and_reactions.py` | Retro Board — group_cards (issue #62 Phase 2: drag-a-child moves only that card, drag-a-head carries its children, cross-column rejection, resolve-to-head), ungroup_card (child vs head dissolve), delete_card promotes first child as new head; header self-reaction `react()` relay + non-participant/empty-value validation (issue #68) | 18 |
 | `test_retro_comments.py` | Retro Board — `add_comment` (любой участник может комментировать, отклоняет неизвестную карточку/не-участника/пустой текст), `delete_comment` (автор комментария или фасилитатор; отклоняет чужого не-фасилитатора, неизвестную карточку/комментарий) (issue #65) | 10 |
+| `test_retro_card_attachments.py` | Retro Board — `add_card`/`edit_card` с `image_url` (валидный URL, дефолт `None`, blank трактуется как `None`, `edit_card` без поля снимает картинку — нет partial-update семантики), отклонение невалидного URL (`javascript:`, голое имя файла); GIF-поиск REST-прокси: 503 без `GIPHY_API_KEY`, успешный ответ (фильтрует записи без картинок), blank query бьёт в trending endpoint, 503 при сетевой ошибке апстрима (issue #66) | 12 |
 
 Бизнес-правила Retro Board — в `docs/RETRO_BUSINESS_LOGIC.md`.
 
@@ -109,6 +110,7 @@ Bob, потом ws закрылся, потом второй WS пришёл с 
 | `retro-templates.spec.ts` | Issue #67 — расширенный 5-колоночный шаблон выбран по умолчанию на `/retro/new` и его карточка идёт первой в пикере; создание доски без выбора шаблона заводит все 5 ожидаемых колонок в правильном порядке; ручной выбор 3-колоночного «What went well / To improve / Action items» создаёт доску именно с этими тремя колонками (без «Risks»); порядок карточек в `RetroTemplatePicker` — расширенный шаблон раньше «Mad / Sad / Glad» и остальных старых пресетов |
 | `retro-reactions-panel.spec.ts` | Issue #68 — клик по эмодзи в `retro-reactions-panel` показывает `reaction-floater` у обоих клиентов (переиспользуемый `ReactionFloater`, без on-card оверлея); второй клик в пределах 600мс throttled; негативная проверка — панель эмодзи-only, `reactions-mode-number` и time-value кнопки (`1h`, `3d`) отсутствуют на Retro Board |
 | `retro-card-comments.spec.ts` | Issue #65 — добавленный комментарий появляется у другого участника с корректным счётчиком (`retro-card-comment-count`); автор может удалить свой комментарий; не-фасилитатор/не-автор не видит кнопку удаления чужого комментария, а фасилитатор — видит и может удалить |
+| `retro-card-attachments.spec.ts` | Issue #66 — вставка эмодзи из пикера попадает в текст в позицию курсора; выбор GIF из замоканного `**/api/retro-boards/gif-search**` (без реального `GIPHY_API_KEY`) прикрепляет картинку к новой карточке; вставка картинки по прямой URL-ссылке; удаление ещё не отправленного превью картинки перед сабмитом; редактирование существующей карточки прикрепляет картинку, видимую у другого участника |
 
 ### Helpers (`tests/e2e/helpers.ts`)
 

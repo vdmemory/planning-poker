@@ -100,6 +100,10 @@ class RetroCard(BaseModel):
     # `author_id` always travels on the wire, `anonymous_mode` is a frontend
     # display concern, not server-side secrecy.
     comments: list[RetroComment] = Field(default_factory=list)
+    # Issue #66 — an optional GIF/image attached to the card (from GIPHY
+    # search or a direct URL). Deliberately just a URL, never binary data —
+    # the project is in-memory/no-storage by design, see CLAUDE.md.
+    image_url: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 

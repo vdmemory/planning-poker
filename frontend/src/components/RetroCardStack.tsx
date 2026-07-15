@@ -136,6 +136,19 @@ export function RetroCardStack({
         </div>
       </div>
 
+      {/* Issue #66 — only the head's image shows, same convention as the
+          shared vote/author: merging doesn't try to display every
+          underlying card's attachment at once. */}
+      {head.image_url && (
+        <img
+          data-testid="retro-card-image"
+          src={head.image_url}
+          alt=""
+          className="max-h-32 rounded-lg object-cover w-full mb-2"
+          onError={(e) => { e.currentTarget.style.display = "none"; }}
+        />
+      )}
+
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-slate-500 truncate flex items-center gap-1.5">
           {showAuthor ? (author?.nickname ?? "Unknown") : "Anonymous"}
