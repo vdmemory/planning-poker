@@ -12,12 +12,13 @@ async function waitForWsOpen(page: Page): Promise<void> {
 }
 
 /**
- * Create a room from the Home page, complete the nickname dialog, and wait for
- * the room screen to finish connecting.
+ * Create a room from the room-creation page (`/new` — issue #22 moved the
+ * form off `/`, which is now the marketing landing page), complete the
+ * nickname dialog, and wait for the room screen to finish connecting.
  */
 export async function createRoom(page: Page, gameName = "Sprint 42",
                                  facilitatorNick = "Alice"): Promise<string> {
-  await page.goto("/");
+  await page.goto("/new");
   await page.getByPlaceholder("Sprint 42 Planning").fill(gameName);
   await page.getByRole("button", { name: /create game/i }).click();
   await page.waitForURL(/\/room\/[a-z0-9]+/);

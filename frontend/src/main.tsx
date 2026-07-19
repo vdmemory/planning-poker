@@ -3,6 +3,8 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Home from "./pages/Home";
 import RoomPage from "./pages/RoomPage";
+import LandingPage from "./pages/LandingPage";
+import FAQPage from "./pages/FAQPage";
 import "./index.css";
 
 // Apply saved theme + accent before first render to avoid flash.
@@ -28,7 +30,9 @@ if (_accent && _ACCENT_ALLOWED.has(_accent)) {
 const tree = (
   <BrowserRouter>
     <Routes>
-      <Route path="/" element={<Home />} />
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/new" element={<Home />} />
+      <Route path="/faq" element={<FAQPage />} />
       <Route path="/room/:roomId" element={<RoomPage />} />
     </Routes>
   </BrowserRouter>
