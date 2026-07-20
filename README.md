@@ -32,7 +32,8 @@ Real-time инструмент для оценки задач agile-команд
 - Передача роли фасилитатора, если он покинул комнату — или (issue #19) опциональное закрытие комнаты для всех вместо handoff'а через настройку «Close room when facilitator leaves»
 - Дружелюбные full-screen overlay'и для всех «room is no longer available» сценариев: истёкший таймер (⌛), закрытие фасилитатором (🚪, issue #19), кик участника (👋, issue #37), неверный URL (🔗) — везде кнопка «Back to home»
 - Авто-закрытие комнаты через 24h (timer expiration), full-screen уведомление для участников
-- Маркетинговые страницы (issue #22): `/` — лендинг (hero, «как это работает», фичи, скриншот комнаты в обеих темах), `/faq`. Форма создания комнаты переехала на `/new`
+- Маркетинговые страницы (issue #22, лендинг переработан под оба продукта — follow-up): `/` — лендинг с общим hero («Real-time tools for agile teams», два равноправных CTA) → две quick-nav карточки-якоря → отдельная секция Planning Poker (скриншот, «как это работает», фичи, CTA) → отдельная секция Retro Board (свой скриншот, свои шаги, свои фичи, свой CTA) → общий bottom CTA; `/faq` — вопросы сгруппированы по продукту (Planning Poker / Retro Board). Header/footer (`MarketingShell.tsx`) несут ссылку на оба продукта. Форма создания комнаты — на `/new`, доски — на `/retro/new`
+- **Retro Board** (issue #62): второй независимый продукт на том же сайте — живая доска для ретроспектив через WebSocket, полное описание — в разделе [«Retro Board»](#retro-board) ниже
 
 ## Запуск локально
 
@@ -69,12 +70,12 @@ backend/app/
 
 frontend/src/
 ├── pages/
-│   ├── LandingPage.tsx   # маркетинговый лендинг на `/` (issue #22)
-│   ├── FAQPage.tsx       # `/faq`
+│   ├── LandingPage.tsx   # маркетинговый лендинг на `/` (issue #22) — по секции на каждый продукт
+│   ├── FAQPage.tsx       # `/faq` — вопросы сгруппированы по продукту
 │   ├── Home.tsx          # создание комнаты, теперь на `/new`
 │   └── RoomPage.tsx      # игровой экран
 ├── components/
-│   ├── MarketingShell.tsx # общий header/footer для лендинга и FAQ
+│   ├── MarketingShell.tsx # общий header/footer для лендинга и FAQ, ссылки на оба продукта
 │   ├── Card.tsx          # карта голосования
 │   ├── PlayerList.tsx    # список игроков с offline-индикатором
 │   ├── StatsPanel.tsx    # среднее/медиана/распределение/консенсус
@@ -90,6 +91,8 @@ frontend/src/
 - **`services.py:RoomService`** — вся бизнес-логика. Тестируется без FastAPI.
 - **`store.py`** — `RoomStore` это структурный Protocol. Сейчас `InMemoryRoomStore`. Чтобы переехать на Redis — реализовать тот же протокол и подменить singleton `store`.
 - **`ws_manager.py`** — карта `room_id → player_id → WebSocket` + фоновая задача, которая каждые 5s удаляет игроков с `disconnected_at` старше 30s.
+
+**Retro Board** — полностью параллельный домен (`retro_models.py`, `retro_store.py`, `retro_service.py`, `retro_ws_manager.py`), не расширение `Room`/`RoomService`. Роуты `/retro/new` и `/retro/:boardId` на фронте, `/api/retro-boards` и `/ws/retro/{board_id}` на бэке. Полное описание — раздел [«Retro Board»](#retro-board) ниже.
 
 ## REST
 
@@ -176,6 +179,148 @@ frontend/src/
 5. `player_id` хранится в `localStorage` → рефреш = реконнект как тот же игрок.
 6. Если ушёл фасилитатор и был удалён — роль переходит к первому из оставшихся.
 
+## Retro Board
+
+Второй независимый продукт на том же сайте (issue #62) — живая доска для ретроспектив через WebSocket. Полностью параллельный домен: свои модели/store/сервис/WS-роутер, **не** расширение `Room`/`RoomService` — общий код только доменно-нейтральный `ConnectionManager`. Вход с лендинга (`/`) или напрямую на `/retro/new`.
+
+### Возможности
+
+- Гостевые доски по короткой ссылке, без регистрации — как и комнаты Planning Poker
+- 3 preset-шаблона колонок: Mad/Sad/Glad, Start/Stop/Continue, 4Ls (Liked/Learned/Lacked/Longed for)
+- Карточки видны всем сразу, без reveal-механики — в отличие от голосов Planning Poker, скрывать тут нечего
+- Голосование с общим бюджетом на участника (по умолчанию 5, настраивается фасилитатором) — бюджет общий на всю доску, а не по карточке
+- Anonymous mode: скрывает автора карточки от всех, кроме него самого (display-only — `author_id` всё равно остаётся на wire для permission-проверок, это не серверная приватность)
+- Таймер с абсолютным дедлайном (`timer_ends_at`, пресеты 3/5/10 минут); по достижении нуля — пульсирующий бейдж «Time's up!» на клиенте мгновенно + автопауза на сервере через фоновую задачу `expire_finished_timers`
+- Drag-to-merge группировка карточек (Pointer Events, не HTML5 Drag-and-Drop — работает и мышью, и пальцем) с confirm-диалогом перед слиянием и кнопкой undo; смёрженные карточки рендерятся как одна карточка с текстами через «---», один общий голос и автор
+- Текстовые комментарии к карточке (issue #65) — кнопка сразу после голоса, попап-тред снизу карточки; добавить может любой участник, удалить — только автор комментария или фасилитатор
+- Эмодзи-пикер, GIF-поиск (через GIPHY, серверный прокси без API-ключа на клиенте) и вставка картинки по прямой ссылке при создании/редактировании карточки (issue #66) — только внешний URL, без загрузки файлов на свой сервер
+- Панель быстрых реакций в шапке (issue #68) — эмодзи-only клон Planning Poker's ReactionsPanel (без time-value режима), рисует floater в левом нижнем углу у всех участников; throttle 600ms
+- Kick участника фасилитатором, закрытие доски для всех
+- Настройки доски (`RetroSettingsModal`, открывается кликом по имени доски — только фасилитатор) и профиль участника (`RetroProfileMenu`, открывается кликом по аватарке) — клоны `GameSettingsModal`/`ProfileMenu` из Planning Poker
+- Рисование на экране и live-курсоры — тот же компонент `DrawingCanvas`, что и в Planning Poker, переиспользован без форка
+- Кастомные цвета аватара, темы оформления и акценты — общие с Planning Poker (тот же `localStorage`, переключение темы синхронно в обоих продуктах)
+- Мобильная адаптация: ручка перетаскивания работает одинаково пальцем и мышью
+- Дружелюбные full-screen overlay'и для всех «board is no longer available» сценариев: kicked, closed, expired, not_found — как и в Planning Poker
+- Авто-реконнект через 30s grace-период, авто-закрытие доски через 24h — тот же механизм, что и у комнат
+
+### Архитектура
+
+```
+backend/app/
+├── retro_models.py      # Pydantic-модели: RetroTemplate, RetroColumn, RETRO_TEMPLATES,
+│                        # RetroParticipant, RetroCard, RetroBoard
+├── retro_store.py       # RetroBoardStore (Protocol) + InMemoryRetroBoardStore
+├── retro_service.py     # RetroService — вся бизнес-логика, без зависимости от HTTP/WS
+├── retro_ws_manager.py  # переиспользует ConnectionManager + свои фоновые задачи:
+│                        # cleanup_disconnected_participants (5s), cleanup_expired_boards (60s),
+│                        # expire_finished_timers (1s, автопауза истёкшего таймера)
+├── gif_client.py        # issue #66 — прокси к GIPHY search API, держит GIPHY_API_KEY на сервере
+└── main.py              # + REST POST/GET /api/retro-boards, GET /api/retro-boards/gif-search,
+                         # WS /ws/retro/{board_id}, handle_retro_message — параллельный диспетчер сообщений
+
+frontend/src/
+├── pages/
+│   ├── RetroNewPage.tsx        # `/retro/new` — форма создания доски
+│   └── RetroBoardPage.tsx      # `/retro/:boardId` — join-модалка + сама доска
+├── components/
+│   ├── RetroTemplatePicker.tsx
+│   ├── RetroColumn.tsx         # рендерит стопки карточек (head + сгруппированные дети)
+│   ├── RetroCardItem.tsx       # одна (never-grouped) карточка: inline-edit, vote, drag, comments
+│   ├── RetroCardStack.tsx      # смёрженная карточка: тексты через "---", общий голос/автор, undo
+│   ├── RetroCardCommentThread.tsx # issue #65 — попап-тред комментариев, общий для Item/Stack
+│   ├── RetroCardAttachmentPicker.tsx # issue #66 — эмодзи-грид + GIF-поиск + прямой URL
+│   ├── RetroReactionsPanel.tsx  # issue #68 — клон ReactionsPanel, эмодзи-only, в шапке
+│   ├── RetroTimer.tsx          # + бейдж "Time's up!"
+│   ├── RetroSettingsModal.tsx  # клон GameSettingsModal
+│   └── RetroProfileMenu.tsx    # клон ProfileMenu без spectator-тумблера
+├── hooks/
+│   ├── useRetroSocket.ts       # WebSocket с авто-реконнектом, аналог useRoomSocket
+│   ├── useRetroCardDrag.ts     # Pointer Events drag-to-merge state
+│   └── useRetroReactions.ts     # issue #68 — floater-очередь для header self-reaction
+└── lib/
+    └── insertTextAtCursor.ts    # issue #66 — вставка эмодзи в позицию курсора textarea
+```
+
+Подробности архитектуры — `docs/ARCHITECTURE.md` → «Retro Board», полная бизнес-логика — `docs/RETRO_BUSINESS_LOGIC.md`.
+
+### REST
+
+| Method | Path | Описание |
+|---|---|---|
+| `POST` | `/api/retro-boards` | Создать доску. Body: `{ name, template, facilitator_nickname }`. Возвращает `board_id`, `participant_id`, `state`. |
+| `GET`  | `/api/retro-boards/gif-search` | GIF-поиск (issue #66), query `?q=`. Проксирует к GIPHY, ключ `GIPHY_API_KEY` не покидает сервер. Возвращает `{ results: [{ id, preview_url, url, title }] }`; `503` если ключ не настроен или апстрим недоступен. **Зарегистрирован ДО `{board_id}` ниже** — иначе Starlette матчил бы `gif-search` как id доски. |
+| `GET`  | `/api/retro-boards/{board_id}` | Текущее состояние доски. |
+
+### WebSocket-протокол
+
+Подключение: `wss://<backend>/ws/retro/{board_id}?participant_id=...&nickname=...`
+
+Если `participant_id` уже есть в доске — реконнект. Если нет, но передан `nickname` — авто-создаётся участник (для шаринга инвайт-ссылок), как и в Planning Poker.
+
+**Client → Server**
+
+| Type | Payload | Кто может |
+|---|---|---|
+| `add_card` | `{ column_id, text, image_url? }` | любой участник; `image_url` опционален (issue #66) |
+| `edit_card` | `{ card_id, text, image_url? }` | автор карточки или фасилитатор; опустить `image_url` = убрать картинку, нет partial-update (issue #66) |
+| `delete_card` | `{ card_id }` | автор карточки или фасилитатор |
+| `vote_card` / `unvote_card` | `{ card_id }` | любой участник, в рамках бюджета голосов |
+| `group_cards` | `{ source_card_id, target_card_id }` | автор исходной карточки или фасилитатор |
+| `ungroup_card` | `{ card_id }` | автор карточки или фасилитатор |
+| `add_comment` | `{ card_id, text }` | любой участник (issue #65) |
+| `delete_comment` | `{ card_id, comment_id }` | автор комментария или фасилитатор (issue #65) |
+| `reaction` | `{ value }` | любой участник; header self-reaction, не привязана к карточке; релей всем включая отправителя (issue #68) |
+| `start_timer` | `{ seconds }` | facilitator |
+| `pause_timer` / `resume_timer` / `reset_timer` | — | facilitator |
+| `update_board` | `{ name?, anonymous_mode?, max_votes_per_person? }` | facilitator |
+| `update_nickname` | `{ nickname }` | сам участник |
+| `update_avatar_color` | `{ color }` | сам участник |
+| `kick_participant` | `{ target_id }` | facilitator |
+| `close_board` | — | facilitator |
+| `draw_stroke` / `draw_cursor` / `draw_clear` | payload рисования | релей всем кроме отправителя |
+
+**Server → Client**
+
+| Type | Когда |
+|---|---|
+| `joined` | После успешного подключения. `{ participant_id }` |
+| `board_state` | После любой успешной операции, broadcast всем. `{ state }` — карточки несут `comments` (issue #65), отдельного типа сообщения для них нет |
+| `reaction` | Релей header self-reaction (`reaction`) всем, включая отправителя (issue #68) |
+| `kicked` | Прилетает кикнутому участнику перед закрытием соединения |
+| `board_closed` | Доска закрыта фасилитатором. `{ reason: "creator_left" }` |
+| `board_expired` | Истёк 24h-таймер доски, шлётся уже подключённым. `{ reason: "timer" }` |
+| `board_inactive` | На свежий WS-connect: доска отсутствует или истекла. `{ reason: "not_found" \| "expired" }` |
+| `draw_*` | Релей рисования, обогащённый `player_id`/`nickname` отправителя |
+| `error` | `{ message }` |
+
+### Шаблоны колонок
+
+Определены в `retro_models.py:RETRO_TEMPLATES`:
+
+| Шаблон | Колонки |
+|---|---|
+| `went_well_extended` **(дефолт)** | What went well, To improve, Risks, Action items, How do you find the team's processes? |
+| `went_well_actions` | What went well, To improve, Action items |
+| `mad_sad_glad` | Mad, Sad, Glad |
+| `start_stop_continue` | Start, Stop, Continue |
+| `four_ls` | Liked, Learned, Lacked, Longed for |
+
+Расширенный 5-колоночный шаблон — первый в списке `RetroTemplatePicker.tsx` и выбран по умолчанию на `/retro/new` (issue #67); тот же дефолт продублирован на REST-уровне (`CreateRetroBoardRequest.template` в `main.py`) на случай прямого вызова API без поля `template`.
+
+Id колонок — стабильные строки (`mad`, `sad`, …), а не uuid: в Phase 1 нет переупорядочивания/кастомизации колонок, поэтому ссылки на них в `add_card` остаются осмысленными на весь срок жизни доски.
+
+### Голосование
+
+`RetroBoard.votes_used_by(participant_id)` считает, сколько голосов участник потратил суммарно по всем карточкам доски — бюджет (`max_votes_per_person`, по умолчанию 5) общий на всю доску, не на карточку. `vote_card` отклоняется, если бюджет исчерпан.
+
+### Таймер и «Time's up»
+
+Абсолютный дедлайн (`timer_ends_at`), а не серверный тик — клиент сам считает live-countdown (`RetroTimer.tsx`, `setInterval` каждые 250мс). По достижении нуля клиент мгновенно показывает пульсирующий бейдж «Time's up!» (сравнение с реальным временем, а не со стейл-состоянием, чтобы свежезапущенный таймер не мигал бейджем), прячет кнопки Pause/Resume — из них ничего больше не имеет смысла — и оставляет только Reset. Фоновая задача `expire_finished_timers` (1s интервал, тот же паттерн, что и другие periodic-задачи) автопаузит таймер на сервере (`timer_running=false`, `timer_remaining_seconds=0`), чтобы остальные участники и те, кто зайдёт позже, видели тот же статус.
+
+### Поведение при дисконнекте и lifecycle доски
+
+Зеркалит Planning Poker: `mark_disconnected` → фоновая задача `cleanup_disconnected_participants` удаляет участников с дисконнектом > 30s каждые 5s; `reconnect()` снимает offline-флаг при возврате; `participant_id` в `localStorage` → рефреш = реконнект как тот же участник; при уходе фасилитатора роль переходит к первому из оставшихся. Доска живёт 24 часа (`expires_at`), `cleanup_expired_boards` проверяет это каждые 60s и рассылает `board_expired`.
+
 ## Ветки и деплой
 
 Используем **две долгоживущие ветки**:
@@ -248,8 +393,8 @@ frontend/src/
 
 | Слой | Где | Команда | Покрытие |
 |---|---|---|---|
-| Backend (pytest) | `backend/tests/` | `pytest` | 125 тестов — комнаты, голосование, issues, права, WS-интеграция |
-| Frontend e2e (Playwright) | `frontend/tests/e2e/` | `npm run test:e2e` | 50 тестов — лендинг/FAQ, создание/голосование, reveal+stats, два игрока, мобильные флоу, throw-reaction, UI-анимации и др. |
+| Backend (pytest) | `backend/tests/` | `pytest` | 243 тестов — 125 Planning Poker (комнаты, голосование, issues, права, WS-интеграция) + 118 Retro Board (доски, карточки, голосование, таймер + auto-expiry, группировка, drawing relay, header self-reaction, комментарии, вложения/GIF-поиск, WS) |
+| Frontend e2e (Playwright) | `frontend/tests/e2e/` | `npm run test:e2e` | 91 тестов — 52 Planning Poker/общие (лендинг с обоими продуктами, FAQ, создание/голосование, reveal+stats, два игрока, мобильные флоу, throw-reaction, UI-анимации и др.) + 39 Retro Board |
 
 CI: GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) гоняет оба слоя на каждый push в `main`/`dev` и на каждый PR. При падении e2e — артефакты (видео, скриншоты) аплоадятся.
 

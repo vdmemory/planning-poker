@@ -9,12 +9,23 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from .gif_client import GifSearchError, search_gifs
 from .models import DeckType
+from .retro_models import RetroTemplate
+from .retro_service import RetroError, RetroService
+from .retro_store import store as retro_store
+from .retro_ws_manager import (
+    cleanup_disconnected_participants,
+    cleanup_expired_boards,
+    expire_finished_timers,
+    manager as retro_manager,
+)
 from .services import RoomError, RoomService
 from .store import store
 from .ws_manager import cleanup_disconnected_players, cleanup_expired_rooms, manager
 
 service = RoomService(store)
+retro_service = RetroService(retro_store)
 
 
 @asynccontextmanager
@@ -22,6 +33,9 @@ async def lifespan(app: FastAPI):
     tasks = [
         asyncio.create_task(cleanup_disconnected_players(service)),
         asyncio.create_task(cleanup_expired_rooms(service)),
+        asyncio.create_task(cleanup_disconnected_participants(retro_service)),
+        asyncio.create_task(cleanup_expired_boards(retro_service)),
+        asyncio.create_task(expire_finished_timers(retro_service)),
     ]
     yield
     for t in tasks:
@@ -69,6 +83,44 @@ def get_room(room_id: str):
     except RoomError:
         raise HTTPException(404, "Room not found")
     return {"state": room.public_state()}
+
+
+class CreateRetroBoardRequest(BaseModel):
+    name: str
+    template: RetroTemplate = RetroTemplate.WENT_WELL_EXTENDED
+    facilitator_nickname: str
+
+
+@app.post("/api/retro-boards")
+def create_retro_board(req: CreateRetroBoardRequest):
+    board, facilitator = retro_service.create_board(req.name, req.template, req.facilitator_nickname)
+    return {
+        "board_id": board.id,
+        "participant_id": facilitator.id,
+        "state": board.public_state(),
+    }
+
+
+@app.get("/api/retro-boards/gif-search")
+def gif_search(q: str = ""):
+    # Registered BEFORE `/api/retro-boards/{board_id}` — Starlette matches
+    # path templates in registration order, so this static path must come
+    # first or `{board_id}` would swallow it (and 404, since "gif-search"
+    # isn't a real board id).
+    try:
+        results = search_gifs(q)
+    except GifSearchError as e:
+        raise HTTPException(503, str(e))
+    return {"results": results}
+
+
+@app.get("/api/retro-boards/{board_id}")
+def get_retro_board(board_id: str):
+    try:
+        board = retro_service.get_board(board_id)
+    except RetroError:
+        raise HTTPException(404, "Board not found")
+    return {"state": board.public_state()}
 
 
 # ---------- WebSocket ----------
@@ -130,6 +182,53 @@ async def ws_endpoint(websocket: WebSocket, room_id: str, player_id: str, nickna
             if room:
                 await manager.broadcast(
                     room_id, {"type": "room_state", "state": room.public_state()}
+                )
+
+
+@app.websocket("/ws/retro/{board_id}")
+async def retro_ws_endpoint(websocket: WebSocket, board_id: str, participant_id: str, nickname: str = ""):
+    """WebSocket: ?participant_id=...&nickname=...
+
+    Мирроит `ws_endpoint` для Planning Poker 1-в-1 (issue #62), включая
+    комментарий про Cloudflare ниже и авто-join/реконнект логику.
+    """
+    board = retro_store.get(board_id)
+    if not board or board.is_expired():
+        await websocket.accept()
+        reason = "expired" if board else "not_found"
+        await websocket.send_json({"type": "board_inactive", "reason": reason})
+        await websocket.close(code=4005 if board else 4004)
+        return
+
+    if participant_id not in board.participants:
+        if not nickname:
+            await websocket.close(code=4001)
+            return
+        participant = retro_service.join(board_id, nickname)
+        participant_id = participant.id
+    else:
+        retro_service.reconnect(board_id, participant_id, nickname)
+
+    await retro_manager.connect(board_id, participant_id, websocket)
+
+    await retro_manager.send_to(board_id, participant_id, {"type": "joined", "participant_id": participant_id})
+    await retro_manager.broadcast(
+        board_id, {"type": "board_state", "state": retro_store.get(board_id).public_state()}
+    )
+
+    try:
+        while True:
+            data = await websocket.receive_json()
+            await handle_retro_message(board_id, participant_id, data)
+    except WebSocketDisconnect:
+        retro_manager.disconnect(board_id, participant_id)
+        was_in_board = retro_service.mark_disconnected(board_id, participant_id)
+        if was_in_board:
+            await retro_manager.broadcast(board_id, {"type": "draw_clear", "player_id": participant_id, "nickname": ""})
+            board = retro_store.get(board_id)
+            if board:
+                await retro_manager.broadcast(
+                    board_id, {"type": "board_state", "state": board.public_state()}
                 )
 
 
@@ -250,6 +349,97 @@ async def handle_message(room_id: str, player_id: str, data: dict) -> None:
         if msg_type in ("reveal", "revote") and room.revealed:
             msg["stats"] = service.compute_stats(room)
         await manager.broadcast(room_id, msg)
+
+
+async def handle_retro_message(board_id: str, participant_id: str, data: dict) -> None:
+    """Единый диспетчер входящих WS-сообщений для Retro Board. Мирроит `handle_message`."""
+    msg_type = data.get("type")
+    try:
+        if msg_type == "add_card":
+            retro_service.add_card(board_id, participant_id, data["column_id"], data["text"], data.get("image_url"))
+        elif msg_type == "edit_card":
+            retro_service.edit_card(board_id, participant_id, data["card_id"], data["text"], data.get("image_url"))
+        elif msg_type == "delete_card":
+            retro_service.delete_card(board_id, participant_id, data["card_id"])
+        elif msg_type == "vote_card":
+            retro_service.vote_card(board_id, participant_id, data["card_id"])
+        elif msg_type == "unvote_card":
+            retro_service.unvote_card(board_id, participant_id, data["card_id"])
+        elif msg_type == "add_comment":
+            retro_service.add_comment(board_id, participant_id, data["card_id"], data["text"])
+        elif msg_type == "delete_comment":
+            retro_service.delete_comment(board_id, participant_id, data["card_id"], data["comment_id"])
+        elif msg_type == "group_cards":
+            retro_service.group_cards(board_id, participant_id, data["source_card_id"], data["target_card_id"])
+        elif msg_type == "ungroup_card":
+            retro_service.ungroup_card(board_id, participant_id, data["card_id"])
+        elif msg_type == "reaction":
+            # Issue #68 — header self-reaction, not tied to a card. Pure
+            # ephemeral relay, broadcast to ALL clients including the sender
+            # so their own floater pops too.
+            msg = retro_service.react(board_id, participant_id, data.get("value", ""))
+            await retro_manager.broadcast(board_id, msg)
+            return
+        elif msg_type == "start_timer":
+            retro_service.start_timer(board_id, participant_id, data["seconds"])
+        elif msg_type == "pause_timer":
+            retro_service.pause_timer(board_id, participant_id)
+        elif msg_type == "resume_timer":
+            retro_service.resume_timer(board_id, participant_id)
+        elif msg_type == "reset_timer":
+            retro_service.reset_timer(board_id, participant_id)
+        elif msg_type == "update_board":
+            retro_service.update_board(
+                board_id, participant_id,
+                name=data.get("name"),
+                anonymous_mode=data.get("anonymous_mode"),
+                max_votes_per_person=data.get("max_votes_per_person"),
+            )
+        elif msg_type == "update_nickname":
+            retro_service.update_nickname(board_id, participant_id, data["nickname"])
+        elif msg_type == "update_avatar_color":
+            retro_service.update_avatar_color(board_id, participant_id, data["color"])
+        elif msg_type in ("draw_stroke", "draw_cursor", "draw_clear"):
+            # Drawing feature (issue #62 follow-up) — mirrors Planning
+            # Poker's relay in handle_message exactly: pure relay to
+            # everyone except the sender, not stored on the board.
+            board = retro_store.get(board_id)
+            participant = board.participants.get(participant_id) if board else None
+            nickname = participant.nickname if participant else ""
+            await retro_manager.broadcast_except(board_id, participant_id, {
+                **data,
+                "player_id": participant_id,
+                "nickname": nickname,
+            })
+            return
+        elif msg_type == "kick_participant":
+            target_id = data["target_id"]
+            await retro_manager.send_to(board_id, target_id, {"type": "kicked"})
+            await retro_manager.close_connection(board_id, target_id, code=4003)
+            retro_service.kick_participant(board_id, participant_id, target_id)
+        elif msg_type == "close_board":
+            retro_service.close_board(board_id, participant_id)
+            await retro_manager.broadcast(board_id, {"type": "board_closed", "reason": "creator_left"})
+            return
+        else:
+            await retro_manager.send_to(
+                board_id, participant_id, {"type": "error", "message": f"Unknown type: {msg_type}"}
+            )
+            return
+    except RetroError as e:
+        await retro_manager.send_to(board_id, participant_id, {"type": "error", "message": str(e)})
+        return
+    except KeyError as e:
+        await retro_manager.send_to(
+            board_id, participant_id, {"type": "error", "message": f"Missing field: {e}"}
+        )
+        return
+
+    board = retro_store.get(board_id)
+    if board:
+        await retro_manager.broadcast(
+            board_id, {"type": "board_state", "state": board.public_state()}
+        )
 
 
 @app.get("/healthz")

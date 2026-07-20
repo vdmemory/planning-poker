@@ -1,0 +1,454 @@
+"""Сервисный слой Retro Board: вся бизнес-логика. Мирроит services.py.
+
+WebSocket-роутер (main.py) только парсит сообщения и делегирует сюда.
+"""
+from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
+from typing import Optional
+from urllib.parse import urlparse
+
+from .retro_models import RETRO_TEMPLATES, RetroBoard, RetroCard, RetroComment, RetroParticipant, RetroTemplate
+from .retro_store import RetroBoardStore
+
+# Тот же дефолт, что и ROOM_LIFETIME в services.py — модуль-level, чтобы тесты
+# могли monkeypatch'ить на короткий интервал.
+BOARD_LIFETIME = timedelta(hours=24)
+
+
+class RetroError(Exception):
+    """Бизнес-ошибка (например: only facilitator can start the timer)."""
+
+
+class RetroService:
+    def __init__(self, store: RetroBoardStore) -> None:
+        self.store = store
+
+    # ---------- Lifecycle ----------
+
+    def create_board(self, name: str, template: RetroTemplate,
+                     facilitator_nickname: str) -> tuple[RetroBoard, RetroParticipant]:
+        now = datetime.now(timezone.utc)
+        board = RetroBoard(
+            name=name,
+            template=template,
+            columns=list(RETRO_TEMPLATES[template]),
+            expires_at=now + BOARD_LIFETIME,
+        )
+        facilitator = RetroParticipant(nickname=facilitator_nickname, is_facilitator=True)
+        board.facilitator_id = facilitator.id
+        board.participants[facilitator.id] = facilitator
+        self.store.save(board)
+        return board, facilitator
+
+    def get_board(self, board_id: str) -> RetroBoard:
+        """Return an active board. Raises `RetroError` if missing or expired.
+
+        Same reasoning as `RoomService.get_room`: treating an expired board as
+        not-existing makes every mutation fail fast without per-method checks.
+        """
+        board = self.store.get(board_id)
+        if not board:
+            raise RetroError(f"Board {board_id} not found")
+        if board.is_expired():
+            raise RetroError(f"Board {board_id} has expired")
+        return board
+
+    def expire_board(self, board_id: str) -> Optional[RetroBoard]:
+        board = self.store.get(board_id)
+        if not board:
+            return None
+        self.store.delete(board_id)
+        return board
+
+    # ---------- Participants ----------
+
+    def join(self, board_id: str, nickname: str) -> RetroParticipant:
+        board = self.get_board(board_id)
+        participant = RetroParticipant(nickname=nickname)
+        board.participants[participant.id] = participant
+        self.store.save(board)
+        return participant
+
+    def reconnect(self, board_id: str, participant_id: str, nickname: str = "") -> Optional[RetroParticipant]:
+        board = self.get_board(board_id)
+        participant = board.participants.get(participant_id)
+        if not participant:
+            return None
+        participant.connected = True
+        participant.disconnected_at = None
+        if nickname:
+            participant.nickname = nickname
+        self.store.save(board)
+        return participant
+
+    def update_nickname(self, board_id: str, participant_id: str, nickname: str) -> None:
+        board = self.get_board(board_id)
+        participant = board.participants.get(participant_id)
+        if not participant:
+            raise RetroError("Participant not found")
+        participant.nickname = nickname.strip() or participant.nickname
+        self.store.save(board)
+
+    def update_avatar_color(self, board_id: str, participant_id: str, color: str) -> None:
+        board = self.get_board(board_id)
+        participant = board.participants.get(participant_id)
+        if not participant:
+            raise RetroError("Participant not found")
+        participant.avatar_color = color
+        self.store.save(board)
+
+    def update_board(self, board_id: str, participant_id: str, name: Optional[str] = None,
+                     anonymous_mode: Optional[bool] = None,
+                     max_votes_per_person: Optional[int] = None) -> None:
+        board = self.get_board(board_id)
+        self._require_facilitator(board, participant_id)
+        if name is not None:
+            board.name = name.strip() or board.name
+        if anonymous_mode is not None:
+            board.anonymous_mode = anonymous_mode
+        if max_votes_per_person is not None:
+            if max_votes_per_person < 1:
+                raise RetroError("max_votes_per_person must be at least 1")
+            board.max_votes_per_person = max_votes_per_person
+        self.store.save(board)
+
+    def kick_participant(self, board_id: str, participant_id: str, target_id: str) -> None:
+        board = self.get_board(board_id)
+        self._require_facilitator(board, participant_id)
+        if target_id == participant_id:
+            raise RetroError("Cannot kick yourself")
+        self.remove_participant(board_id, target_id)
+
+    def mark_disconnected(self, board_id: str, participant_id: str) -> bool:
+        board = self.store.get(board_id)
+        if not board or participant_id not in board.participants:
+            return False
+        participant = board.participants[participant_id]
+        participant.connected = False
+        participant.disconnected_at = datetime.now(timezone.utc)
+        self.store.save(board)
+        return True
+
+    def remove_participant(self, board_id: str, participant_id: str) -> None:
+        """Remove a participant (grace-timeout cleanup, kick, or disconnect).
+
+        Facilitator handoff mirrors `RoomService.remove_player`: if the
+        facilitator drops, the role passes to the first remaining
+        participant. Unlike Planning Poker there's no `close_on_facilitator_leave`
+        opt-out for Phase 1 — always hands off, or deletes the board if empty.
+        """
+        board = self.store.get(board_id)
+        if not board:
+            return
+        was_facilitator = board.facilitator_id == participant_id
+        board.participants.pop(participant_id, None)
+        for card in board.cards.values():
+            if participant_id in card.votes:
+                card.votes.remove(participant_id)
+
+        if was_facilitator and board.participants:
+            new_facilitator = next(iter(board.participants.values()))
+            new_facilitator.is_facilitator = True
+            board.facilitator_id = new_facilitator.id
+
+        if not board.participants:
+            self.store.delete(board_id)
+        else:
+            self.store.save(board)
+
+    def close_board(self, board_id: str, participant_id: str) -> None:
+        board = self.get_board(board_id)
+        self._require_facilitator(board, participant_id)
+        self.store.delete(board_id)
+
+    # ---------- Cards ----------
+
+    def add_card(self, board_id: str, participant_id: str, column_id: str, text: str,
+                 image_url: Optional[str] = None) -> RetroCard:
+        board = self.get_board(board_id)
+        if participant_id not in board.participants:
+            raise RetroError("Participant not in board")
+        if not any(c.id == column_id for c in board.columns):
+            raise RetroError(f"Invalid column '{column_id}' for this board")
+        text = text.strip()
+        if not text:
+            raise RetroError("Card text cannot be empty")
+        card = RetroCard(
+            column_id=column_id, author_id=participant_id, text=text,
+            image_url=self._validate_image_url(image_url),
+        )
+        board.cards[card.id] = card
+        self.store.save(board)
+        return card
+
+    def edit_card(self, board_id: str, participant_id: str, card_id: str, text: str,
+                  image_url: Optional[str] = None) -> None:
+        board = self.get_board(board_id)
+        card = board.cards.get(card_id)
+        if not card:
+            raise RetroError("Card not found")
+        self._require_card_owner_or_facilitator(board, participant_id, card)
+        text = text.strip()
+        if not text:
+            raise RetroError("Card text cannot be empty")
+        card.text = text
+        # No partial-update semantics here (unlike `update_board`'s optional
+        # fields) — the frontend always resends the card's current image_url
+        # alongside every edit, so omitting it here means "remove the image".
+        card.image_url = self._validate_image_url(image_url)
+        self.store.save(board)
+
+    def delete_card(self, board_id: str, participant_id: str, card_id: str) -> None:
+        board = self.get_board(board_id)
+        card = board.cards.get(card_id)
+        if not card:
+            raise RetroError("Card not found")
+        self._require_card_owner_or_facilitator(board, participant_id, card)
+        # Deleting a group's head would otherwise orphan its children's
+        # `group_id` (pointing at a card that no longer exists) — promote the
+        # first remaining child to head instead of dissolving the group.
+        children = [c for c in board.cards.values() if c.group_id == card_id]
+        if children:
+            new_head = children[0]
+            new_head.group_id = None
+            for c in children[1:]:
+                c.group_id = new_head.id
+        del board.cards[card_id]
+        self.store.save(board)
+
+    def vote_card(self, board_id: str, participant_id: str, card_id: str) -> None:
+        board = self.get_board(board_id)
+        if participant_id not in board.participants:
+            raise RetroError("Participant not in board")
+        card = board.cards.get(card_id)
+        if not card:
+            raise RetroError("Card not found")
+        if participant_id in card.votes:
+            raise RetroError("Already voted for this card")
+        if board.votes_used_by(participant_id) >= board.max_votes_per_person:
+            raise RetroError("No votes left")
+        card.votes.append(participant_id)
+        self.store.save(board)
+
+    def unvote_card(self, board_id: str, participant_id: str, card_id: str) -> None:
+        board = self.get_board(board_id)
+        card = board.cards.get(card_id)
+        if not card:
+            raise RetroError("Card not found")
+        if participant_id in card.votes:
+            card.votes.remove(participant_id)
+            self.store.save(board)
+
+    # ---------- Comments (issue #65) ----------
+
+    def add_comment(self, board_id: str, participant_id: str, card_id: str, text: str) -> RetroComment:
+        board = self.get_board(board_id)
+        if participant_id not in board.participants:
+            raise RetroError("Participant not in board")
+        card = board.cards.get(card_id)
+        if not card:
+            raise RetroError("Card not found")
+        text = text.strip()
+        if not text:
+            raise RetroError("Comment text cannot be empty")
+        comment = RetroComment(author_id=participant_id, text=text)
+        card.comments.append(comment)
+        self.store.save(board)
+        return comment
+
+    def delete_comment(self, board_id: str, participant_id: str, card_id: str, comment_id: str) -> None:
+        board = self.get_board(board_id)
+        card = board.cards.get(card_id)
+        if not card:
+            raise RetroError("Card not found")
+        comment = next((c for c in card.comments if c.id == comment_id), None)
+        if not comment:
+            raise RetroError("Comment not found")
+        if comment.author_id != participant_id and board.facilitator_id != participant_id:
+            raise RetroError("Only the comment's author or the facilitator can do this")
+        card.comments.remove(comment)
+        self.store.save(board)
+
+    # ---------- Grouping (issue #62 Phase 2 — drag-to-merge) ----------
+
+    @staticmethod
+    def _group_head_id(board: RetroBoard, card: RetroCard) -> str:
+        return card.group_id or card.id
+
+    def group_cards(self, board_id: str, participant_id: str, source_card_id: str, target_card_id: str) -> None:
+        """Drag `source_card_id` onto `target_card_id`.
+
+        What moves depends on what you dragged — matches "you drag what you
+        clicked" rather than always moving a whole stack:
+        - Dragging a **child** card moves just that one card into the
+          target's stack; the rest of its former stack is untouched.
+        - Dragging a **head** card (the visual top of a stack, possibly with
+          its own children) carries the whole stack along — this is how two
+          stacks merge into one.
+
+        Any participant can group cards — unlike edit/delete, this isn't
+        ownership-gated (clustering similar thoughts is a team activity).
+        Only cards in the same column can be merged; grouping across columns
+        would blur what a "column" means.
+        """
+        board = self.get_board(board_id)
+        if participant_id not in board.participants:
+            raise RetroError("Participant not in board")
+        source = board.cards.get(source_card_id)
+        target = board.cards.get(target_card_id)
+        if not source or not target:
+            raise RetroError("Card not found")
+        if source.id == target.id:
+            raise RetroError("Cannot group a card with itself")
+        if source.column_id != target.column_id:
+            raise RetroError("Cannot group cards from different columns")
+
+        new_head = self._group_head_id(board, target)
+
+        if source.group_id is not None:
+            if source.group_id == new_head:
+                raise RetroError("Cards are already in the same group")
+            source.group_id = new_head
+        else:
+            source_head = source.id
+            if source_head == new_head:
+                raise RetroError("Cards are already in the same group")
+            # Re-point the whole source stack (its head, plus anything
+            # already pointing at that head) at the new head in one pass.
+            for c in board.cards.values():
+                if c.id == source_head or c.group_id == source_head:
+                    c.group_id = new_head
+        self.store.save(board)
+
+    def ungroup_card(self, board_id: str, participant_id: str, card_id: str) -> None:
+        board = self.get_board(board_id)
+        if participant_id not in board.participants:
+            raise RetroError("Participant not in board")
+        card = board.cards.get(card_id)
+        if not card:
+            raise RetroError("Card not found")
+
+        if card.group_id is not None:
+            # A child card detaches on its own; the rest of the stack is untouched.
+            card.group_id = None
+        else:
+            # This card is a head. If nothing points at it, there's no group.
+            children = [c for c in board.cards.values() if c.group_id == card.id]
+            if not children:
+                raise RetroError("Card is not part of a group")
+            # Dissolve the whole stack — no new head is promoted, everyone
+            # goes back to standalone. Keeps the mental model simple: a group
+            # only survives while its original head still leads it.
+            for c in children:
+                c.group_id = None
+        self.store.save(board)
+
+    # ---------- Header reactions (issue #68) ----------
+
+    def react(self, board_id: str, participant_id: str, value: str) -> dict:
+        """Self-reaction, not tied to any card — the header equivalent of
+        Planning Poker's `reaction` (issue #32), emoji-only (no time-value
+        mode, that's specific to Planning Poker's capacity gut-check).
+        Pure ephemeral relay: nothing lands on the board.
+        """
+        board = self.get_board(board_id)
+        participant = board.participants.get(participant_id)
+        if not participant:
+            raise RetroError("Participant not in board")
+        if not value:
+            raise RetroError("Missing reaction value")
+        return {
+            "type": "reaction",
+            "from_participant_id": participant_id,
+            "from_nickname": participant.nickname,
+            "avatar_color": participant.avatar_color,
+            "value": value,
+        }
+
+    # ---------- Timer ----------
+
+    def start_timer(self, board_id: str, participant_id: str, seconds: int) -> None:
+        board = self.get_board(board_id)
+        self._require_facilitator(board, participant_id)
+        if seconds <= 0:
+            raise RetroError("Timer duration must be positive")
+        board.timer_running = True
+        board.timer_ends_at = datetime.now(timezone.utc) + timedelta(seconds=seconds)
+        board.timer_remaining_seconds = None
+        self.store.save(board)
+
+    def pause_timer(self, board_id: str, participant_id: str) -> None:
+        board = self.get_board(board_id)
+        self._require_facilitator(board, participant_id)
+        if board.timer_running and board.timer_ends_at:
+            remaining = (board.timer_ends_at - datetime.now(timezone.utc)).total_seconds()
+            board.timer_remaining_seconds = max(0, round(remaining))
+            board.timer_running = False
+            board.timer_ends_at = None
+            self.store.save(board)
+
+    def resume_timer(self, board_id: str, participant_id: str) -> None:
+        board = self.get_board(board_id)
+        self._require_facilitator(board, participant_id)
+        if not board.timer_running and board.timer_remaining_seconds is not None:
+            board.timer_ends_at = datetime.now(timezone.utc) + timedelta(seconds=board.timer_remaining_seconds)
+            board.timer_remaining_seconds = None
+            board.timer_running = True
+            self.store.save(board)
+
+    def reset_timer(self, board_id: str, participant_id: str) -> None:
+        board = self.get_board(board_id)
+        self._require_facilitator(board, participant_id)
+        board.timer_running = False
+        board.timer_ends_at = None
+        board.timer_remaining_seconds = None
+        self.store.save(board)
+
+    def expire_timer_if_due(self, board: RetroBoard) -> bool:
+        """Auto-pause a timer that ran past its deadline — same end state as a
+        manual `pause_timer` called exactly at zero (`timer_running=False`,
+        `timer_remaining_seconds=0`), so the frontend's "Time's up" badge
+        (triggered by `remaining <= 0`) and hidden Pause/Resume controls just
+        fall out of the normal paused-state rendering, no new wire field
+        needed. Called from a periodic sweep (`expire_finished_timers`),
+        not on every action — a few seconds of lag before the *server*
+        state flips is fine, since every client already shows "Time's up"
+        itself the moment its own local countdown reaches zero.
+        """
+        if not board.timer_running or not board.timer_ends_at:
+            return False
+        if datetime.now(timezone.utc) < board.timer_ends_at:
+            return False
+        board.timer_running = False
+        board.timer_remaining_seconds = 0
+        board.timer_ends_at = None
+        self.store.save(board)
+        return True
+
+    # ---------- Helpers ----------
+
+    @staticmethod
+    def _require_facilitator(board: RetroBoard, participant_id: str) -> None:
+        if board.facilitator_id != participant_id:
+            raise RetroError("Only facilitator can perform this action")
+
+    @staticmethod
+    def _require_card_owner_or_facilitator(board: RetroBoard, participant_id: str, card: RetroCard) -> None:
+        if card.author_id != participant_id and board.facilitator_id != participant_id:
+            raise RetroError("Only the card's author or the facilitator can do this")
+
+    @staticmethod
+    def _validate_image_url(image_url: Optional[str]) -> Optional[str]:
+        """Issue #66 — not a content/antivirus check, just enough to reject
+        garbage (`javascript:`, bare filenames) before it lands on the wire.
+        """
+        if image_url is None:
+            return None
+        image_url = image_url.strip()
+        if not image_url:
+            return None
+        parsed = urlparse(image_url)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            raise RetroError("image_url must be a valid http(s) URL")
+        return image_url

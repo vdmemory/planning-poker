@@ -5,6 +5,8 @@ import Home from "./pages/Home";
 import RoomPage from "./pages/RoomPage";
 import LandingPage from "./pages/LandingPage";
 import FAQPage from "./pages/FAQPage";
+import RetroNewPage from "./pages/RetroNewPage";
+import RetroBoardPage from "./pages/RetroBoardPage";
 import "./index.css";
 
 // Apply saved theme + accent before first render to avoid flash.
@@ -34,6 +36,8 @@ const tree = (
       <Route path="/new" element={<Home />} />
       <Route path="/faq" element={<FAQPage />} />
       <Route path="/room/:roomId" element={<RoomPage />} />
+      <Route path="/retro/new" element={<RetroNewPage />} />
+      <Route path="/retro/:boardId" element={<RetroBoardPage />} />
     </Routes>
   </BrowserRouter>
 );

@@ -118,12 +118,15 @@ disconnected_at старше 30s? → remove_player
 ```
 frontend/src/
 ├── pages/
-│   ├── LandingPage.tsx   маркетинговый лендинг на `/` (issue #22): hero, «как это работает», фичи, скриншот комнаты
-│   ├── FAQPage.tsx       `/faq`
+│   ├── LandingPage.tsx   маркетинговый лендинг на `/` (issue #22, переработан под оба продукта — follow-up):
+│   │                     общий hero с двумя CTA → 2 quick-nav карточки-якоря → секция Planning Poker
+│   │                     (скриншот, «как это работает», фичи, CTA) → секция Retro Board (свой скриншот,
+│   │                     свои шаги, свои фичи, свой CTA) → общий bottom CTA
+│   ├── FAQPage.tsx       `/faq` — вопросы сгруппированы под заголовками «Planning Poker» / «Retro Board» (follow-up)
 │   ├── Home.tsx          форма создания комнаты (`/new` — до issue #22 была на `/`), POST /api/rooms
 │   └── RoomPage.tsx      игровой экран; всё под одним WS-каналом
 ├── components/
-│   ├── MarketingShell.tsx общий header (лого + nav) / footer для лендинга и FAQ
+│   ├── MarketingShell.tsx общий header (лого + nav, включая ссылку на Retro Board) / footer для лендинга и FAQ
 │   ├── Card.tsx          одна карта (на руке + на столе)
 │   ├── PlayerList.tsx    список игроков с offline-индикатором, аватарами
 │   ├── StatsPanel.tsx    avg / median / distribution / consensus
@@ -142,7 +145,7 @@ frontend/src/
 | `/new` | `Home` | Форма создания комнаты — POST `/api/rooms` |
 | `/room/:roomId` | `RoomPage` | Игровой экран |
 
-Лендинг и FAQ не трогают бэкенд и WS вообще — чисто фронтовый роутинг, общий `MarketingShell` для header/footer. Скриншот комнаты на лендинге переключается между `public/landing/room-dark.png` / `room-light.png` по классу `html.light` (тот же механизм, что и остальная тема приложения — см. `useTheme`), а не по `prefers-color-scheme`, потому что выбор темы в приложении — explicit user choice в `localStorage`, а не всегда совпадает с OS-preference.
+Лендинг и FAQ не трогают бэкенд и WS вообще — чисто фронтовый роутинг, общий `MarketingShell` для header/footer. Оба скриншота на лендинге (Planning Poker: `public/landing/room-dark.png`/`room-light.png`; Retro Board: `retro-dark.png`/`retro-light.png`, follow-up) переключаются между dark/light-версией по классу `html.light` (тот же механизм, что и остальная тема приложения — см. `useTheme`), а не по `prefers-color-scheme`, потому что выбор темы в приложении — explicit user choice в `localStorage`, а не всегда совпадает с OS-preference. Retro-скриншоты сделаны тем же приёмом, что и room-скриншоты, — реальный Playwright-сеанс с несколькими участниками, карточками и голосами, а не мокап.
 
 ### `useRoomSocket`
 
@@ -188,6 +191,102 @@ dev  → Render(planning-poker-backend-dev) → Vercel Preview scope → <projec
 ```
 
 Один Blueprint `render.yaml` создаёт оба бэк-сервиса. Один Vercel-проект имеет scope-разделённый `VITE_API_URL`.
+
+## Retro Board (issue #62, Phase 1 + Phase 2)
+
+Второй независимый продукт на том же сайте — доска для ретроспектив. Полностью параллельный домен: свои модели/store/сервис/WS-менеджер/WS-эндпоинт/REST-эндпоинты, **не** расширение `Room`/`RoomService`. Бизнес-логика — в `docs/RETRO_BUSINESS_LOGIC.md`. Phase 2 добавила drag-to-merge группировку карточек, эмодзи-реакции на карточки и мобильную адаптацию.
+
+### Структура бэка
+
+```
+backend/app/
+├── retro_models.py      Pydantic-модели: RetroTemplate, RetroColumn, RETRO_TEMPLATES,
+│                        RetroParticipant, RetroCard, RetroBoard
+├── retro_store.py       RetroBoardStore (Protocol) + InMemoryRetroBoardStore — тот же
+│                        паттерн, что store.py
+├── retro_service.py     RetroService — вся бизнес-логика, framework-agnostic
+├── retro_ws_manager.py  Переиспользует ConnectionManager из ws_manager.py (domain-agnostic
+│                        dict[str, dict[str, WebSocket]]) + свои cleanup-задачи
+│                        (cleanup_disconnected_participants, cleanup_expired_boards) —
+│                        не общие с room-версиями, т.к. ссылаются на поля RetroBoard
+│                        (participants) вместо Room (players)
+├── gif_client.py        issue #66 — стейтлес-прокси к GIPHY search API, держит
+│                        GIPHY_API_KEY на сервере
+└── main.py              + REST POST/GET /api/retro-boards, GET /api/retro-boards/gif-search,
+                         WS /ws/retro/{board_id}, handle_retro_message dispatcher — параллельно room-роутам
+```
+
+### Структура фронта
+
+```
+frontend/src/
+├── pages/
+│   ├── RetroNewPage.tsx        `/retro/new` — форма создания доски, POST /api/retro-boards
+│   └── RetroBoardPage.tsx      `/retro/:boardId` — join-модалка + сама доска
+├── components/
+│   ├── RetroTemplatePicker.tsx выбор из 3 preset-шаблонов колонок
+│   ├── RetroColumn.tsx         одна колонка: рендерит стопки (head+children), форма добавления
+│   ├── RetroCardItem.tsx       ОДНА (never-grouped) карточка: inline-edit, vote, drag-grip, comments
+│   ├── RetroCardStack.tsx      смёрженная карточка: тексты через "---", один общий голос/автор, undo
+│   ├── RetroCardCommentThread.tsx issue #65 — попап-тред комментариев, общий для Item/Stack
+│   ├── RetroCardAttachmentPicker.tsx issue #66 — эмодзи-грид + GIF-поиск + прямой URL, общий для Item/Column
+│   ├── RetroReactionsPanel.tsx issue #68 — клон ReactionsPanel, эмодзи-only, в хедере (не привязана к карточке)
+│   ├── RetroTimer.tsx          idle/running/paused UI таймера, live-countdown на клиенте
+│   ├── RetroSettingsModal.tsx  follow-up — клон GameSettingsModal (полноэкранный модал,
+│   │                           открывается кликом по имени доски); заменил старый
+│   │                           RetroSettingsDropdown (якорный дропдаун, удалён)
+│   └── RetroProfileMenu.tsx    follow-up — клон ProfileMenu без spectator-тумблера;
+│                               открывается кликом по аватарке участника
+├── hooks/
+│   ├── useRetroSocket.ts       WS с авто-реконнектом, аналог useRoomSocket; onDrawMessage —
+│   │                           follow-up, роутит draw_stroke/draw_cursor/draw_clear
+│   ├── useRetroCardDrag.ts     Phase 2 — Pointer Events drag-to-merge state (не HTML5 DnD)
+│   └── useRetroReactions.ts    issue #68 — floater-очередь для header self-reaction,
+│                               урезанный клон useReactionAnimations (без on-card оверлея)
+└── types.ts                     + RetroTemplate, RetroColumnDef, RetroParticipant,
+                                  RetroCard (+ group_id), RetroBoardState
+```
+
+Компонент рисования (`DrawingCanvas.tsx`, `frontend/src/components/`) **не дублируется** — переиспользуется напрямую из Planning Poker без изменений: он уже был написан domain-agnostic, единственное требование — что входящие relay-сообщения несут поле `player_id` (не `participant_id`), поэтому это единственный шов между двумя доменами.
+
+### Роуты фронта (добавлено в `main.tsx`)
+
+| Path | Компонент | Что |
+|---|---|---|
+| `/retro/new` | `RetroNewPage` | Форма создания доски — POST `/api/retro-boards` |
+| `/retro/:boardId` | `RetroBoardPage` | Экран доски |
+
+Переходы на лендинге (`LandingPage.tsx`) ведут на `/retro/new`: hero CTA (`data-testid="landing-retro-cta"`), quick-nav карточка (`data-testid="landing-retro-nav-card"`, якорь на `#retro-board`), CTA под фичами самой секции Retro Board, и общий bottom CTA — follow-up переработал лендинг так, чтобы Retro Board была полноценной секцией 1-в-1 с Planning Poker, а не подвальным тизером.
+
+### REST
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| `POST` | `/api/retro-boards` | `{ name, template, facilitator_nickname }` | `{ board_id, participant_id, state }` |
+| `GET`  | `/api/retro-boards/gif-search` | — (query `?q=`) | `{ results: [{ id, preview_url, url, title }] }` — issue #66, proxies GIPHY, registered before `{board_id}` below |
+| `GET`  | `/api/retro-boards/{board_id}` | — | `{ state }` |
+
+### WebSocket
+
+**Client → Server**: `add_card` (+ optional `image_url`), `edit_card` (+ optional `image_url`), `delete_card`, `vote_card`, `unvote_card`, `group_cards`, `ungroup_card`, `add_comment`, `delete_comment`, `reaction`, `start_timer`, `pause_timer`, `resume_timer`, `reset_timer`, `update_board`, `update_nickname`, `update_avatar_color`, `kick_participant`, `close_board`, `draw_stroke`, `draw_cursor`, `draw_clear`.
+
+**Server → Client**: `joined`, `board_state`, `reaction`, `kicked`, `board_closed`, `board_expired`, `board_inactive`, `draw_*` (relay), `error`.
+
+Полный протокол и семантика каждого сообщения — `docs/RETRO_BUSINESS_LOGIC.md`.
+
+### Ключевые архитектурные решения
+
+- **Голоса/карточки не скрываются** — в отличие от `revealed` в Planning Poker, карточки видны всем сразу. Избегает необходимости в per-viewer `public_state()`.
+- **Anonymous mode — display-only**: `author_id` всегда на wire (нужен для permission-проверок), фронт лишь скрывает никнейм у не-авторов. Не переход на per-connection `send_to()`.
+- **Таймер — абсолютный дедлайн** (`timer_ends_at`), не серверный тик — клиент считает live-countdown сам, никакой новой per-board фоновой задачи.
+- **Группировка через Pointer Events, не HTML5 Drag-and-Drop** (Phase 2) — нативный `draggable` не работает на тач-устройствах; `onPointerDown`/`setPointerCapture` на маленькой ручке карточки работает одинаково с мышью и пальцем без дублирования обработчиков.
+- **Header self-reaction (`reaction`, issue #68) — чистый relay**, как `reaction`/`throw_reaction` в Planning Poker — ничего не пишется в `RetroBoard`, только validate + broadcast всем участникам включая отправителя.
+- **Комментарии к карточкам (issue #65) — НЕ relay, персистентны**: `RetroCard.comments` хранится на карточке и едет в `board_state` как обычное поле (как `votes`), в отличие от `reaction`/`card_reaction` нет отдельного WS-типа на приём. `add_comment` не author-gated, `delete_comment` — только автор комментария или фасилитатор.
+- **`ConnectionManager` переиспользуется** напрямую (domain-agnostic), но cleanup-задачи — отдельные функции (ссылаются на разные имена полей `Room`/`RetroBoard`).
+- **Нет `close_on_facilitator_leave`** — упрощённый facilitator-handoff без опт-аута, сознательный scope-trim для Phase 1.
+- **Header переведён на двухуровневую схему Planning Poker** (follow-up к issue #62): клик по имени доски (фасилитатор) → `RetroSettingsModal` (клон `GameSettingsModal`, batched-save по кнопке); клик по аватарке → `RetroProfileMenu` (клон `ProfileMenu` без spectator). Старый гибрид «инлайн-рен + шестерёнка-дропдаун» удалён целиком.
+- **Рисование переиспользует `DrawingCanvas` 1-в-1** — бэкенд-релей просто транслирует `draw_stroke`/`draw_cursor`/`draw_clear` всем, кроме отправителя, подставляя `player_id: participant_id`; ничего не хранится на `RetroBoard`.
+- **Карточные вложения (issue #66) — только внешний URL, никогда бинарные данные**: `RetroCard.image_url`, GIF-поиск через серверный прокси к GIPHY (`gif_client.py`), держащий API-ключ вне клиента. Полноценная загрузка файлов сознательно не делается — конфликтует с in-memory/no-storage философией проекта.
 
 ## Невидимые ограничения (важно держать в голове)
 

@@ -59,3 +59,70 @@ export interface Stats {
   consensus: boolean;
   total_votes: number;
 }
+
+// ---------- Retro Board (issue #62) ----------
+
+export type RetroTemplate =
+  | "went_well_extended"
+  | "went_well_actions"
+  | "mad_sad_glad"
+  | "start_stop_continue"
+  | "four_ls";
+
+export interface RetroColumnDef {
+  id: string;
+  title: string;
+  color: string;
+}
+
+export interface RetroParticipant {
+  id: string;
+  nickname: string;
+  is_facilitator: boolean;
+  connected: boolean;
+  disconnected_at: string | null;
+  avatar_color: string;
+}
+
+export interface RetroComment {
+  id: string;
+  author_id: string;
+  text: string;
+  created_at: string;
+}
+
+export interface RetroCard {
+  id: string;
+  column_id: string;
+  author_id: string;
+  text: string;
+  votes: string[];
+  // Issue #62 Phase 2 — drag-to-merge grouping. `null` means standalone (or
+  // this card IS the group's head); otherwise points at the head card's id.
+  group_id: string | null;
+  // Issue #65 — text comment thread on the card.
+  comments: RetroComment[];
+  // Issue #66 — optional GIF/image attachment, external URL only.
+  image_url: string | null;
+  created_at: string;
+}
+
+export interface RetroBoardState {
+  id: string;
+  name: string;
+  template: RetroTemplate;
+  columns: RetroColumnDef[];
+  cards: RetroCard[];
+  participants: RetroParticipant[];
+  facilitator_id: string | null;
+  // Display-only: hides card author names from OTHER participants on the
+  // frontend. Author ids stay on the wire (needed for edit/delete
+  // permission checks) — this is a UX toggle, not a secrecy mechanism, same
+  // trust model as the rest of this casual team tool.
+  anonymous_mode: boolean;
+  max_votes_per_person: number;
+  timer_running: boolean;
+  timer_ends_at: string | null;
+  timer_remaining_seconds: number | null;
+  expires_at: string;
+}
